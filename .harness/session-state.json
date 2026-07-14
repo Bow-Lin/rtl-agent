@@ -1,0 +1,54 @@
+{
+  "task_id": "windows-linux-development-constraints",
+  "status": "completed",
+  "current_phase": "handoff",
+  "last_updated": "2026-07-14T17:12:05+08:00",
+  "active_plan": [
+    "Inspect Agent and coding rules",
+    "Add logical-path constraints",
+    "Add shell-free process and Linux Gate constraints",
+    "Add Git attributes and stable decision",
+    "Validate and record handoff"
+  ],
+  "next_3_steps": [
+    "Execute A01 with a Windows/Linux CI matrix",
+    "Add logical-path utilities in A02",
+    "Test LINUX_GATE_REQUIRED in B07"
+  ],
+  "changed_files": [
+    "current-task.md",
+    ".harness/session-state.json",
+    ".harness/session-log.md",
+    "AGENTS.md",
+    ".gitattributes",
+    "docs/coding-guidelines.md",
+    "docs/verification.md",
+    "docs/task-breakdown.md",
+    "docs/decisions.md"
+  ],
+  "validation": {
+    "last_commands": [
+      "git check-attr representative files",
+      "rg cross-platform constraint scan",
+      "session-state JSON parse",
+      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+    ],
+    "last_result": "passed",
+    "known_failures": []
+  },
+  "cognitive_state": {
+    "failure_count": 0,
+    "current_mode": "handoff",
+    "tried_approaches": [
+      "Separated logical manifest paths from OS filesystem paths",
+      "Required shell-free executable and argv process spawning",
+      "Defined Windows Preflight and Linux formal Gate behavior",
+      "Added enforceable Git line-ending attributes"
+    ],
+    "blocked_on": null
+  },
+  "handoff": {
+    "last_summary": "Added Windows-development/Linux-runtime constraints for paths, processes, formal Gates, line endings, and cross-platform validation.",
+    "resume_from": "Begin A01 with the new Windows/Linux CI and portability requirements."
+  }
+}
