@@ -12,6 +12,13 @@
 
 在 `@rtl-agent/contracts` 中建立所有跨层数据的唯一运行时定义。Zod schema 是输入验证入口，TypeScript 类型从 schema 推导，不再维护一套手写平行类型。A02 只定义数据形状、规范化和错误协议，不实现状态转换。
 
+## 当前平台验收策略
+
+- Contract、logical path 和 canonical JSON 的设计仍必须同时考虑 Windows 与未来 Linux 运行语义。
+- 当前 A02 的完成证据只要求在 Windows 上执行本文件列出的 lint、typecheck、test 和 build；不要求 Linux 执行结果。
+- 与大小写、symlink 或 Linux 文件系统有关的补充验证可以后置，但 contract 不得因此接受反斜杠、盘符、绝对逻辑路径或 `..` traversal。
+- 没有 Linux 证据时不能声称 contracts 已完成生产 Linux 兼容性认证。
+
 ## 设计原则
 
 - Contract 是 MCP、CLI、domain、storage 和未来 worker 之间的版本化 JSON 边界。

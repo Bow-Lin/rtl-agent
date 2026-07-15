@@ -1,0 +1,21 @@
+{
+  "name": "@rtl-agent/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@rtl-agent/contracts": "workspace:*",
+    "@rtl-agent/domain": "workspace:*"
+  }
+}

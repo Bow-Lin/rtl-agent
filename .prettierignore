@@ -1,0 +1,13 @@
+node_modules
+**/dist
+**/coverage
+**/.vitest
+**/*.tsbuildinfo
+.harness
+.rtl-workflow
+docs
+skills
+scripts
+AGENTS.md
+current-task.md
+pnpm-lock.yaml

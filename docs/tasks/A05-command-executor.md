@@ -12,6 +12,13 @@
 
 实现 Workflow Daemon 内唯一的领域写入入口。Command Executor 串行接收 command，并在一个同步短事务中完成幂等检查、版本检查、纯 domain 决策、task projection、event、outbox 和 command result。事务提交后返回的结果必须能在进程崩溃或客户端重试后重放。
 
+## 当前平台验收策略
+
+- Executor、FIFO queue、hash、transaction orchestration 和错误处理不得依赖 Windows shell 或宿主路径语义，保证未来可在 Linux daemon 中运行。
+- 当前 A05 的完成证据只要求 Windows 上的 lint、typecheck、SQLite integration、并发、rollback、restart、failure-injection 测试和 build 通过；不要求 Linux 执行结果。
+- 暂缓 Linux 证据不允许放宽同步短事务、无外部副作用、CAS 或幂等原子性要求。
+- 没有 Linux 证据时不能声称 Command Executor 已完成生产 Linux runtime 验证。
+
 ## 代码归属
 
 新增 `@rtl-agent/application` package 承载 application service。Command Executor 不放入纯 `domain`，也不塞进 SQLite `storage` adapter：

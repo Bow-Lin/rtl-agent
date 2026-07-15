@@ -67,10 +67,12 @@ spawn("git", ["diff", "--name-only"], { shell: false });
 
 ### Gate Platform Boundary
 
-- Preflight, domain, storage, MCP, and manifest tests must run on both Windows and Linux.
+- Preflight, domain, storage, MCP, and manifest tests must remain runnable on both Windows and Linux and must pass on both before production Linux readiness is claimed.
 - Formal RTL compile, simulation, coverage, and sandbox Gates may be Linux-only.
 - A formal Gate invoked on a non-Linux host must fail explicitly with a stable error such as `LINUX_GATE_REQUIRED`; it must not silently downgrade to a Preflight result.
 - Windows development may run fast Preflight checks, while Linux CI or a Linux Worker supplies authoritative Gate evidence.
+
+Temporary A01–A05 evidence exception: implementation must remain portable and retain future Linux validation entry points, but A01, A02, A03, A04, and A05 may currently be marked complete using Windows validation evidence only. A successful Linux CI or Linux runtime result is not required for those five task completion decisions. This exception does not establish production Linux readiness and does not apply to B07, B11, or any formal RTL Gate acceptance.
 
 ### Line Endings
 
@@ -93,7 +95,7 @@ Completion requires validation evidence.
 
 Use `docs/verification.md` to choose validation commands.
 
-For portable control-plane changes, include Windows validation and Linux CI evidence once project-specific commands exist. Linux-only formal Gate behavior must be tested both for successful Linux execution and explicit non-Linux rejection.
+For portable control-plane changes, include Windows validation and Linux CI evidence once project-specific commands exist, except that A01–A05 currently require Windows evidence only under the temporary exception above. Linux-only formal Gate behavior must be tested both for successful Linux execution and explicit non-Linux rejection.
 
 If validation cannot be run, record:
 

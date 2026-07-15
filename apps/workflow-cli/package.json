@@ -1,0 +1,11 @@
+{
+  "name": "@rtl-agent/workflow-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rtl-agent/contracts": "workspace:*",
+    "@rtl-agent/domain": "workspace:*",
+    "@rtl-agent/storage": "workspace:*"
+  }
+}

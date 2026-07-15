@@ -1,0 +1,12 @@
+{
+  "name": "@rtl-agent/workflow-daemon",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@rtl-agent/contracts": "workspace:*",
+    "@rtl-agent/domain": "workspace:*",
+    "@rtl-agent/storage": "workspace:*"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "rtl-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.13.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": "11.13.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json --pretty false",
+    "test": "vitest run",
+    "build": "tsc -b tsconfig.json --pretty false",
+    "clean": "tsc -b tsconfig.json tsconfig.test.json --clean",
+    "format:check": "prettier --check . --ignore-unknown",
+    "format": "prettier --write . --ignore-unknown"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.7.0",
+    "prettier": "3.9.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10"
+  }
+}

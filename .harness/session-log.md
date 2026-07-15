@@ -293,3 +293,112 @@ The first two authoring-check attempts failed because the temporary PowerShell v
 1. Execute A01 using `docs/tasks/A01-typescript-workspace.md`.
 2. Record the real package commands and Windows/Linux CI evidence.
 3. Mark A01 `DONE` only after validation, then begin A02.
+
+## Entry: Defer Linux Evidence for A01-A05
+
+### Summary
+
+Adjusted the first five implementation tasks so Windows validation evidence is sufficient for their current `DONE` decisions. Linux portability remains mandatory, Linux validation entry points remain in the design, and no production Linux readiness may be claimed until the deferred suite runs.
+
+### Files Updated
+
+- `AGENTS.md`
+- `docs/tasks/A01-typescript-workspace.md`
+- `docs/tasks/A02-contracts-and-errors.md`
+- `docs/tasks/A03-domain-state-machine.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `docs/tasks/A05-command-executor.md`
+- `docs/task-breakdown.md`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Policy Result
+
+- A01–A05 retain Windows/Linux-portable paths, shell-free process handling, LF policy, platform-neutral contracts, and future Linux CI entry points.
+- Windows lint/typecheck/test/build and task-specific integration evidence are sufficient for current completion.
+- A01 keeps a Windows/Linux CI matrix configuration, but a successful Linux job is not currently required.
+- A04 may complete using Windows `better-sqlite3` install/runtime and file-backed SQLite evidence; Linux native-module and real mount behavior are deferred.
+- B07 and B11 still require Linux formal Compile Gate evidence and explicit Windows `LINUX_GATE_REQUIRED` behavior.
+
+### Validation
+
+- Exactly one temporary platform-policy section exists in each A01–A05 document: passed.
+- Stale A01/A04 Linux-blocking wording scan: passed.
+- B07 `LINUX_GATE_REQUIRED` and B11 Linux Compile Gate evidence preservation checks: passed.
+- Markdown code-fence checks for all five task documents: passed.
+- `git diff --check`: passed.
+- `.harness/session-state.json` parse: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed.
+
+### Known Risks
+
+- Windows-only evidence does not cover case sensitivity, symlink behavior, executable bits, Linux native modules, or Linux filesystem/mount semantics.
+- These risks remain accepted only for A01–A05 development progress and must be closed before production Linux readiness.
+
+### Next Steps
+
+1. Execute A01 on Windows using the revised specification.
+2. Record Windows evidence in `docs/task-breakdown.md` and the Session Log.
+3. Add Linux execution evidence later before claiming production readiness or a trusted formal Gate.
+
+## Entry: A01 TypeScript Workspace and Quality Baseline
+
+### Summary
+
+Executed A01 and created the minimal pnpm TypeScript monorepo without adding business logic. The workspace now contains two private apps, three library packages, strict TypeScript project references, separate no-emit test typechecking, Vitest, ESLint, Prettier, exact dependency versions, and a Windows/ advisory-Linux GitHub Actions matrix.
+
+### Files Created or Updated
+
+- root workspace: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`
+- runtime/tool policy: `.node-version`, `.gitignore`, `.prettierignore`
+- TypeScript: `tsconfig.base.json`, `tsconfig.json`, `tsconfig.test.json`
+- quality tools: `eslint.config.mjs`, `prettier.config.mjs`, `vitest.config.ts`
+- CI: `.github/workflows/ci.yml`
+- apps: `apps/workflow-daemon/**`, `apps/workflow-cli/**`
+- libraries: `packages/contracts/**`, `packages/domain/**`, `packages/storage/**`
+- documentation and handoff files
+
+### Locked Baseline
+
+- Node.js `24.15.0`
+- Corepack `0.34.6`
+- pnpm `11.13.0`
+- TypeScript `6.0.3`
+- ESLint `10.7.0`
+- typescript-eslint `8.64.0`
+- Prettier `3.9.5`
+- Vitest `4.1.10`
+- `@types/node` `24.13.3`
+- `@modelcontextprotocol/sdk` `1.29.0`, owned by `workflow-daemon`
+
+The initial registry resolution selected TypeScript `7.0.2`, which violated typescript-eslint's `<6.1.0` peer range. It was replaced with the latest compatible TypeScript `6.0.3`; `pnpm peers check` then passed.
+
+### Validation
+
+- Removed the verified workspace `node_modules` directory and restored it with `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed for source project references and no-emit tests.
+- `corepack pnpm test`: 1 file, 1 test passed.
+- `corepack pnpm build`: passed.
+- `corepack pnpm format:check`: passed.
+- `corepack pnpm clean`: passed before the final rebuild.
+- `corepack pnpm peers check`: no peer issues.
+- Temporary TypeScript error caused `typecheck` to fail as expected, then was removed.
+- Temporary wrong assertion caused Vitest to fail as expected, then was removed.
+- Exact dependency, library/app manifest, test-output, shell-policy, Git attribute, and `git diff --check` structural checks: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: final result recorded after handoff update.
+
+### Known Issues / Risks
+
+- Linux GitHub Actions is configured as advisory and was not executed as A01 completion evidence.
+- pnpm reports deprecated transitive `glob@10.5.0`; it is not a direct dependency and did not produce peer or validation failures.
+- No production/Linux readiness claim is made from the Windows-only evidence.
+
+### Next Steps
+
+1. Execute A02 from `docs/tasks/A02-contracts-and-errors.md`.
+2. Add Zod contracts and logical-path tests inside the existing package boundaries.
+3. Preserve the unified commands and record A02 validation before starting A03.

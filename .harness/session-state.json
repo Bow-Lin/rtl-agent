@@ -1,54 +1,77 @@
 {
-  "task_id": "a01-a05-implementation-specs",
+  "task_id": "A01-typescript-workspace",
   "status": "completed",
   "current_phase": "handoff",
-  "last_updated": "2026-07-14T18:45:00+08:00",
+  "last_updated": "2026-07-15T11:30:00+08:00",
   "active_plan": [
-    "Confirm A01-A05 boundaries and repository constraints",
-    "Write one implementation-ready document per task",
-    "Link task documents from the progress breakdown",
-    "Validate references, Markdown, JSON, and harness state",
-    "Record handoff"
+    "Revise the A01 implementation specification",
+    "Create the pnpm TypeScript workspace and five projects",
+    "Install and lock exact dependencies",
+    "Add quality tools and CI configuration",
+    "Validate on Windows and record handoff"
   ],
   "next_3_steps": [
-    "Execute A01 only from docs/tasks/A01-typescript-workspace.md",
-    "Record A01 Windows/Linux validation evidence in the breakdown and Session Log",
-    "Start A02 only after A01 is DONE"
+    "Begin A02 from its implementation specification",
+    "Implement strict contracts and logical-path tests",
+    "Record A02 evidence before beginning A03"
   ],
   "changed_files": [
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md",
-    "docs/decisions.md",
-    "docs/task-breakdown.md",
     "docs/tasks/A01-typescript-workspace.md",
-    "docs/tasks/A02-contracts-and-errors.md",
-    "docs/tasks/A03-domain-state-machine.md",
-    "docs/tasks/A04-sqlite-storage.md",
-    "docs/tasks/A05-command-executor.md"
+    "docs/task-breakdown.md",
+    "docs/verification.md",
+    "docs/decisions.md",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    ".node-version",
+    ".gitignore",
+    ".prettierignore",
+    "tsconfig.base.json",
+    "tsconfig.json",
+    "tsconfig.test.json",
+    "eslint.config.mjs",
+    "prettier.config.mjs",
+    "vitest.config.ts",
+    ".github/workflows/ci.yml",
+    "apps/workflow-daemon/**",
+    "apps/workflow-cli/**",
+    "packages/contracts/**",
+    "packages/domain/**",
+    "packages/storage/**"
   ],
   "validation": {
     "last_commands": [
-      "A01-A05 required-heading, code-fence, and link validation",
-      "git diff --check",
-      "session-state JSON parse",
+      "corepack pnpm install --frozen-lockfile after verified node_modules removal",
+      "corepack pnpm lint",
+      "corepack pnpm typecheck",
+      "corepack pnpm test",
+      "corepack pnpm build",
+      "corepack pnpm format:check",
+      "corepack pnpm peers check",
+      "negative typecheck and test probes",
+      "Git attribute, dependency, manifest, output, and shell-policy structural checks",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "passed",
+    "last_result": "passed on Windows; Linux execution deferred by policy",
     "known_failures": []
   },
   "cognitive_state": {
     "failure_count": 0,
     "current_mode": "handoff",
     "tried_approaches": [
-      "Kept task breakdown as progress source of truth",
-      "Selected one standalone implementation document per task",
-      "Checked current Node and SQLite adapter support before specifying the baseline"
+      "Pinned the executable baseline to Node 24.15.0 and pnpm 11.13.0",
+      "Downgraded registry-latest TypeScript 7.0.2 to compatible TypeScript 6.0.3",
+      "Used root Vitest config and separate no-emit test typechecking",
+      "Assigned the MCP SDK to the daemon runtime package",
+      "Verified frozen reinstall and negative failure behavior"
     ],
     "blocked_on": null
   },
   "handoff": {
-    "last_summary": "Created five implementation-ready specifications for A01-A05 and linked them from the authoritative task progress tracker.",
-    "resume_from": "Execute A01 only; do not begin A02 until A01 validation evidence is recorded and its status is DONE."
+    "last_summary": "A01 completed: exact pnpm/TypeScript workspace baseline and all Windows quality checks passed.",
+    "resume_from": "Begin A02 contracts; preserve A01 package boundaries and unified commands."
   }
 }

@@ -136,3 +136,48 @@ For A04, use a precisely pinned `better-sqlite3` adapter, initially targeting `1
 ### Consequences
 
 A01 must pin the package-manager and dependency versions and run the same commands on Windows and Linux. A04 must treat native module installation/runtime compatibility as an acceptance gate and must record any adapter replacement before implementation. A05 introduces `packages/application` and preserves a one-way dependency from application to domain and storage.
+
+## 2026-07-15 - Temporarily Defer Linux Execution Evidence for A01-A05
+
+### Context
+
+Development is currently performed on Windows and there is not yet a required Linux validation environment. Requiring a successful Linux CI/runtime result would block the first five control-plane tasks before the project has established that environment, even though their implementations can still be designed for portability.
+
+### Decision
+
+For A01 through A05 only, Windows validation evidence is sufficient to mark the task `DONE`. Implementations must continue to obey logical-path, shell-free process, LF, platform-neutral contract, and Linux-runtime design constraints. A01 retains a future Windows/Linux CI matrix entry point, but a successful Linux job is advisory/deferred during this interval. A04 may select and validate the SQLite adapter using Windows install/runtime evidence; Linux native-module and real mount behavior are validated later.
+
+This decision supersedes only the A01–A05 Linux evidence requirements in the 2026-07-14 platform and SQLite decisions. It does not relax B07/B11 formal Gate acceptance, non-Linux `LINUX_GATE_REQUIRED` behavior, or the evidence required before claiming production Linux readiness.
+
+### Alternatives Considered
+
+- Block A01 until Linux CI succeeds: rejected for the current development phase because the missing environment would prevent useful Windows implementation progress.
+- Remove Linux CI and portability work entirely: rejected because that would create avoidable migration debt and violate the target runtime boundary.
+- Treat all future tasks as Windows-only: rejected because authoritative RTL Gates and production runtime remain Linux responsibilities.
+
+### Consequences
+
+Task handoffs for A01–A05 record Windows results and note Linux validation as deferred by policy rather than as a task failure. Case sensitivity, symlink, executable-bit, native module, and Linux filesystem behavior remain unverified risk until Linux validation runs. No release or trusted Gate may claim Linux readiness from Windows-only evidence.
+
+## 2026-07-15 - Pin the A01 Toolchain and Typecheck Tests Separately
+
+### Context
+
+A01 requires a reproducible Windows baseline and a future Linux CI entry point. During installation, the registry's latest TypeScript was `7.0.2`, while `typescript-eslint@8.64.0` declared support only for TypeScript versions below `6.1.0`. The workspace also needed to prove internal package exports resolve without compiling tests into production output.
+
+### Decision
+
+Pin `.node-version` and CI to the locally verified Node `24.15.0`, pin pnpm `11.13.0` in `packageManager`, and lock all registry dependencies to exact versions. Use TypeScript `6.0.3`, ESLint `10.7.0`, typescript-eslint `8.64.0`, Vitest `4.1.10`, Prettier `3.9.5`, and Node types `24.13.3`.
+
+Use `vitest.config.ts` rather than the obsolete standalone workspace file. Keep source builds in composite TypeScript projects and add `tsconfig.test.json` as a no-emit test project in the same build-mode typecheck command. Validate internal `workspace:*` dependencies through type-only app imports. Install `@modelcontextprotocol/sdk@1.29.0` as a runtime dependency of `workflow-daemon`, not as a root development tool.
+
+### Alternatives Considered
+
+- Use the registry-latest TypeScript 7: rejected because it violated the installed typescript-eslint peer range.
+- Let CI float to the latest Node 24 patch: rejected because local and CI evidence would no longer identify the same runtime.
+- Leave tests to Vitest transformation only: rejected because A02 will immediately depend on compile-time contract test coverage.
+- Put the MCP SDK in root devDependencies: rejected because it is a daemon runtime dependency.
+
+### Consequences
+
+Tool upgrades are explicit lockfile changes with compatibility checks. `typecheck` may produce source `dist` output, while tests remain no-emit. The Linux CI job uses the same `.node-version` but remains advisory under the temporary A01–A05 policy. Node `24.15.0` is the validated baseline; upgrading to a later patch is a separate maintenance change.

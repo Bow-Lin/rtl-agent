@@ -12,6 +12,13 @@
 
 在 `@rtl-agent/domain` 中实现 Phase A 的确定性状态转换。给定相同当前状态、command 和显式上下文，必须产生相同的下一状态与事件；给定相同初始状态和事件序列，必须还原相同投影。Domain 不读取数据库、文件系统、时钟、随机数、环境变量或网络。
 
+## 当前平台验收策略
+
+- Domain 必须保持无平台 API、无文件系统和无 shell 依赖，使同一状态机以后可在 Linux 运行。
+- 当前 A03 的完成证据只要求 Windows 上的 lint、typecheck、完整表驱动测试和 build 通过；不要求 Linux 测试结果。
+- 纯函数确定性和 exhaustive/fail-closed 覆盖不能因暂缓 Linux 验证而降低。
+- 没有 Linux 证据时不能声称已经完成生产 Linux runtime 验证。
+
 ## 核心 API
 
 建议公共 API：

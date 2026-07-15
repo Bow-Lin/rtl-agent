@@ -2,53 +2,60 @@
 
 ## Goal
 
-Create implementation-ready specifications for tasks A01 through A05 while keeping `docs/task-breakdown.md` as the progress-tracking entry point.
+Execute A01 by creating the TypeScript monorepo and quality baseline after incorporating the approved A01 review changes.
 
 ## Current Status
 
-Completed. Five implementation-ready specifications now define A01 through A05, and `docs/task-breakdown.md` remains the authoritative progress tracker with status, links, and evidence placeholders. No application task was marked complete and no application code was implemented.
+Completed. The pnpm TypeScript workspace, five source projects, source/test typechecking, quality tools, exact dependency lock, and advisory Linux CI entry point are implemented. All required Windows validation passed; no business logic was added.
 
 ## Scope
 
 Allowed:
 
-- create one detailed implementation document for each of A01, A02, A03, A04, and A05
-- make technical choices required to make those documents directly executable
-- add status and implementation-document links to `docs/task-breakdown.md`
-- record stable implementation decisions and update harness state
+- revise `docs/tasks/A01-typescript-workspace.md`
+- create the root pnpm workspace, lockfile, TypeScript project references, two apps, and three library packages
+- install exact quality-tool dependencies and `@modelcontextprotocol/sdk@1.29.0` in the daemon package
+- add ESLint, Prettier, Vitest, source/test typechecking, ignore files, and Windows/Linux CI configuration
+- update verification, decisions, task progress, and harness handoff
 
 Not performed:
 
-- scaffold the TypeScript workspace
-- install Node.js or package dependencies
-- implement contracts, the state machine, SQLite storage, or the Command Executor
-- mark any A01–A05 implementation task complete
+- implement A02 contracts or Zod schemas
+- implement domain state transitions, SQLite, daemon lifecycle, MCP transport, CLI behavior, Gate, Runner, or Langfuse
+- require Linux execution evidence for A01 completion
+- modify or discard unrelated existing documentation changes
 
 ## Relevant Files
 
-- `docs/task-breakdown.md`
-- `docs/rtl-agent-high-level-design.md`
-- `docs/coding-guidelines.md`
-- `docs/verification.md`
 - `docs/tasks/A01-typescript-workspace.md`
-- `docs/tasks/A02-contracts-and-errors.md`
-- `docs/tasks/A03-domain-state-machine.md`
-- `docs/tasks/A04-sqlite-storage.md`
-- `docs/tasks/A05-command-executor.md`
+- `docs/task-breakdown.md`
+- `docs/verification.md`
+- `package.json`
+- `pnpm-workspace.yaml`
+- `tsconfig*.json`
+- `apps/*`
+- `packages/*`
+- `.github/workflows/ci.yml`
 
 ## Plan
 
-1. Confirm the original A01–A05 boundaries and applicable repository constraints.
-2. Define a common implementation-spec format and required technical choices.
-3. Write five ordered, implementation-ready task documents.
-4. Add status and specification links to the task breakdown.
-5. Validate Markdown structure, references, JSON, and the project harness.
+1. Revise A01 for current Vitest, exact Node/pnpm, dependency ownership, ignore policy, and test typechecking.
+2. Create the workspace manifests, project references, source stubs, and package-resolution smoke coverage.
+3. Install and lock exact tool/runtime dependencies.
+4. Add lint, formatting, test, build, and CI configuration.
+5. Run all Windows validation commands and repair failures without adding business logic.
+6. Record evidence, mark A01 complete only if acceptance passes, and update harness state.
 
 ## Validation Commands
 
 ```powershell
-rg -n "^# A0[1-5]|^## (目标|范围|实现步骤|验证命令|完成定义)" docs/tasks
-rg -n "tasks/A0[1-5]|\*\*状态\*\*" docs/task-breakdown.md
+corepack pnpm install --frozen-lockfile
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+corepack pnpm format:check
+git check-attr text eol -- package.json pnpm-lock.yaml apps/workflow-daemon/src/index.ts
 git diff --check
 Get-Content .harness/session-state.json -Raw | ConvertFrom-Json
 & 'C:\Program Files\Git\bin\bash.exe' scripts/harness_check.sh
@@ -56,25 +63,26 @@ Get-Content .harness/session-state.json -Raw | ConvertFrom-Json
 
 ## Acceptance Criteria
 
-- A01–A05 each have a standalone implementation document.
-- Each document defines scope, file-level deliverables, ordered steps, tests, validation commands, failure handling, and a definition of done.
-- Cross-platform path, process, line-ending, and Linux formal-Gate constraints are carried into relevant tasks.
-- A later agent can implement one task without relying on chat history or inventing cross-layer behavior.
-- `docs/task-breakdown.md` remains the progress source and links to each detailed document.
-- No implementation task is marked complete without code and validation evidence.
+- Five projects build through TypeScript project references and package exports.
+- Tests are discovered by Vitest and typechecked separately from source build output.
+- Root tool dependencies and daemon MCP dependency are precisely pinned in `pnpm-lock.yaml`.
+- Unified commands pass on Windows using Node `24.15.0` and pnpm `11.13.0`.
+- CI contains Windows and advisory Linux jobs using `.node-version`.
+- No A02+ business logic is introduced.
+- Linux execution evidence is recorded as deferred under the current policy.
 
 ## Risks
 
-- Exact non-MCP package patch versions still need to be resolved and locked when A01 executes.
-- `better-sqlite3` is a native dependency; A04 must prove prebuilt/install and runtime compatibility on both Windows and Linux CI.
-- The detailed contracts may reveal HLD changes during implementation; such changes require a decision-log entry before coding continues.
+- Linux CI is configured but not executed as A01 completion evidence.
+- Package-manager installation may change exact resolved tool versions; the lockfile and Session Log are authoritative.
+- Existing uncommitted documentation changes must remain intact.
 
 ## Next 3 Steps
 
-1. Execute A01 only using `docs/tasks/A01-typescript-workspace.md`.
-2. Record A01 command and Windows/Linux CI evidence in the breakdown and Session Log.
-3. Start A02 only after A01 is marked `DONE`.
+1. Begin A02 from `docs/tasks/A02-contracts-and-errors.md`.
+2. Add strict Zod contracts and logical-path tests without changing the A01 package boundaries.
+3. Run the unified commands and record A02 evidence before starting A03.
 
 ## Last Updated
 
-2026-07-14T18:45:00+08:00
+2026-07-15T11:30:00+08:00

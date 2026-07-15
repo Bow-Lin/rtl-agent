@@ -12,15 +12,22 @@
 
 在 `@rtl-agent/storage` 中建立首版 SQLite 持久化边界，包括迁移、启动检查、repository interface 和同步 adapter。A04 只提供可靠的数据访问能力，不在 repository 中实现领域转换或跨表 command 编排。
 
+## 当前平台验收策略
+
+- Storage 的路径、migration asset 定位、事务 API 和 SQLite 配置仍必须按未来 Linux 运行设计。
+- 当前 A04 的完成证据只要求 Windows 上安装/运行 SQLite adapter，并通过 file-backed DB、migration、PRAGMA、约束和恢复测试；不要求 Linux 安装或运行结果。
+- Linux mount 检测逻辑仍需通过平台无关 fixture/parser 测试，但真实 Linux `/proc/self/mountinfo` 与 native module 验证后置。
+- 没有 Linux 证据时只能声称 Windows storage baseline 通过，不能声称 SQLite adapter 已具备生产 Linux readiness。
+
 ## Adapter 选择
 
-首版使用 `better-sqlite3`，执行 A04 时将通过 Windows/Linux smoke test 的版本精确锁定；当前设计基线为 `12.10.0`。选择原因：
+首版使用 `better-sqlite3`，执行 A04 时先通过 Windows smoke test 精确锁定版本；当前设计基线为 `12.10.0`。Linux smoke test 作为后续兼容性证据，不阻塞 A04。选择原因：
 
 - API 同步，适合一个 Command Executor 在单连接上执行不跨 event-loop tick 的短事务。
 - 支持完整 transaction，并提供 Node LTS 预编译包。
 - 相比之下，Node 24.18 的 `node:sqlite` 官方稳定级别仍为 `1.2 - Release candidate`，暂不作为权威状态存储基线。
 
-如果 `better-sqlite3@12.10.0` 在 A04 的 Windows/Linux CI 安装或运行失败，不得静默换库；先在 `docs/decisions.md` 记录新 adapter、兼容性证据和迁移成本。[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)；[Node 24 SQLite API](https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html)
+如果 `better-sqlite3@12.10.0` 在当前 Windows 验证中安装或运行失败，不得静默换库；先在 `docs/decisions.md` 记录新 adapter、兼容性证据和迁移成本。以后 Linux 验证失败时同样必须先记录决策，再声称 Linux readiness。[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)；[Node 24 SQLite API](https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html)
 
 ## 范围
 
@@ -262,7 +269,7 @@ interface TransactionManager {
 
 ## 实现步骤
 
-1. 精确安装 `better-sqlite3` 及其类型；先在 Windows/Linux CI 加安装 + `:memory:` smoke test。
+1. 精确安装 `better-sqlite3` 及其类型；先在 Windows 完成安装和 `:memory:` smoke test，并为以后 Linux CI 保留同一命令入口。
 2. 实现 DB path validation 和 connection factory。
 3. 实现 PRAGMA 配置、读回验证和连接关闭。
 4. 实现 migration discovery、checksum、tracking table 和 transaction runner。
@@ -303,7 +310,7 @@ rg -n "await|fetch\(|child_process|spawn\(" packages/storage/src
 
 ## 完成定义
 
-- Windows/Linux 都能安装、构建并运行选定 SQLite adapter。
+- Windows 能安装、构建并运行选定 SQLite adapter；Linux 结果当前不作为完成条件。
 - file-backed DB 的 WAL、foreign keys、timeout、FULL 设置有读回证据。
 - migration 可重复、可校验、失败原子回滚。
 - repository 不泄漏 SQLite 类型，不包含领域转换。
@@ -312,4 +319,4 @@ rg -n "await|fetch\(|child_process|spawn\(" packages/storage/src
 
 ## 实现交接内容
 
-Session Log 记录实际 `better-sqlite3`/SQLite 版本、Windows/Linux install 结果、migration checksum、PRAGMA 实际值、schema version、repository 公共 API、网络文件系统检测限制和 A05 的 transaction 使用方式。
+Session Log 记录实际 `better-sqlite3`/SQLite 版本、Windows install/runtime 结果、Linux 验证按当前策略延期、migration checksum、PRAGMA 实际值、schema version、repository 公共 API、网络文件系统检测限制和 A05 的 transaction 使用方式。

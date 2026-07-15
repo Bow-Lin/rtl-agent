@@ -23,21 +23,23 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 
 任务状态只在本文维护，详细实现文档不作为进度事实来源。状态枚举为：`NOT_STARTED`、`IN_PROGRESS`、`BLOCKED`、`DONE`。只有代码、测试、统一验证命令和 Session Log 证据均满足任务验收时，才能标记 `DONE`。
 
+A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 运行并保留 Linux CI/验证入口，但任务完成只要求 Windows 验证证据，Linux 成功结果暂不阻塞 `DONE`。该策略不能用于声称生产 Linux readiness，也不修改 B07、B11 或正式 RTL Gate 的 Linux 验收要求。
+
 ## 2. Phase A：状态机、常驻服务与审核边界
 
 ### A01 — 建立 TypeScript Workspace 与质量基线
 
-**状态**：`NOT_STARTED`；可执行，当前序列中的第一项。
+**状态**：`DONE`；Windows 质量基线已验证，Linux 执行证据按当前策略延期。
 
 **实现文档**：[A01 — TypeScript Workspace](tasks/A01-typescript-workspace.md)
 
-**验收证据**：尚无。
+**验收证据**：2026-07-15，Windows Node `24.15.0` / pnpm `11.13.0`：frozen reinstall、lint、source/test typecheck、Vitest、build、format、peer check、Git attributes 和 Harness 全部通过；负向类型错误与失败断言均能使对应命令失败；Linux job 已配置为 advisory，未作为完成证据。
 
 **目标**：创建最小 monorepo，选定并记录 Node.js LTS、包管理器、锁文件、TypeScript strict、格式化、lint、Vitest 和 build 方式。
 
-**交付物**：workspace manifest、lockfile、共享 tsconfig、`apps/workflow-daemon`、`apps/workflow-cli`、`packages/domain`、`packages/contracts`、`packages/storage`、空测试样例、Windows/Linux CI matrix 和 CI-ready scripts。
+**交付物**：workspace manifest、lockfile、共享 tsconfig、`apps/workflow-daemon`、`apps/workflow-cli`、`packages/domain`、`packages/contracts`、`packages/storage`、空测试样例、Windows/Linux CI matrix 配置和 CI-ready scripts。
 
-**验收**：四条统一命令均能在 Windows 和 Linux 的干净 checkout 中成功；没有业务逻辑；依赖固定到具体版本；`@modelcontextprotocol/sdk` 初始锁定 v1.29.0；Git checkout 后的换行符合 `.gitattributes`。
+**验收**：四条统一命令在 Windows 干净 checkout 中成功；Linux job 配置存在但其运行成功暂不是完成条件；没有业务逻辑；依赖固定到具体版本；`@modelcontextprotocol/sdk` 初始锁定 v1.29.0；Git checkout 后的换行符合 `.gitattributes`。
 
 ### A02 — 定义跨层 Contract 与稳定错误模型
 
