@@ -188,6 +188,8 @@ status TEXT NOT NULL
 requested_state_version INTEGER NOT NULL
 allowed_decisions_json TEXT NOT NULL
 binding_json TEXT NOT NULL
+requested_actor_type TEXT NOT NULL
+requested_actor_id TEXT NOT NULL
 decision TEXT NULL
 decision_actor_type TEXT NULL
 decision_actor_id TEXT NULL
@@ -195,7 +197,7 @@ created_at TEXT NOT NULL
 decided_at TEXT NULL
 ```
 
-A09 可用后续 migration 添加 nonce digest/expiry。A04 不存 nonce placeholder，也不实现决定提交。
+A03 `DomainState.pendingReview` 需要 review、request actor 和 request time 才能在重启后独立执行决定校验，因此 request actor 是首版持久字段。A09 可用后续 migration 添加 nonce digest/expiry。A04 不存 nonce placeholder，也不实现决定提交。
 
 ### `workflow_events`
 
@@ -252,6 +254,8 @@ last_error_code TEXT NULL
 
 - interface 接受/返回 contract/domain 类型，不向上暴露 SQLite Row、Statement 或 Database handle。
 - row mapper 对 DB 读出的 JSON 和 enum 再运行 A02 parse；坏数据返回 `STORAGE_CORRUPTION` 类内部错误，不能产生半合法 domain state。
+- task 与 pending review repository 必须能在同一 transaction 中组装 A03 `DomainState`；`WAITING_REVIEW` 缺 review row、ID/binding/version 不一致或非 waiting task 存在 pending review 都视为 storage corruption。
+- event repository 按 `event_sequence` 读取 task stream，并按 command ID、before/after version 和连续 `event_index` 还原 A03 batch 输入；不新增 EventBatch 表或 wire envelope。
 - 所有写 repository 方法必须要求显式 `TransactionContext`；不得从全局连接自行开启 transaction。
 - read-only 方法可接受 transaction context 或 read connection；A04 首版可统一使用同一连接。
 - transaction callback 必须同步，TypeScript 类型禁止返回 Promise；运行时发现 thenable 立即回滚并报错。

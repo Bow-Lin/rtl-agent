@@ -59,11 +59,11 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 ### A03 — 实现纯领域状态机
 
-**状态**：`NOT_STARTED`；等待 A02。
+**状态**：`DONE`；2026-07-15 完成纯 Phase A 状态机、batch replay、完整 pending-review aggregate 与表驱动验证。
 
 **实现文档**：[A03 — Domain State Machine](tasks/A03-domain-state-machine.md)
 
-**验收证据**：尚无。
+**验收证据**：Windows 上 domain 6 个 test files / 31 tests、全仓 13 files / 101 tests 全通过；lint、typecheck、build、format、peer、无副作用扫描和 Harness 均通过。Linux 证据按 A01–A05 临时策略后置。
 
 **依赖**：A02。
 
@@ -75,7 +75,7 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 ### A04 — 建立 SQLite Schema 与 Migration 框架
 
-**状态**：`NOT_STARTED`；等待 A03。
+**状态**：`NOT_STARTED`；A03 已完成，可开始。
 
 **实现文档**：[A04 — SQLite Storage](tasks/A04-sqlite-storage.md)
 

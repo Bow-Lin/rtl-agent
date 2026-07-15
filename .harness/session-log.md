@@ -473,3 +473,67 @@ All public schemas, inferred types, constants, `canonicalizeJsonJcs`/`canonicali
 1. Execute A03 using schema version 1 and the exported branded types.
 2. Implement pure `decide`, `evolveBatch`, and replay with the existing atomic batch invariants.
 3. Keep Spec Approval bound to `specDigest` and fail closed for the Phase B/C review variants not yet supported by A03.
+
+## Entry: A03 Pure Domain State Machine
+
+### Summary
+
+Implemented the Phase A state machine in `@rtl-agent/domain`. The public API is pure and batch-only: `decide` emits a domain-local non-empty event batch, `evolveBatch` is the only projection entry point, and `replay` consumes ordered command batches. No database, filesystem, process, clock, random, MCP, network, or logging behavior was added.
+
+### Files Created or Updated
+
+- `packages/domain/src/{result,errors,state,transition-table,state-invariants,decide,evolve,replay}.ts`
+- `packages/domain/src/index.ts`, `packages/domain/package.json`
+- `packages/domain/test/*.test.ts`, `packages/domain/test/fixtures.ts`
+- `docs/tasks/A03-domain-state-machine.md`
+- `docs/tasks/A04-sqlite-storage.md`, `docs/tasks/A05-command-executor.md`
+- `docs/architecture.md`, `docs/decisions.md`, `docs/task-breakdown.md`
+- `current-task.md`, `.harness/session-state.json`, `.harness/session-log.md`
+
+### Domain Decisions
+
+- Kept A02 `EventEnvelope[]` as the wire batch carrier and used a domain-local tuple type; no persisted EventBatch envelope was added.
+- Introduced `DomainState`, which pairs the task projection with the complete current pending review so `decide` remains pure after restart.
+- Required the exact three-decision Spec Approval policy and an explicit actor matrix.
+- Split intrinsic state invariants from previous/next transition invariants.
+- Added internal integrity codes for invalid state, transition, batch, sequence, and decision context; these are not new A02 external error codes.
+- Used version/index/task/command/event identity for ordering and integrity. Time is audit/context data with a non-regression check.
+- Phase A permits exactly one event per command while retaining batch-aware APIs; unplanned multi-event sequences fail closed.
+
+### Test Coverage
+
+- Executable policy covered all 48 Stage × Status combinations for all three Phase A command discriminators.
+- Covered all three review decisions, all three known-but-unsupported review types, actor-policy failures, exact allowed-decision policy, task/review/version binding mismatches, old/new expected versions, unknown runtime command/event values, and context ID/time failures.
+- Covered empty/oversized/mixed/duplicate/gapped batches, unsupported multi-event sequences, cross-batch version/task/time continuity, full-stream duplicate command/event IDs, deterministic replay, deep-frozen input immutability, and state/transition invariant separation.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed; workspace already current.
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test`: 6 files, 31 tests passed.
+- `corepack pnpm test`: 13 files, 101 tests passed.
+- `corepack pnpm build`: passed.
+- `corepack pnpm format:check`: passed.
+- `corepack pnpm peers check`: no peer issues.
+- Domain dependency/side-effect scan: no matches.
+- `git diff --check`: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed before the final handoff update and rerun after it.
+
+### Failures Found and Repaired
+
+- The first test typecheck assigned an unbranded numeric fixture to `StateVersion`; the corruption fixture now uses an explicit branded test cast.
+- The first full format check found three unformatted test files; Prettier corrected them before the final validation run.
+
+### Known Issues / Risks
+
+- Linux execution remains deferred under the active A01–A05 evidence exception; no production Linux readiness claim is made.
+- A04 must add request actor columns to the review projection and assemble task plus pending review into `DomainState` in one transaction.
+- A05 must write review projection changes atomically and map internal DomainError integrity codes to a safe `INTERNAL_ERROR` response.
+- Later multi-event commands must explicitly extend domain event-sequence policy.
+
+### Next Steps
+
+1. Execute A04 from the revised SQLite specification.
+2. Persist enough task/review data to reconstruct `DomainState` after restart.
+3. Read workflow events in command batches and prove strict A03 replay from stored rows.

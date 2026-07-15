@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "scripts": {
+    "test": "vitest run packages/domain/test --config vitest.config.ts --root ../.."
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

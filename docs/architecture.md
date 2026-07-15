@@ -2,7 +2,7 @@
 
 ## Repository Type
 
-RTL engineering workflow service under ordered implementation. A01 established the TypeScript workspace and A02 implemented the version 1 cross-layer contract package. The accepted system design remains in `docs/rtl-agent-high-level-design.md`.
+RTL engineering workflow service under ordered implementation. A01 established the TypeScript workspace, A02 implemented the version 1 cross-layer contract package, and A03 implemented the pure Phase A domain state machine. The accepted system design remains in `docs/rtl-agent-high-level-design.md`.
 
 ## Main Directories
 
@@ -11,11 +11,12 @@ RTL engineering workflow service under ordered implementation. A01 established t
 - `scripts/`: harness checks and shell-command safety guard.
 - `apps/workflow-daemon`, `apps/workflow-cli`: buildable application shells; runtime behavior remains unimplemented.
 - `packages/contracts`: implemented Zod schema version 1, JCS, logical paths, and stable boundary parsers/errors.
-- `packages/domain`, `packages/storage`: buildable package shells awaiting A03/A04 logic.
+- `packages/domain`: pure Phase A `decide`/`evolveBatch`/`replay`, executable transition policy, aggregate invariants, and internal integrity errors.
+- `packages/storage`: buildable package shell awaiting A04 logic.
 
 ## Entry Points
 
-Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, and format checks. `@rtl-agent/contracts` exports its public API only through `packages/contracts/src/index.ts`; command and event inputs use `parseCommandEnvelope` and `parseEventEnvelope`. Application entry files remain stubs.
+Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, and format checks. `@rtl-agent/contracts` exports its public API only through `packages/contracts/src/index.ts`; command and event inputs use `parseCommandEnvelope` and `parseEventEnvelope`. `@rtl-agent/domain` exports its public pure API only through `packages/domain/src/index.ts`. Application entry files remain stubs.
 
 ## Data / Control Flow
 

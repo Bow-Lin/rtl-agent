@@ -204,3 +204,28 @@ Keep the existing `EventEnvelope[]` result rather than adding another persisted 
 ### Consequences
 
 Zod is pinned at `4.4.3`. Hash inputs are cross-language JCS UTF-8 bytes. A03 can rely on canonical time, strict review variants, stable parse failures, and a validated command event batch. A09 must compute Spec Approval digests at the trusted workspace boundary. Production Linux compatibility is still not claimed from Windows-only A02 evidence.
+
+## 2026-07-15 - Use a Batch-Only Domain API and Self-Contained Pending Review Aggregate in A03
+
+### Context
+
+The original A03 draft exposed a single-event reducer while also requiring one version increment per command batch. It passed only `TaskState.pendingReviewId` to `decide`, even though A02 defines allowed decisions and binding as review-instance data. That combination could not validate a review decision purely after a restart without querying hidden repository state.
+
+### Decision
+
+Expose `decide`, `evolveBatch`, and batch-oriented `replay`; do not expose a single-event reducer. Keep A02 `EventEnvelope[]` and A04 event rows as the cross-layer/persistence representation, with a domain-local non-empty `EventBatch` TypeScript view rather than a second wire envelope.
+
+Use `DomainState` as the pure aggregate input: a `TaskState` projection plus the complete pending review when one exists. Phase A Spec Approval requires the exact `APPROVE | REJECT | REQUEST_CHANGES` set. Actor policy allows `USER | AGENT` to start, `AGENT | SYSTEM` to request review, and only `USER` to record a decision.
+
+Separate intrinsic state invariants from previous/next transition invariants. Keep state/batch/sequence/context corruption as internal DomainError classifications and map them safely in A05 rather than expanding the A02 public error protocol. Treat time as audit/context data with a non-regression check, never as the event ordering key.
+
+### Alternatives Considered
+
+- Add a persisted EventBatch envelope: rejected because A02 already validates `CommandSuccess.events` atomically and A04 has command/index/version columns plus transaction atomicity.
+- Put the complete review inside A02 `TaskState`: viable, but rejected for Phase A because A04 already has a separate reviews projection and can assemble `DomainState` transactionally without duplicating the full review in the tasks row.
+- Derive allowed decisions only from review type: rejected because A02 deliberately models allowed decisions as review-instance data; A03 additionally enforces the safe Phase A policy set.
+- Add corruption codes to A02 ErrorEnvelope: rejected because corrupted state or event streams are internal faults, not caller-controlled protocol branches.
+
+### Consequences
+
+A04 must persist request actor fields and assemble task plus pending review into `DomainState`. A05 must persist review projection changes atomically with task/events/outbox/idempotency, provide non-regressing context time, and map A03 integrity errors to a safe internal response. Later multi-event commands extend the domain batch handler explicitly without changing the A02 wire result.

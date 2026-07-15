@@ -21,33 +21,53 @@
 
 ## 核心 API
 
-建议公共 API：
+公共 API：
 
 ```ts
+type PendingReviewState = {
+  reviewId: ReviewId;
+  review: ReviewRequest;
+  requestedAt: IsoTimestamp;
+  requestedBy: Actor;
+};
+
+type DomainState = {
+  task: TaskState;
+  pendingReview?: PendingReviewState;
+};
+
+// A03 TypeScript view，不是新的 A02 wire envelope 或 A04 表。
+type EventBatch = readonly [EventEnvelope, ...EventEnvelope[]];
+
 type DecisionContext = {
   occurredAt: IsoTimestamp;
   eventIds: readonly EventId[];
 };
 
 type Decision = {
-  previousState: TaskState | null;
-  nextState: TaskState;
-  events: readonly EventEnvelope[];
+  nextState: DomainState;
+  eventBatch: EventBatch;
 };
 
 function decide(
-  currentState: TaskState | null,
+  currentState: DomainState | null,
   command: CommandEnvelope,
   context: DecisionContext,
 ): Result<Decision, DomainError>;
 
-function evolve(
-  currentState: TaskState | null,
-  event: EventEnvelope,
-): Result<TaskState, DomainError>;
+function evolveBatch(
+  currentState: DomainState | null,
+  events: readonly EventEnvelope[],
+): Result<DomainState, DomainError>;
 
-function replay(events: readonly EventEnvelope[]): Result<TaskState, DomainError>;
+function replay(
+  batches: readonly (readonly EventEnvelope[])[],
+): Result<DomainState, DomainError>;
 ```
+
+不公开会绕过批次完整性检查的单事件 `evolve`。`EventBatch` 只是经过 A03 校验的非空数组类型；A02 `CommandSuccess.events` 继续是跨层 batch carrier，A04 继续逐 event row 原子持久化，不增加第二套 batch envelope。
+
+`DomainState` 是纯领域 aggregate。`TaskState` 保持轻量 task 投影，pending review 的完整事实由 A04 `reviews` row 提供；A05 在 transaction 中读取 task 与 pending review 后组装 `DomainState`。这样 Domain 可以检查 allowed decisions 和 binding，不需要查询 repository。
 
 `Result` 使用项目内简单 discriminated union，不引入函数式框架。不要抛异常表达预期领域失败；真正的程序错误可以抛出并由上层转成 `INTERNAL_ERROR`。
 
@@ -57,7 +77,7 @@ function replay(events: readonly EventEnvelope[]): Result<TaskState, DomainError
 
 - `START_WORKFLOW`、`REQUEST_REVIEW`、`RECORD_REVIEW_DECISION` 的 Phase A 规则。
 - command → event 的 `decide`。
-- event → state 的 `evolve` 和事件 replay。
+- event batch → state 的 `evolveBatch` 和事件 replay。
 - 显式 transition table 与表驱动测试。
 - state version、event batch 和时间更新规则。
 - 非法转换、未知事件、事件顺序错误的 fail-closed 行为。
@@ -77,6 +97,7 @@ packages/domain/src/
   index.ts
   result.ts
   errors.ts
+  state.ts
   state-invariants.ts
   transition-table.ts
   decide.ts
@@ -84,6 +105,7 @@ packages/domain/src/
   replay.ts
 packages/domain/test/
   transition-table.test.ts
+  state-invariants.test.ts
   decide.test.ts
   evolve.test.ts
   replay.test.ts
@@ -100,9 +122,9 @@ packages/domain/test/
 5. `updatedAt` 使用 command context 的 `occurredAt`；不得调用 `Date.now()`。
 6. `createdAt` 只由 `WORKFLOW_STARTED` 设置，后续事件不得修改。
 7. Command envelope 的 `expectedStateVersion` 必须等于当前 version；否则返回 `STATE_VERSION_CONFLICT`。
-8. `evolve` 要求 event before version 与当前 state 一致，after version恰好为 before + 1；同批多个 event 的投影应用需要 batch-aware reducer。
+8. `evolveBatch` 要求 batch before version 与当前 state 一致，after version 恰好为 before + 1；Phase A 当前每个 command 只产生一个 event，任何未声明的多 event 组合 fail closed，后续增加多事件 command 时显式扩展 handler。
 
-由于一个 command 未来可能产生多个 event，内部应实现 `evolveBatch`：先校验整个 batch 的 task/command/version/index，再按顺序更新投影，最后只设置一次目标 version。不要逐事件把 version 加多次。
+`evolveBatch` 先校验整个 batch 的 task/command/correlation/version/time/index/event ID，再按顺序更新投影，最后只设置一次目标 version。不要逐事件把 version 加多次。
 
 ## Phase A transition table
 
@@ -124,10 +146,12 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 - `REQUEST_REVIEW.taskId` 必须等于 task state ID。
 - request 绑定的 `stateVersion` 必须等于 command 执行前 version。
 - Phase A Spec Approval 要求 `specDigest`，但不要求 snapshot/gate/verification digest；若调用方提供不适用的正式 Gate binding，拒绝而非忽略。A03 只验证 binding 形状与 state identity；A09 负责从绑定 workspace 计算 spec digest，不能信任 Agent 自报。
-- 等待审核时 task 投影保存 `pendingReviewId`。
-- 决定的 review ID 必须与 `pendingReviewId` 相同，否则返回 `REVIEW_BINDING_MISMATCH`。
+- 等待审核时 task 投影保存 `pendingReviewId`，领域 aggregate 同时保存完整 `PendingReviewState`；两者 ID 必须相同。
+- `PendingReviewState.review` 保存 review type、allowed decisions 和完整 binding；决定必须在该实例的 allowed decisions 中，binding 必须仍与 task aggregate 一致。
+- Phase A `SPEC_APPROVAL` 的允许决定必须与 `APPROVE | REJECT | REQUEST_CHANGES` 精确集合相等；Agent 不能通过缩小列表去掉拒绝或修改权。
 - `RECORD_REVIEW_DECISION.actor.type` 必须是 `USER`。这只是 domain defense-in-depth；真正 Agent 无法访问提交接口由 A08–A10 保证。
-- decision 后清除 `pendingReviewId`。
+- Actor 矩阵：`START_WORKFLOW` 允许 `USER | AGENT`，`REQUEST_REVIEW` 允许 `AGENT | SYSTEM`，`RECORD_REVIEW_DECISION` 只允许 `USER`。
+- decision 后同时清除 task `pendingReviewId` 和 aggregate `pendingReview`。
 
 ## Event evolve 规则
 
@@ -140,7 +164,7 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 ### `REVIEW_REQUESTED`
 
 - 只允许从 `SPEC_FREEZE / ACTIVE` 应用。
-- 设置 `WAITING_REVIEW` 和 `pendingReviewId`，stage 不变。
+- 设置 `WAITING_REVIEW`、`pendingReviewId` 和完整 `PendingReviewState`，stage 不变。
 
 ### `REVIEW_DECISION_RECORDED`
 
@@ -150,21 +174,37 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 - reject/request changes 回到 `SPEC_FREEZE / ACTIVE`。
 - 清除 pending review。
 
-未知 event type、task ID 改变、command ID 混批、eventIndex 缺口、版本跳跃或时间倒退均返回错误。时间相等允许，以支持同一 command batch。
+未知 event type、task ID 改变、command ID 混批、eventIndex 缺口、版本跳跃或时间倒退均返回错误。时间相等允许。事件排序以 task event sequence、state version 和 event index 为准；`occurredAt` 只用于审计和非递减上下文约束。
 
 ## State invariant
 
-实现一个纯函数 `validateStateInvariants(state)`，至少检查：
+实现两个纯 invariant 层。
+
+`validateStateInvariants(state)` 检查单个 aggregate 自身：
 
 - version >= 1。
-- `WAITING_REVIEW` 必须有 `pendingReviewId`。
-- 非 `WAITING_REVIEW` 不得有 `pendingReviewId`。
+- `WAITING_REVIEW` 必须同时有相互匹配的 `pendingReviewId` 和完整 `pendingReview`。
+- 非 `WAITING_REVIEW` 不得有任一 pending review 表示。
 - Phase A 中 `SPEC_FREEZE` 只允许 `ACTIVE` 或 `WAITING_REVIEW`。
 - `VERIFICATION_PLAN` 在 A03 只允许 `ACTIVE`，且不接受进一步修改 command。
 - createdAt <= updatedAt。
-- task、workspace、spec path 初始化后不可被后续 event 改变。
+- pending review type、binding、allowed decisions、request actor/time 与当前状态一致。
 
-每次 `decide` 输出和 `evolveBatch` 输出都执行 invariant 检查。不要只在测试中检查。
+`validateTransitionInvariants(previous, next, batch)` 检查跨状态属性：task/workspace/spec path/createdAt 不变、version 恰好加一、updatedAt 等于 batch time，以及 batch task/version 与 next state 一致。
+
+每次 `decide` 输出和 `evolveBatch` 输出都执行两层 invariant 检查。不要只在测试中检查。
+
+## Domain error 分类
+
+预期 command 拒绝继续使用 A02 稳定 code，例如 `TASK_NOT_FOUND`、`STATE_VERSION_CONFLICT`、`INVALID_TRANSITION` 和 `REVIEW_BINDING_MISMATCH`。A03 另定义不直接暴露的内部完整性 code：
+
+- `STATE_INVARIANT_VIOLATION`
+- `TRANSITION_INVARIANT_VIOLATION`
+- `INVALID_EVENT_BATCH`
+- `INVALID_EVENT_SEQUENCE`
+- `INVALID_DECISION_CONTEXT`
+
+A05 将内部完整性错误安全映射成 `INTERNAL_ERROR`；不得把数据库内容、event payload 或内部 reason 原样暴露。A03 不为这些内部诊断扩充 A02 wire ErrorEnvelope。
 
 ## 错误优先级
 
@@ -181,10 +221,10 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 
 ## 实现步骤
 
-1. 创建无副作用的 `Result` 与 `DomainError` 类型，并映射到 A02 ErrorCode。
+1. 创建无副作用的 `Result` 与 `DomainError` 类型；区分可映射的业务拒绝和内部完整性错误。
 2. 写 transition table fixture，先覆盖全部合法/非法组合。
-3. 实现 state invariant，先用手工构造的非法状态测试。
-4. 实现 `evolveBatch` 和单事件包装器，再实现 replay。
+3. 实现 state invariant 与 transition invariant，先用手工构造的非法状态测试。
+4. 实现 `evolveBatch`，不提供单事件公共包装器，再实现 replay。
 5. 实现 `decide`，只生成 contract event，不写 projection。
 6. 在 `decide` 中用 `evolveBatch` 生成 next state，避免出现两套转换逻辑。
 7. 添加 determinism、immutability 和 exhaustive tests。
@@ -199,19 +239,22 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 - 所有 A02 已知但 A03 暂未支持的 review type 均被拒绝。
 - expected version 过旧、过新均失败且不产生 event。
 - mismatched task/review/state binding 均失败。
+- Actor 矩阵与 Spec Approval 精确 allowed-decision 集合逐项覆盖。
+- context event ID 数量必须与输出 event 数相等、非空且不重复；时间不得早于当前 `updatedAt`。
 
 ### 确定性与纯度
 
 - 同一输入深拷贝执行多次，Decision 完全深度相等。
 - 输入 object 在执行后保持不变；可在测试中 deep-freeze。
 - 不 mock clock、UUID、database 或 filesystem；所有非确定值由 context 传入。
-- 对 event replay 多次得到同一 TaskState。
+- 对 event replay 多次得到同一 DomainState。
 
 ### Fail closed
 
 - 用运行时 cast 构造未知 command/event，返回 `UNKNOWN_COMMAND`/`UNKNOWN_EVENT`。
 - event index 缺口、重复、乱序失败。
 - batch 中 taskId、commandId 或 version 混杂失败。
+- replay 第一批从 version 0 开始，跨 batch version 连续，task 不混流，command ID 和 event ID 全流唯一。
 - 非法中间状态不返回部分投影。
 
 ## 验证命令
@@ -222,7 +265,7 @@ corepack pnpm typecheck
 corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test
 corepack pnpm test
 corepack pnpm build
-rg -n "node:(fs|path|process|child_process)|@modelcontextprotocol|sqlite|better-sqlite3|Date\.now|randomUUID" packages/domain
+rg -n "node:(fs|path|process|child_process|crypto)|@modelcontextprotocol|sqlite|better-sqlite3|Date\.now|new Date|Math\.random|randomUUID|process\." packages/domain/src
 & 'C:\Program Files\Git\bin\bash.exe' scripts/harness_check.sh
 ```
 

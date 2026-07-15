@@ -2,50 +2,51 @@
 
 ## Goal
 
-Execute A02 by implementing strict cross-layer contracts, canonical serialization, and stable boundary errors in `@rtl-agent/contracts`.
+Execute A03 by implementing the pure Phase A domain state machine in `@rtl-agent/domain`.
 
 ## Current Status
 
-Completed. Schema version 1 contracts, branded identifiers, portable logical paths, RFC 8785 JCS, typed review/error variants, atomic command event-batch validation, and stable command/event boundary parsers are implemented. All required Windows validation passed.
+Completed. The package now provides deterministic `decide`, batch-only projection and replay, a self-contained pending-review aggregate, executable actor/transition policy, separate state/transition invariants, and fail-closed internal integrity errors. All required Windows validation passed.
 
 ## Scope
 
 Completed:
 
-- pinned `zod@4.4.3` in the contracts runtime package
-- implemented task, stage, status, actor, review, command, event, result, and error schemas
-- implemented canonical UTC millisecond timestamps and branded identifiers
-- implemented portable logical paths with Windows reserved-name and UTF-8 byte constraints
-- implemented RFC 8785 JCS without Node, filesystem, MCP, storage, or process dependencies
-- implemented strict code-specific error details and stable validation issues
-- implemented two-stage command/event parsing for stable version and discriminator errors
-- added public-API-only positive, negative, round-trip, capacity, and batch-invariant tests
-- synchronized A02 decisions and directly affected A03–A05 task documentation
+- implemented `Result`, `DomainError`, `DomainState`, `PendingReviewState`, `DecisionContext`, and domain-local `EventBatch`
+- implemented executable Stage × Status × Command transition policy and actor matrix
+- implemented `START_WORKFLOW`, Phase A `REQUEST_REVIEW`, and `RECORD_REVIEW_DECISION`
+- required the exact safe Spec Approval decision set
+- implemented strict context ID/time validation and one version increment per command batch
+- implemented batch validation, projection, ordered replay, and full-stream duplicate detection
+- separated intrinsic state invariants from previous/next transition invariants
+- kept A02 EventEnvelope arrays and A04 per-event persistence rather than adding a second batch wire contract
+- updated A04/A05 specifications for aggregate reconstruction, request actor persistence, review projection writes, monotonic context, and internal-error mapping
+- added public-API tests for transition coverage, decisions, bindings, actors, batch corruption, replay, determinism, and immutability
 
 Not performed:
 
-- command → event or event → state business logic; belongs to A03
-- persistence, hashing, ID/time generation, MCP, review authentication, or Gate behavior
+- repository, SQLite transaction, CAS, idempotency, or Command Executor behavior; belongs to A04/A05
+- review nonce/authentication or CLI behavior; belongs to A09/A10
+- Phase B/C review transitions, snapshots, gates, or routing
 - Linux execution evidence; deferred under the active A01–A05 policy
 
 ## Relevant Files
 
-- `packages/contracts/src/**`
-- `packages/contracts/test/**`
-- `packages/contracts/package.json`
-- `pnpm-lock.yaml`
-- `tsconfig.test.json`
-- `docs/tasks/A02-contracts-and-errors.md`
+- `packages/domain/src/**`
+- `packages/domain/test/**`
+- `packages/domain/package.json`
 - `docs/tasks/A03-domain-state-machine.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `docs/tasks/A05-command-executor.md`
 - `docs/decisions.md`
 
 ## Plan
 
-1. Recover A01 state and reconcile the A02 review with approved architecture decisions.
-2. Pin Zod and implement all version 1 schemas and branded primitives.
-3. Implement RFC 8785 JCS, logical paths, stable parsers, and typed errors.
-4. Add public boundary and batch-invariant tests.
-5. Run Windows validation, repair failures, and record the A02 handoff.
+1. Reconcile the A03 review with approved A02 batch and platform decisions.
+2. Define the domain aggregate, errors, executable policies, and invariant layers.
+3. Implement pure decide, evolveBatch, and replay through one projection path.
+4. Add exhaustive policy, corruption, determinism, and immutability tests.
+5. Run Windows validation and record the A04 handoff.
 
 ## Validation Commands
 
@@ -53,40 +54,40 @@ Not performed:
 corepack pnpm install --frozen-lockfile
 corepack pnpm lint
 corepack pnpm typecheck
-corepack pnpm --filter @rtl-agent/contracts --fail-if-no-match test
+corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test
 corepack pnpm test
 corepack pnpm build
 corepack pnpm format:check
 corepack pnpm peers check
-rg -n "node:(fs|path|process|child_process)|@modelcontextprotocol|sqlite|better-sqlite3" packages/contracts/src packages/contracts/test
+rg -n "node:(fs|path|process|child_process|crypto)|@modelcontextprotocol|sqlite|better-sqlite3|Date\.now|new Date|Math\.random|randomUUID|process\." packages/domain/src
 git diff --check
 & 'C:\Program Files\Git\bin\bash.exe' scripts/harness_check.sh
 ```
 
-The dependency scan is successful only when it returns no matches.
+The dependency/side-effect scan is successful only when it returns no matches.
 
 ## Acceptance Criteria
 
-- Schema version 1 and all A02 public contracts strict-parse and round-trip.
-- Unknown versions/discriminators and invalid identifiers/paths receive stable classifications.
-- JCS matches RFC 8785 ordering and primitive boundary samples.
-- Error details and retryability are fixed by error code.
-- Command results validate one internally consistent event batch.
-- Contracts have no Node, MCP, SQLite, filesystem, process, or network dependency.
-- All required Windows commands and harness checks pass.
+- every Phase A Stage × Status × Command branch is covered by executable policy tests
+- `decide` generates events and obtains next state only through `evolveBatch`
+- pending review identity, binding, actor, allowed decisions, and request time survive projection/replay
+- batch and full-stream version/index/task/command/event identity failures fail closed
+- equal inputs produce equal outputs without mutation or implicit time/random/I/O
+- all required Windows commands and harness checks pass
 
 ## Risks
 
-- Linux execution remains unverified under the temporary A01–A05 evidence exception.
-- Phase A Spec Approval depends on A09 computing `specDigest` at the trusted workspace boundary.
-- Review-type-specific decision subsets beyond the stable enum remain domain policy for later tasks.
+- Linux execution remains unverified under the temporary A01–A05 evidence exception
+- A04 must persist requested actor fields and assemble task plus pending review atomically
+- Phase A supports one event per command; later multi-event commands must explicitly extend domain event-sequence policy
+- A09 must still compute `specDigest` at the trusted workspace boundary
 
 ## Next 3 Steps
 
-1. Begin A03 from `docs/tasks/A03-domain-state-machine.md` using schema version 1.
-2. Implement `decide`, `evolveBatch`, replay, and Phase A invariants without I/O.
-3. Preserve `specDigest` binding and the command-result batch invariants in A03 tests.
+1. Begin A04 from `docs/tasks/A04-sqlite-storage.md`.
+2. Persist task and review projections so they reconstruct A03 `DomainState` without hidden repository queries.
+3. Return ordered event rows in command batches suitable for strict A03 replay.
 
 ## Last Updated
 
-2026-07-15T11:30:01+08:00
+2026-07-15T15:02:46+08:00
