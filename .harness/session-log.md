@@ -244,3 +244,52 @@ Added repository-wide portability rules for a Windows development host and Linux
 1. Implement the CI matrix in A01.
 2. Add logical-path utilities and tests in A02.
 3. Add Linux-only Gate rejection tests in B07.
+
+## Entry: A01-A05 Implementation Specifications
+
+### Summary
+
+Created one implementation-ready document for each of A01 through A05. The task breakdown remains the sole progress source and now links to the detailed specifications with status and evidence placeholders. No TypeScript workspace or business logic was implemented, so all five implementation tasks remain `NOT_STARTED`.
+
+### Files Created or Updated
+
+- `docs/tasks/A01-typescript-workspace.md`
+- `docs/tasks/A02-contracts-and-errors.md`
+- `docs/tasks/A03-domain-state-machine.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `docs/tasks/A05-command-executor.md`
+- `docs/task-breakdown.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Implementation Decisions
+
+- A01 uses Node.js 24 LTS, pnpm workspaces, native ESM, TypeScript strict/project references, ESLint, Prettier, and Vitest; exact tool versions are resolved and locked when A01 executes.
+- A02 defines strict Zod contracts, logical POSIX paths, canonical JSON, command/event envelopes, stable errors, and idempotent command results.
+- A03 keeps command decisions and event replay pure, with one state-version increment per successful command batch.
+- A04 targets `better-sqlite3@12.10.0` subject to Windows/Linux compatibility tests; Node 24 `node:sqlite` was deferred while documented at release-candidate stability.
+- A05 creates an `application` package for the single FIFO Command Executor so domain purity and storage adapter boundaries remain intact.
+
+### Validation
+
+- Five-file count, required-heading, and Markdown code-fence check: passed.
+- Breakdown implementation-link target check: passed for all five documents.
+- `git diff --check`: passed after removing Markdown trailing whitespace.
+- `.harness/session-state.json` parse: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed.
+
+The first two authoring-check attempts failed because the temporary PowerShell validation script used an unsupported `-Filter` character class and then joined a link target from the wrong base directory. Both checks were corrected; neither indicated a repository defect.
+
+### Known Issues / Risks
+
+- Exact non-MCP dependency patch versions remain intentionally unresolved until A01 creates the lockfile.
+- `better-sqlite3` is a native dependency; A04 cannot complete without Windows/Linux install and runtime evidence.
+- Linux CI cannot exist until A01 scaffolds it.
+
+### Next Steps
+
+1. Execute A01 using `docs/tasks/A01-typescript-workspace.md`.
+2. Record the real package commands and Windows/Linux CI evidence.
+3. Mark A01 `DONE` only after validation, then begin A02.

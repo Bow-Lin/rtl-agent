@@ -1,35 +1,36 @@
 {
-  "task_id": "windows-linux-development-constraints",
+  "task_id": "a01-a05-implementation-specs",
   "status": "completed",
   "current_phase": "handoff",
-  "last_updated": "2026-07-14T17:12:05+08:00",
+  "last_updated": "2026-07-14T18:45:00+08:00",
   "active_plan": [
-    "Inspect Agent and coding rules",
-    "Add logical-path constraints",
-    "Add shell-free process and Linux Gate constraints",
-    "Add Git attributes and stable decision",
-    "Validate and record handoff"
+    "Confirm A01-A05 boundaries and repository constraints",
+    "Write one implementation-ready document per task",
+    "Link task documents from the progress breakdown",
+    "Validate references, Markdown, JSON, and harness state",
+    "Record handoff"
   ],
   "next_3_steps": [
-    "Execute A01 with a Windows/Linux CI matrix",
-    "Add logical-path utilities in A02",
-    "Test LINUX_GATE_REQUIRED in B07"
+    "Execute A01 only from docs/tasks/A01-typescript-workspace.md",
+    "Record A01 Windows/Linux validation evidence in the breakdown and Session Log",
+    "Start A02 only after A01 is DONE"
   ],
   "changed_files": [
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md",
-    "AGENTS.md",
-    ".gitattributes",
-    "docs/coding-guidelines.md",
-    "docs/verification.md",
+    "docs/decisions.md",
     "docs/task-breakdown.md",
-    "docs/decisions.md"
+    "docs/tasks/A01-typescript-workspace.md",
+    "docs/tasks/A02-contracts-and-errors.md",
+    "docs/tasks/A03-domain-state-machine.md",
+    "docs/tasks/A04-sqlite-storage.md",
+    "docs/tasks/A05-command-executor.md"
   ],
   "validation": {
     "last_commands": [
-      "git check-attr representative files",
-      "rg cross-platform constraint scan",
+      "A01-A05 required-heading, code-fence, and link validation",
+      "git diff --check",
       "session-state JSON parse",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
@@ -40,15 +41,14 @@
     "failure_count": 0,
     "current_mode": "handoff",
     "tried_approaches": [
-      "Separated logical manifest paths from OS filesystem paths",
-      "Required shell-free executable and argv process spawning",
-      "Defined Windows Preflight and Linux formal Gate behavior",
-      "Added enforceable Git line-ending attributes"
+      "Kept task breakdown as progress source of truth",
+      "Selected one standalone implementation document per task",
+      "Checked current Node and SQLite adapter support before specifying the baseline"
     ],
     "blocked_on": null
   },
   "handoff": {
-    "last_summary": "Added Windows-development/Linux-runtime constraints for paths, processes, formal Gates, line endings, and cross-platform validation.",
-    "resume_from": "Begin A01 with the new Windows/Linux CI and portability requirements."
+    "last_summary": "Created five implementation-ready specifications for A01-A05 and linked them from the authoritative task progress tracker.",
+    "resume_from": "Execute A01 only; do not begin A02 until A01 validation evidence is recorded and its status is DONE."
   }
 }

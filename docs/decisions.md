@@ -113,3 +113,26 @@ Formal RTL compile, simulation, coverage, and sandbox Gates may be Linux-only. N
 ### Consequences
 
 Control-plane tests need a Windows/Linux CI matrix. Formal Gate tests run on Linux and include an explicit Windows rejection test. Manifest schemas cannot contain host-native absolute paths, and future code review must reject manual path concatenation and shell-dependent orchestration.
+
+## 2026-07-14 - Use pnpm Project References and a Synchronous SQLite Adapter
+
+### Context
+
+The A01–A05 implementation specifications need concrete package, build, and SQLite choices so later agents do not invent incompatible foundations. The control plane is a small TypeScript monorepo with a single SQLite writer and short synchronous transactions. Node 24 is an LTS line, while its built-in `node:sqlite` API is still documented at release-candidate stability.
+
+### Decision
+
+Use Node.js 24 LTS, pnpm workspaces, native ESM, TypeScript strict mode, and TypeScript project references. Resolve and lock exact tool versions when A01 executes; keep `@modelcontextprotocol/sdk` fixed at `1.29.0`.
+
+For A04, use a precisely pinned `better-sqlite3` adapter, initially targeting `12.10.0`, subject to successful installation and runtime tests on both Windows and Linux. Keep all transaction callbacks synchronous and route all writes through the A05 Command Executor. Add an `application` package in A05 for orchestration so neither the pure domain package nor the storage adapter owns command workflow rules.
+
+### Alternatives Considered
+
+- npm workspaces: viable, but pnpm gives explicit workspace protocol references and strict dependency boundaries.
+- Nx, Turbo, or Bun: deferred because the initial five packages do not justify another orchestration/runtime layer.
+- Node 24 `node:sqlite`: attractive because it removes a native dependency, but deferred until its documented stability and compatibility meet the project's authoritative-state requirement.
+- Put Command Executor in `domain` or `storage`: rejected because it coordinates both layers and would violate either domain purity or adapter responsibility.
+
+### Consequences
+
+A01 must pin the package-manager and dependency versions and run the same commands on Windows and Linux. A04 must treat native module installation/runtime compatibility as an acceptance gate and must record any adapter replacement before implementation. A05 introduces `packages/application` and preserves a one-way dependency from application to domain and storage.

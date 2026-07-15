@@ -21,9 +21,17 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 
 文中的“专项测试”必须接入 `<pm> test`，不能成为开发者本地才能运行的孤立脚本。
 
+任务状态只在本文维护，详细实现文档不作为进度事实来源。状态枚举为：`NOT_STARTED`、`IN_PROGRESS`、`BLOCKED`、`DONE`。只有代码、测试、统一验证命令和 Session Log 证据均满足任务验收时，才能标记 `DONE`。
+
 ## 2. Phase A：状态机、常驻服务与审核边界
 
 ### A01 — 建立 TypeScript Workspace 与质量基线
+
+**状态**：`NOT_STARTED`；可执行，当前序列中的第一项。
+
+**实现文档**：[A01 — TypeScript Workspace](tasks/A01-typescript-workspace.md)
+
+**验收证据**：尚无。
 
 **目标**：创建最小 monorepo，选定并记录 Node.js LTS、包管理器、锁文件、TypeScript strict、格式化、lint、Vitest 和 build 方式。
 
@@ -32,6 +40,12 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 **验收**：四条统一命令均能在 Windows 和 Linux 的干净 checkout 中成功；没有业务逻辑；依赖固定到具体版本；`@modelcontextprotocol/sdk` 初始锁定 v1.29.0；Git checkout 后的换行符合 `.gitattributes`。
 
 ### A02 — 定义跨层 Contract 与稳定错误模型
+
+**状态**：`NOT_STARTED`；等待 A01。
+
+**实现文档**：[A02 — Contracts and Errors](tasks/A02-contracts-and-errors.md)
+
+**验收证据**：尚无。
 
 **依赖**：A01。
 
@@ -43,6 +57,12 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 
 ### A03 — 实现纯领域状态机
 
+**状态**：`NOT_STARTED`；等待 A02。
+
+**实现文档**：[A03 — Domain State Machine](tasks/A03-domain-state-machine.md)
+
+**验收证据**：尚无。
+
 **依赖**：A02。
 
 **目标**：用纯函数实现 Phase A 的 stage/status、command → event、event → state 和 transition table。
@@ -53,6 +73,12 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 
 ### A04 — 建立 SQLite Schema 与 Migration 框架
 
+**状态**：`NOT_STARTED`；等待 A03。
+
+**实现文档**：[A04 — SQLite Storage](tasks/A04-sqlite-storage.md)
+
+**验收证据**：尚无。
+
 **依赖**：A03。
 
 **目标**：实现 `tasks`、`stage_attempts`、`reviews`、`workflow_events`、`idempotency_keys` 和 `outbox` 的首版 schema 与 migration runner。
@@ -62,6 +88,12 @@ Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执
 **验收**：启用 WAL、foreign keys、busy timeout 和 `synchronous=FULL`；数据库路径必须是本机文件系统；空库可升级；重复 migration 无副作用；外键和唯一约束测试通过。
 
 ### A05 — 实现单一 Command Executor
+
+**状态**：`NOT_STARTED`；等待 A04。
+
+**实现文档**：[A05 — Command Executor](tasks/A05-command-executor.md)
+
+**验收证据**：尚无。
 
 **依赖**：A04。
 
