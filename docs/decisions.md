@@ -181,3 +181,26 @@ Use `vitest.config.ts` rather than the obsolete standalone workspace file. Keep 
 ### Consequences
 
 Tool upgrades are explicit lockfile changes with compatibility checks. `typecheck` may produce source `dist` output, while tests remain no-emit. The Linux CI job uses the same `.node-version` but remains advisory under the temporary A01–A05 policy. Node `24.15.0` is the validated baseline; upgrading to a later patch is a separate maintenance change.
+
+## 2026-07-15 - Use JCS and Typed Review/Error Boundaries in A02
+
+### Context
+
+The original A02 specification used Unicode code-point key ordering, a broad RFC 3339 timestamp, optional review digests, generic error details, and per-event version fields without a command-result batch invariant. Review found that these rules were either non-standard across languages or too permissive to enforce the intended protocol boundary.
+
+### Decision
+
+Use RFC 8785 JCS for canonical JSON and canonical UTC timestamps with exactly three millisecond digits. Logical paths enforce conservative Windows/Linux portable segment rules and UTF-8 byte limits. Error bodies are a code-discriminated union with fixed retryability and strict detail allowlists. Public command/event parsers classify unsupported versions and unknown discriminators before Zod shape validation and expose only stable validation issues.
+
+Keep the existing `EventEnvelope[]` result rather than adding another persisted EventBatch envelope; validate the array as one atomic command batch and retain A03 `evolveBatch` plus A04 `event_sequence`. Keep `VERIFICATION_CHALLENGE` as the HLD-approved stage. Model review bindings by review type. Because Phase A predates SnapshotStore, Spec Approval binds a server-computed `specDigest`; later formal reviews bind snapshot and gate/manifest identities.
+
+### Alternatives Considered
+
+- Keep the custom Unicode code-point canonicalizer: rejected because it would not interoperate with RFC 8785 implementations for non-BMP keys.
+- Add a separate EventBatch persistence contract: rejected because CommandSuccess already defines the atomic batch boundary and A03/A04 separately define replay and storage order.
+- Keep optional review digests and validate combinations only in domain code: rejected because meaningless review bindings should fail at the cross-layer contract boundary.
+- Require Linux evidence for A02 completion: rejected because it would contradict the active A01–A05 evidence exception; Linux CI remains advisory until that decision is superseded.
+
+### Consequences
+
+Zod is pinned at `4.4.3`. Hash inputs are cross-language JCS UTF-8 bytes. A03 can rely on canonical time, strict review variants, stable parse failures, and a validated command event batch. A09 must compute Spec Approval digests at the trusted workspace boundary. Production Linux compatibility is still not claimed from Windows-only A02 evidence.

@@ -130,7 +130,7 @@ VERIFY_AND_REPAIR 默认只允许修改 `rtl/**`。任何 TB、Oracle、SVA 或 
 
 Agent 只能创建审核请求，不能提交人工决定。`workflow_request_review` 为 Agent MCP Tool；真正的审核通过本地用户 CLI、独立 UI 或受保护的管理接口完成，不出现在 Agent 可见工具列表中。OpenCode 的 `ask` 权限可以作为额外交互提示，但不构成审核者身份。
 
-每个 review 绑定 `task_id`、`review_id`、`state_version`、`snapshot_digest`，涉及正式门禁时还要绑定 `gate_input_digest` 或 `verification_manifest_digest`。服务端生成一次性 nonce 防止重放，decision 只能取该 review 声明的有限枚举值。nonce 只证明请求新鲜度；审核者身份由本地 OS 用户、管理接口认证或未来 RBAC 提供。
+每个 review 绑定 `task_id`、`review_id` 和 `state_version`。Phase A 尚无 SnapshotStore，Spec Approval 绑定服务端从已绑定 workspace 计算的 `spec_digest`；Phase B/C review 绑定 `snapshot_digest`，涉及正式门禁时还要绑定 `gate_input_digest` 或 `verification_manifest_digest`。服务端生成一次性 nonce 防止重放，decision 只能取该 review 声明的有限枚举值。nonce 只证明请求新鲜度；审核者身份由本地 OS 用户、管理接口认证或未来 RBAC 提供。
 
 首版本地 CLI 在提交前展示审核类型、阶段、snapshot、变更摘要和允许的 decision，并要求用户在终端中明确选择。相同 review 和相同 decision 重复提交返回原结果；同一 review 的冲突 decision 返回 `REVIEW_ALREADY_DECIDED`。
 

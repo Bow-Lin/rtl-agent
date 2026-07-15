@@ -1,77 +1,70 @@
 {
-  "task_id": "A01-typescript-workspace",
+  "task_id": "A02-contracts-and-errors",
   "status": "completed",
   "current_phase": "handoff",
-  "last_updated": "2026-07-15T11:30:00+08:00",
+  "last_updated": "2026-07-15T11:30:01+08:00",
   "active_plan": [
-    "Revise the A01 implementation specification",
-    "Create the pnpm TypeScript workspace and five projects",
-    "Install and lock exact dependencies",
-    "Add quality tools and CI configuration",
+    "Inspect A02 boundaries and approved downstream constraints",
+    "Revise A02 specification and stable decisions",
+    "Implement schema version 1 contracts and canonicalization",
+    "Add boundary, round-trip, and batch-invariant tests",
     "Validate on Windows and record handoff"
   ],
   "next_3_steps": [
-    "Begin A02 from its implementation specification",
-    "Implement strict contracts and logical-path tests",
-    "Record A02 evidence before beginning A03"
+    "Begin A03 from its implementation specification",
+    "Implement pure decide, evolveBatch, and replay behavior",
+    "Preserve specDigest and command event-batch invariants"
   ],
   "changed_files": [
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md",
-    "docs/tasks/A01-typescript-workspace.md",
-    "docs/task-breakdown.md",
-    "docs/verification.md",
+    "docs/architecture.md",
     "docs/decisions.md",
-    "package.json",
+    "docs/error-journal.md",
+    "docs/rtl-agent-high-level-design.md",
+    "docs/tasks/A02-contracts-and-errors.md",
+    "docs/tasks/A03-domain-state-machine.md",
+    "docs/tasks/A04-sqlite-storage.md",
+    "docs/tasks/A05-command-executor.md",
+    "docs/task-breakdown.md",
+    "packages/contracts/package.json",
+    "packages/contracts/src/**",
+    "packages/contracts/test/**",
     "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    ".node-version",
-    ".gitignore",
-    ".prettierignore",
-    "tsconfig.base.json",
-    "tsconfig.json",
-    "tsconfig.test.json",
-    "eslint.config.mjs",
-    "prettier.config.mjs",
-    "vitest.config.ts",
-    ".github/workflows/ci.yml",
-    "apps/workflow-daemon/**",
-    "apps/workflow-cli/**",
-    "packages/contracts/**",
-    "packages/domain/**",
-    "packages/storage/**"
+    "tsconfig.test.json"
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm install --frozen-lockfile after verified node_modules removal",
+      "corepack pnpm install --frozen-lockfile",
       "corepack pnpm lint",
       "corepack pnpm typecheck",
+      "corepack pnpm --filter @rtl-agent/contracts --fail-if-no-match test",
       "corepack pnpm test",
       "corepack pnpm build",
       "corepack pnpm format:check",
       "corepack pnpm peers check",
-      "negative typecheck and test probes",
-      "Git attribute, dependency, manifest, output, and shell-policy structural checks",
+      "contracts forbidden dependency/API scan",
+      "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "passed on Windows; Linux execution deferred by policy",
+    "last_result": "passed on Windows; 7 contract test files and 70 tests passed; Linux execution deferred by policy",
     "known_failures": []
   },
   "cognitive_state": {
     "failure_count": 0,
     "current_mode": "handoff",
     "tried_approaches": [
-      "Pinned the executable baseline to Node 24.15.0 and pnpm 11.13.0",
-      "Downgraded registry-latest TypeScript 7.0.2 to compatible TypeScript 6.0.3",
-      "Used root Vitest config and separate no-emit test typechecking",
-      "Assigned the MCP SDK to the daemon runtime package",
-      "Verified frozen reinstall and negative failure behavior"
+      "Used RFC 8785 JCS with ECMAScript UTF-16 ordering",
+      "Kept EventEnvelope arrays and validated them as atomic command batches",
+      "Used review-type and error-code discriminated unions",
+      "Mapped Zod issues into stable bounded validation issues",
+      "Corrected package-scoped Vitest root and filter behavior"
     ],
     "blocked_on": null
   },
   "handoff": {
-    "last_summary": "A01 completed: exact pnpm/TypeScript workspace baseline and all Windows quality checks passed.",
-    "resume_from": "Begin A02 contracts; preserve A01 package boundaries and unified commands."
+    "last_summary": "A02 completed: strict schema version 1 contracts, JCS, stable errors/parsers, and 70 Windows tests passed.",
+    "resume_from": "Begin A03 pure domain state machine using the exported A02 contracts."
   }
 }

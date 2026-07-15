@@ -2,20 +2,20 @@
 
 ## Repository Type
 
-Planned RTL engineering workflow service. The implementation has not started; the accepted high-level design is documented in `docs/rtl-agent-high-level-design.md`.
+RTL engineering workflow service under ordered implementation. A01 established the TypeScript workspace and A02 implemented the version 1 cross-layer contract package. The accepted system design remains in `docs/rtl-agent-high-level-design.md`.
 
 ## Main Directories
 
 - `.harness/`: durable task and session state.
 - `docs/`: stable project knowledge and verification guidance.
 - `scripts/`: harness checks and shell-command safety guard.
-- `skills/`: repeatable agent workflows.
-
-No business-code directories have been implemented yet. The planned structure separates a TypeScript workflow control plane, immutable snapshot/checker packages, and optional Python EDA workers.
+- `apps/workflow-daemon`, `apps/workflow-cli`: buildable application shells; runtime behavior remains unimplemented.
+- `packages/contracts`: implemented Zod schema version 1, JCS, logical paths, and stable boundary parsers/errors.
+- `packages/domain`, `packages/storage`: buildable package shells awaiting A03/A04 logic.
 
 ## Entry Points
 
-No application, package, CLI, simulation, synthesis, test, or build entry points exist yet. The planned first entry point is `apps/workflow-mcp/src/main.ts`.
+Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, and format checks. `@rtl-agent/contracts` exports its public API only through `packages/contracts/src/index.ts`; command and event inputs use `parseCommandEnvelope` and `parseEventEnvelope`. Application entry files remain stubs.
 
 ## Data / Control Flow
 

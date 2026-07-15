@@ -123,7 +123,7 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 
 - `REQUEST_REVIEW.taskId` 必须等于 task state ID。
 - request 绑定的 `stateVersion` 必须等于 command 执行前 version。
-- Phase A Spec Approval 不要求 snapshot/gate/verification digest；若调用方提供不适用的正式 Gate binding，拒绝而非忽略。
+- Phase A Spec Approval 要求 `specDigest`，但不要求 snapshot/gate/verification digest；若调用方提供不适用的正式 Gate binding，拒绝而非忽略。A03 只验证 binding 形状与 state identity；A09 负责从绑定 workspace 计算 spec digest，不能信任 Agent 自报。
 - 等待审核时 task 投影保存 `pendingReviewId`。
 - 决定的 review ID 必须与 `pendingReviewId` 相同，否则返回 `REVIEW_BINDING_MISMATCH`。
 - `RECORD_REVIEW_DECISION.actor.type` 必须是 `USER`。这只是 domain defense-in-depth；真正 Agent 无法访问提交接口由 A08–A10 保证。
@@ -219,7 +219,7 @@ Phase A 只实现 Spec Approval 的领域路径。A02 已声明其他 review typ
 ```powershell
 corepack pnpm lint
 corepack pnpm typecheck
-corepack pnpm test --filter @rtl-agent/domain
+corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test
 corepack pnpm test
 corepack pnpm build
 rg -n "node:(fs|path|process|child_process)|@modelcontextprotocol|sqlite|better-sqlite3|Date\.now|randomUUID" packages/domain

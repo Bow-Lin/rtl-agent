@@ -402,3 +402,74 @@ The initial registry resolution selected TypeScript `7.0.2`, which violated type
 1. Execute A02 from `docs/tasks/A02-contracts-and-errors.md`.
 2. Add Zod contracts and logical-path tests inside the existing package boundaries.
 3. Preserve the unified commands and record A02 validation before starting A03.
+
+## Entry: A02 Cross-Layer Contracts and Stable Errors
+
+### Summary
+
+Implemented schema version 1 in `@rtl-agent/contracts`. The package now owns strict Zod contracts for task, stage/status, actor, review, command, event, command result, and stable errors; branded identifiers and logical paths; canonical UTC millisecond timestamps; RFC 8785 JCS; and two-stage command/event boundary parsers. No command decision, event projection, storage, MCP, or filesystem behavior was added.
+
+### Files Created or Updated
+
+- `packages/contracts/src/{actor,command,error,event,identifiers,json,parse,paths,result,review,task,version}.ts`
+- `packages/contracts/src/index.ts`
+- `packages/contracts/test/*.test.ts`, `packages/contracts/test/fixtures.ts`
+- `packages/contracts/package.json`, `pnpm-lock.yaml`, `tsconfig.test.json`
+- `docs/tasks/A02-contracts-and-errors.md`
+- `docs/tasks/A03-domain-state-machine.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `docs/tasks/A05-command-executor.md`
+- `docs/rtl-agent-high-level-design.md`
+- `docs/architecture.md`, `docs/decisions.md`, `docs/error-journal.md`, `docs/task-breakdown.md`
+- `current-task.md`, `.harness/session-state.json`, `.harness/session-log.md`
+
+### Contract Decisions
+
+- Pinned `zod@4.4.3` as the contracts package's only runtime dependency.
+- Canonical JSON follows RFC 8785 JCS: UTF-16 code-unit property ordering, ECMAScript primitive serialization, I-JSON values, no Unicode normalization, and UTF-8 hash input.
+- `IsoTimestamp` is exactly `YYYY-MM-DDTHH:mm:ss.sssZ` and must round-trip through `toISOString()`.
+- `LogicalPath` rejects traversal, host/absolute syntax, Windows reserved characters and device names, ambiguous spaces/dots, invalid Unicode, segments over 255 UTF-8 bytes, and paths over 1024 UTF-8 bytes.
+- Review binding is a strict union by review type. Phase A Spec Approval uses `specDigest`; later reviews require snapshot plus gate/manifest identity.
+- `VERIFICATION_CHALLENGE` remains an HLD-approved Stage.
+- `CommandSuccess.events` remains the event-batch carrier and validates a single atomic batch; no second persisted EventBatch envelope was introduced.
+- Error bodies are discriminated by code with fixed retryability, bounded messages/issues, and strict detail allowlists. `INTERNAL_ERROR` has a fixed public message and no details.
+- `parseCommandEnvelope` and `parseEventEnvelope` classify unsupported versions and unknown discriminators before strict schema validation, then return stable bounded validation issues rather than raw Zod issues.
+
+### Public API
+
+All public schemas, inferred types, constants, `canonicalizeJsonJcs`/`canonicalizeJson`, `parseCommandEnvelope`, and `parseEventEnvelope` are exported through `packages/contracts/src/index.ts`. Internal plain-object, surrogate, UTF-8-length, and path-reason helpers are not re-exported.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed; lockfile current and supply-chain policy passed.
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed for source projects and all test helpers/tests.
+- `corepack pnpm --filter @rtl-agent/contracts --fail-if-no-match test`: 7 files, 70 tests passed.
+- `corepack pnpm test`: 7 files, 70 tests passed.
+- `corepack pnpm build`: passed; generated declarations preserve required code-specific error details.
+- `corepack pnpm format:check`: passed.
+- `corepack pnpm peers check`: no peer issues.
+- Contracts dependency/API scan for Node FS/path/process/child process, MCP, and SQLite imports: no matches.
+- `git diff --check`: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed before the final handoff update and rerun as the final handoff check.
+
+### Failures Found and Repaired
+
+- The original A02 `pnpm test --filter` command passed `--filter` to Vitest. The package-scoped command and script were corrected.
+- Two package-script path attempts found no tests or resolved the config outside the repository. The stable root/filter form is recorded in `docs/error-journal.md`.
+- The first JCS negative suite exposed a missed trailing high surrogate because `charCodeAt` returned `NaN`; the Unicode validator now rejects it.
+- Stable issue mapping initially classified a missing literal as `INVALID_VALUE` because Zod uses that code for missing literals; mapping now checks field presence and returns `REQUIRED`.
+- Generated declarations initially inferred error details as optional due to a conditional object spread; the helper was corrected and a compile-time regression test now requires details for `STATE_VERSION_CONFLICT`.
+- The guarded commit review found that sparse arrays and arrays with extra/accessor properties collapsed to the same JCS text as ordinary arrays. Array serialization now requires dense indexed enumerable data properties and rejects named, symbol, accessor, and non-enumerable structure.
+
+### Known Issues / Risks
+
+- Linux execution remains deferred under the active A01–A05 evidence exception; no production Linux readiness claim is made.
+- A09 must compute `specDigest` at the trusted bound-workspace boundary rather than accepting an Agent-provided digest as authoritative.
+- Review-type-specific allowed-decision subsets remain later domain policy; A02 enforces only the stable enum, uniqueness, and 1–3 item capacity.
+
+### Next Steps
+
+1. Execute A03 using schema version 1 and the exported branded types.
+2. Implement pure `decide`, `evolveBatch`, and replay with the existing atomic batch invariants.
+3. Keep Spec Approval bound to `specDigest` and fail closed for the Phase B/C review variants not yet supported by A03.

@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "scripts": {
+    "test": "vitest run packages/contracts/test --config vitest.config.ts --root ../.."
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,5 +16,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "zod": "4.4.3"
+  }
 }

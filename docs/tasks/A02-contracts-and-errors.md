@@ -86,9 +86,9 @@ packages/contracts/test/
 | `CorrelationId` | `corr_` + 小写 UUID v4 文本 |
 | `IdempotencyKey` | 1–128 个 ASCII 字符，仅允许字母、数字、`.`、`_`、`:`、`-` |
 | `StateVersion` | 安全整数，最小为 0；未创建任务使用 0，首个成功 command 后为 1 |
-| `IsoTimestamp` | RFC 3339 UTC，必须以 `Z` 结尾且可 round-trip |
+| `IsoTimestamp` | canonical UTC millisecond：`YYYY-MM-DDTHH:mm:ss.sssZ`；大写 `T/Z`、固定三位毫秒、不接受 offset/闰秒，且 `toISOString()` round-trip 完全相等 |
 | `Sha256Digest` | `sha256:` + 64 个小写十六进制字符 |
-| `LogicalPath` | workspace-relative POSIX path，禁止空、绝对路径、反斜杠、`.`/`..` 段、NUL 和重复 `/` |
+| `LogicalPath` | workspace-relative POSIX path；除原有 traversal/absolute 规则外，拒绝 Windows 保留字符、ASCII control、首尾歧义空格、尾部点、设备名、未配对 surrogate；总长最多 1024 UTF-8 bytes，segment 最多 255 UTF-8 bytes |
 
 Zod 输出使用 brand，避免把任意 string 传给要求特定 ID/path 的函数。生成器不放在 contracts 包；测试 fixture 可以提供显式常量。
 
@@ -125,9 +125,15 @@ TaskStatus =
 - `ReviewType`: `SPEC_APPROVAL | VERIFICATION_APPROVAL | VERIFICATION_CHALLENGE | REGRESSION_APPROVAL`
 - `ReviewStatus`: `PENDING | DECIDED | EXPIRED | CANCELLED`
 - `ReviewDecision`: `APPROVE | REJECT | REQUEST_CHANGES`
-- `ReviewBinding`: `taskId`、`reviewId`、`stateVersion`、可选 `snapshotDigest`、`verificationManifestDigest`、`gateInputDigest`
+- `ReviewBinding` 按 `ReviewType` 建立 strict discriminated union，不能使用一组任意组合的 optional digest：
+  - `SPEC_APPROVAL`：`taskId`、`reviewId`、`stateVersion`、`specDigest`
+  - `VERIFICATION_APPROVAL`：上述 identity 加 `snapshotDigest`、`verificationManifestDigest`
+  - `VERIFICATION_CHALLENGE`：上述 identity 加 `snapshotDigest`、`gateInputDigest`
+  - `REGRESSION_APPROVAL`：上述 identity 加 `snapshotDigest`、`gateInputDigest`
 
-允许的 decision 列表是 review 实例数据，不允许调用方提交 schema 未声明的自由文本决定。
+Phase A 尚未创建通用 SnapshotStore，因此 Spec Approval 绑定服务端计算的 spec bytes digest；这不是正式 snapshot 身份。A09 必须从已绑定 workspace 读取并计算 digest，不能信任 Agent 自报。其余 review 类型在对应 Phase B/C 功能实现前只稳定 contract 形状，A03 对其转换 fail closed。
+
+允许的 decision 列表是 review 实例数据，必须有 1–3 个不重复值，不允许调用方提交 schema 未声明的自由文本决定。
 
 ## Command contract
 
@@ -141,7 +147,10 @@ type CommandEnvelope = {
   correlationId: CorrelationId;
   expectedStateVersion: StateVersion;
   requestedAt: IsoTimestamp;
-  actor: { type: "AGENT" | "USER" | "SYSTEM"; id: string };
+  actor:
+    | { type: "AGENT"; id: ConstrainedActorId }
+    | { type: "USER"; id: ConstrainedUserId }
+    | { type: "SYSTEM"; id: "workflow-daemon" };
   command: Command;
 };
 ```
@@ -154,7 +163,9 @@ A02 必须定义的 Phase A command union：
 | `REQUEST_REVIEW` | `taskId`, `reviewId`, `reviewType`, `allowedDecisions`, bindings | Agent 或系统创建审核请求 |
 | `RECORD_REVIEW_DECISION` | `taskId`, `reviewId`, `decision` | 只定义内部 command；不得因此成为 Agent MCP Tool |
 
-所有 object schema 使用 strict 模式。Command union 以 `type` 为 discriminator；未知 command type 直接返回 validation error。
+所有 object schema 使用 strict 模式。Command union 以 `type` 为 discriminator；正式边界 parser 将未知 command type 稳定映射为 `UNKNOWN_COMMAND`。
+
+`actor.id` 最长 128 字符并使用类型对应的 ASCII allowlist。`requestedAt` 是调用边界提供的元数据，不是状态排序、超时或审计的权威时间；A03 继续只使用显式 `DecisionContext.occurredAt` 更新状态时间。
 
 ### Command result
 
@@ -173,6 +184,8 @@ type CommandResult = CommandSuccess | ErrorEnvelope;
 ```
 
 `ok` 是 discriminator。Success 必须能 canonical serialize 并从 idempotency record strict parse；不能把 application class instance 或 SQLite row 当作结果。
+
+`events` 必须包含 1–100 个事件，并作为一个原子 command batch 校验：task、command、correlation、before/after version 和 `occurredAt` 一致，`eventIndex` 从 0 连续递增，`eventId` 不重复，result `stateVersion` 等于 batch target version。A02 不增加另一层持久化 `EventBatch` envelope；A03 的 `evolveBatch` 负责原子 replay，A04 的 `event_sequence` 负责数据库全局顺序。
 
 ## Event contract
 
@@ -219,14 +232,14 @@ pendingReviewId?, createdAt, updatedAt
 
 ## Canonical JSON
 
-实现一个纯函数 `canonicalizeJson(value): string`，规则如下：
+实现纯函数 `canonicalizeJsonJcs(value): string`，并保留 `canonicalizeJson` alias。输出严格遵循 RFC 8785 JSON Canonicalization Scheme：
 
-1. 输入只接受 JSON value：null、boolean、有限数值、string、array、plain object。
-2. object key 以 Unicode code point 升序排列；递归处理嵌套 object。
-3. array 保持原顺序。
-4. 使用 UTF-8，无 BOM；不添加空格或换行。
-5. string 和 number 使用 `JSON.stringify` 的合法表示；拒绝 `NaN`、`Infinity`、`-Infinity`、`undefined`、BigInt、循环引用和非 plain object。
-6. `-0` 规范为 `0`。
+1. 输入必须是 I-JSON 兼容值：null、boolean、有限 IEEE 754 number、有效 Unicode string、array、plain object。
+2. object key 按未转义字符串的 UTF-16 code unit 字典序排列，并递归处理 object；array 保持元素顺序但递归 canonicalize 其中 object。
+3. primitive 使用 ECMAScript JSON serialization；`-0` 输出 `0`。
+4. 不执行 Unicode normalization；不同 normalization form 保持不同。
+5. 拒绝 `NaN`、Infinity、undefined、BigInt、symbol key、accessor/non-enumerable property、循环引用、非 plain object 和未配对 surrogate。
+6. 输出不含空格、换行或 BOM；后续 hash 调用方必须将返回文本编码为无 BOM UTF-8 bytes。
 
 该函数产生后续 idempotency payload digest 的唯一输入。不要把 object insertion order 或 pretty-printed JSON 用于身份计算。
 
@@ -261,28 +274,31 @@ type ErrorEnvelope = {
   error: {
     code: ErrorCode;
     message: string;
-    retryable: boolean;
+    retryable: CodeSpecificLiteral;
     correlationId: CorrelationId;
-    details?: JsonObject;
+    details?: CodeSpecificStrictDetails;
   };
 };
 ```
 
-- `details` 只允许 allowlist 字段，不放 stack、SQL、绝对路径、源码、完整 command 或 secret。
+- `error` 内部按 `code` 使用 discriminated union；每个 code 固定 `retryable` literal 和 strict details schema，不能用通用 `JsonObject` 绕过 allowlist。
+- `message` 为 1–1024 字符；validation issues 最多 50 个，path 最多 32 段，单个字符串段最多 256 字符。
+- `details` 不放 stack、SQL、绝对路径、源码、完整 command 或 secret；`INTERNAL_ERROR` 不允许 details，外部 message 固定使用泛化文本。
 - Zod issue 转为稳定的字段路径/issue kind，不能把依赖库完整错误直接当外部协议。
 - `INTERNAL_ERROR` 的外部 message 固定为泛化文本；内部诊断留给 A06 日志。
 
 ## 实现步骤
 
-1. 在 contracts 包安装并精确锁定 Zod；不得在 domain 再安装另一套 schema 库。
+1. 在 contracts 包安装并精确锁定 `zod@4.4.3`；不得在 domain 再安装另一套 schema 库。
 2. 实现 JSON value 与基础 branded schema。
 3. 实现 logical path schema；使用纯字符串规则验证逻辑路径，不调用 `path.normalize` 把非法输入“修好”。
 4. 实现 stage/status/review schemas。
 5. 实现 discriminated command/event unions 和 envelopes。
 6. 实现 TaskState 与 ErrorEnvelope。
-7. 实现 CommandSuccess/CommandResult 和 canonical JSON，并导出最小公共 API。
-8. 为每类正例、边界值、非法值和 round-trip 添加表驱动测试。
-9. 检查包依赖图，确保 contracts 没有 Node/MCP/storage import。
+7. 实现 CommandSuccess/CommandResult、command batch invariant 和 RFC 8785 JCS，并导出最小公共 API。
+8. 实现 `parseCommandEnvelope(input)` 和 `parseEventEnvelope(input)`：先检查 plain object、schema version 和 command/event discriminator，再 strict parse；把 Zod issue 映射为稳定 `ValidationIssue`，不得直接暴露原始 issue。
+9. 为每类正例、边界值、非法值和 round-trip 添加表驱动测试。
+10. 检查包依赖图，确保 contracts 没有 Node/MCP/storage import。
 
 ## 测试要求
 
@@ -293,15 +309,17 @@ type ErrorEnvelope = {
 - 每个 command/event parse 后 serialize 再 parse 保持深度相等。
 - strict object 对额外字段失败。
 - canonical JSON 对不同 key 插入顺序产生完全相同字节；array 顺序不同则结果不同。
+- canonical JSON 使用 RFC 8785 官方 UTF-16 排序和 primitive 样例，覆盖 emoji、`-0`、指数、控制字符与 Unicode normalization。
 - canonical JSON 非法输入 fail closed。
-- ErrorEnvelope 不接受未知 error code 或非 JSON details。
+- ErrorEnvelope 不接受未知 error code、错误 retryability 或 code allowlist 外 details。
+- `schemaVersion: 2` 稳定映射为 `UNSUPPORTED_SCHEMA_VERSION`；未知 command/event discriminator 分别映射为 `UNKNOWN_COMMAND`/`UNKNOWN_EVENT`。
 
 ## 验证命令
 
 ```powershell
 corepack pnpm lint
 corepack pnpm typecheck
-corepack pnpm test --filter @rtl-agent/contracts
+corepack pnpm --filter @rtl-agent/contracts --fail-if-no-match test
 corepack pnpm test
 corepack pnpm build
 rg -n "node:(fs|path|process|child_process)|@modelcontextprotocol|sqlite|better-sqlite3" packages/contracts
@@ -320,4 +338,4 @@ rg -n "node:(fs|path|process|child_process)|@modelcontextprotocol|sqlite|better-
 
 ## 实现交接内容
 
-Session Log 记录实际 Zod 版本、导出的公共 API、任何与本文不同的 contract 决策、验证命令结果和 A03 可以依赖的 schema version。任何字段或枚举调整先写入 `docs/decisions.md`。
+Session Log 记录实际 Zod 版本、导出的公共 API、任何与本文不同的 contract 决策、验证命令结果和 A03 可以依赖的 schema version。正式边界调用方必须使用公开 parse helper；raw schema 只用于组合和可信内部值构造。任何字段或枚举调整先写入 `docs/decisions.md`。

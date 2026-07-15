@@ -298,7 +298,7 @@ interface TransactionManager {
 ```powershell
 corepack pnpm lint
 corepack pnpm typecheck
-corepack pnpm test --filter @rtl-agent/storage
+corepack pnpm --filter @rtl-agent/storage --fail-if-no-match test
 corepack pnpm test
 corepack pnpm build
 rg -n "BEGIN|COMMIT|ROLLBACK" packages/storage/src

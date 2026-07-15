@@ -43,11 +43,11 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 ### A02 — 定义跨层 Contract 与稳定错误模型
 
-**状态**：`NOT_STARTED`；等待 A01。
+**状态**：`DONE`；Windows contract 质量基线已验证，Linux 执行证据按当前策略延期。
 
 **实现文档**：[A02 — Contracts and Errors](tasks/A02-contracts-and-errors.md)
 
-**验收证据**：尚无。
+**验收证据**：2026-07-15，Windows Node `24.15.0` / pnpm `11.13.0`：`zod@4.4.3` 精确锁定；7 个 contract test files、70 tests 全部通过；frozen install、lint、source/test typecheck、专项/全量 Vitest、build、format、peer、依赖边界扫描、diff check 和 Harness 全部通过。Linux 执行按 A01–A05 临时策略延期。
 
 **依赖**：A01。
 
