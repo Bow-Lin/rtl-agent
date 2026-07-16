@@ -42,6 +42,20 @@ corepack pnpm core-loop:fixtures:check
 
 The first two commands use only temporary synthetic mechanics inputs. Until an operator configures a reviewed Provider, `core-loop:fixtures:check` must exit non-zero with `DATASET_NOT_CONFIGURED`; that diagnostic is the expected result, not a failed fallback. R01 filesystem contract tests should run on Windows and Linux because case sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing command/evidence and do not claim Linux readiness.
 
+R02-specific static and live checks are:
+
+```powershell
+$env:RTL_AGENT_OPENCODE_EXECUTABLE = '<absolute-native-opencode-executable>'
+$env:RTL_AGENT_OPENCODE_VERSION = '<locked-version>'
+$env:RTL_AGENT_OPENCODE_MODEL = '<provider/model>'
+corepack pnpm core-loop:agent:probe
+
+$env:CORE_LOOP_REAL_AGENT_TEST = '1'
+corepack pnpm core-loop:agent:smoke
+```
+
+Windows requires a regular native `.exe`; `.cmd`/`.bat` launchers and shell mediation are rejected. `agent-probe` must verify exact version, required flags, deny-only resolved global config, bounded resolved Agent permissions, repository Agent/Skill digests, and the experiment config digest. The explicit smoke uses only generated test data: one allowed Blank Generation turn must return `RTL_CHANGED`, and one test-only Agent must actually receive a denied write result without creating the target. Neither smoke is evaluation evidence. Ordinary `pnpm test` skips both network/model calls. OpenCode may retain its own session DB; shared Core Loop evidence stores neither its host path nor raw JSONL.
+
 ## Change-Type Validation Matrix
 
 | Change Type | Required Validation |

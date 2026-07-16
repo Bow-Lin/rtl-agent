@@ -64,9 +64,31 @@ describe("Core Loop contracts", () => {
         category: "BLANK_GENERATION",
         specPath: "spec.md",
         workspaceRtlRoot: "rtl",
+        rtlSourceFiles: [],
         topModule: "dut",
       }),
     ).toBeDefined();
+    const seededAgentInput = {
+      schemaVersion: 1,
+      runId: RUN_ID,
+      attempt: 1,
+      category: "SEEDED_COMPILE_REPAIR",
+      specPath: "spec.md",
+      workspaceRtlRoot: "rtl",
+      topModule: "dut",
+    };
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        rtlSourceFiles: ["rtl/DUT.sv", "rtl/dut.sv"],
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        rtlSourceFiles: ["rtl/readme.txt"],
+      }).success,
+    ).toBe(false);
     expect(
       CompileRequestSchema.parse({
         schemaVersion: 1,

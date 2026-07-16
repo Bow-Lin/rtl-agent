@@ -2,84 +2,59 @@
 
 ## Goal
 
-Complete R01 as the reusable, non-authoritative foundation for Spec → RTL → compile/repair experiments, without selecting a dataset or implementing an Agent/compiler.
+Complete R02 as one restricted OpenCode turn boundary that can generate or repair RTL inside an R01 run without compiling it or trusting Agent self-report.
 
 ## Current Status
 
-Completed on Windows. `@rtl-agent/core-loop` now owns the version 1 Core Loop contracts, pinned dataset provenance, Provider catalog/staging validation, normalized fixture identity, atomic run publication, JCS file manifests, whole-run net-write policy, output sanitization, and stable errors. `apps/rtl-core-loop` is a thin CLI and fails closed with `DATASET_NOT_CONFIGURED` until a reviewed Provider is configured.
+Completed on Windows with official native OpenCode `1.18.2`. The locked final live-smoke model was `opencode/deepseek-v4-flash-free`; it is test-only and does not select the R04 evaluation model. Static capability probe, one allowed Blank Generation turn, and one actual denied-write probe all passed.
 
-R01 does not establish Linux readiness. This host has no WSL distribution, Docker, or Podman, so Linux filesystem contract execution remains follow-up evidence.
+R02 now owns the repository Agent/Skill, strict turn/result contracts, trusted config isolation, resolved config and Agent-permission validation, fixed `shell: false` argv, process-tree timeout, bounded event/stderr projection, RTL file postconditions and per-attempt evidence. It does not invoke a compiler, continue sessions, implement repair policy, or claim functional correctness.
 
-The guarded commit review found that the R02–R04 task documents still described pre-R01 field names, result statuses, attempt ownership, and app-level adapter placement. Those documents are now aligned to the implemented R01 API: reusable adapters/orchestration stay in `packages/core-loop`, the app remains a thin CLI, R02 writes strict `AgentAttemptInput`, R03 consumes strict `CompileRequest` and returns strict `CompileResult`, and R04 reads `CreateRunRequest.profile.maxAttempts` with `COMPILE_PASSED` as the success outcome.
-
-A follow-up guarded review found three R01 boundary defects. They are resolved: successful atomic run publication is no longer changed into a failure by staging cleanup errors and instead returns `STAGING_CLEANUP_FAILED`; captured output now removes drive, UNC, and POSIX host paths without relying on caller hints and rejects residual paths at the schema boundary; and `FileManifestSchema` itself rejects NFC/case-fold path collisions.
-
-The final guarded review also found that quoted POSIX paths and `file://` URLs bypassed sanitization, and that the Schema's preview maximum counted JavaScript string units instead of UTF-8 bytes. Both are fixed with boundary regression tests; ordinary HTTP(S) URLs remain unchanged.
+The guarded commit reviews found and repaired two evidence-boundary defects. Termination commands and the final child `close` wait now have hard deadlines; an unconfirmed tree termination returns `AGENT_PROCESS_ERROR`, while only a confirmed tree shutdown returns ordinary `AGENT_TIMEOUT`. Non-empty executable prefix arguments now participate in the experiment digest, so different actual argv cannot share that identity.
 
 ## Scope Completed
 
-- added `packages/core-loop` and wired it into pnpm/TypeScript/Vitest
-- added full `NormalizedFixture`, run profile/request, Agent input, compile request/result, final result, captured output, manifest, and error schemas
-- separated `BLANK_GENERATION` from `SEEDED_COMPILE_REPAIR`
-- implemented structured dataset/case/adapter/normalization provenance and deterministic case listing checks
-- made Provider output untrusted staging input; rejected links, special/undeclared files, non-RTL starter files, traversal and case/Unicode collisions
-- computed raw-byte file digests and RFC 8785 JCS manifest/fixture digests
-- atomically published fresh `.rtl-agent/runs/<run-id>` workspaces and evidence without a persistent fixture cache
-- enforced the post-turn net-change rule across the whole run root, allowing only `workspace/rtl/**`
-- added UTF-8 byte truncation and host-path redaction for captured output
-- made post-publication staging cleanup best-effort with a stable warning while preserving the published run
-- enforced generic host-path rejection in `CapturedOutputSchema` and collision rejection in `FileManifestSchema`
-- reserved `core-loop/fixtures/` without dataset content and ignored local `.rtl-agent/` output
-- added a thin fixture-check CLI with stable missing-provider behavior
-
-## Not Performed
-
-- no concrete dataset, adapter, canonical fixture, reference answer, hidden test, or evaluation result
-- no OpenCode Agent/model call; belongs to R02
-- no Icarus/Verilator compile; belongs to R03
-- no repair loop, batch metrics, simulation, testbench, or functional-correctness claim
-- no A03 state update, SQLite, daemon, MCP, snapshot, review, or formal Gate work
-- no Linux test execution because no Linux runtime/container is available locally
-
-## Public R01 Boundaries
-
-- library: `@rtl-agent/core-loop`
-- Provider: `describe`, deterministic `listCases`, staging-only `materialize`
-- run entry: `createCoreLoopRun`
-- manifests: `createBaselineWorkspaceManifest`, `createAttemptRunManifest`
-- write policy: `checkAllowedRunChanges` / `assertAllowedRunChanges`
-- output: `captureOutput`
-- fixture diagnostic: `corepack pnpm core-loop:fixtures:check` (expected exit 2 until configured)
+- extended `AgentAttemptInput` with sorted, collision-safe `rtlSourceFiles` and context-bound prior compile results
+- added `.opencode/agents/rtl-core-loop.md` and `.opencode/skills/rtl-core-loop/SKILL.md`
+- added strict `OpenCodeCapability` and `AgentTurnResult` contracts
+- isolated caller config while loading the repository-owned `.opencode` directory
+- validated native executable, exact version, required flags, resolved deny-only config and final Agent permission rules
+- bound config, permission, Agent, Skill and experiment digests into every turn result
+- snapshotted mutable operator config structures and bound ordered non-empty executable prefix arguments into the experiment digest
+- used fixed argv, `shell: false`, bounded JSON event projection and sanitized stderr
+- killed complete process trees on timeout and checked workspace stability before manifests
+- bounded graceful/forced termination commands and final close confirmation without swallowing failures
+- allowed only bounded `.sv/.v/.svh/.vh` content below RTL with at least one compile unit
+- added `agent-probe` CLI and explicit gated real smoke command
+- covered fake success/no-change/process-error/timeout/policy/config drift and real allowed/denied behavior
 
 ## Validation Evidence
 
-- `corepack pnpm install --frozen-lockfile`: passed
-- `corepack pnpm lint`: passed
-- `corepack pnpm typecheck`: passed
-- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 4 files, 27 tests passed
-- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 1 test passed
-- `corepack pnpm test`: 18 files, 129 tests passed
-- `corepack pnpm build`: passed
-- `corepack pnpm format:check`: passed
-- `corepack pnpm peers check`: passed
-- missing Provider diagnostic: `DATASET_NOT_CONFIGURED`, exit 2 as expected
-- R02–R04 stale-contract/required-term/heading/code-fence scan: passed
-- final `git diff --check` and Harness: passed after the handoff update
+- native OpenCode `1.18.2` capability probe: passed
+- final real model: `opencode/deepseek-v4-flash-free`
+- resolved config digest: `sha256:fe6b3e25e59b50e9bcaf80a86c0d82e56efd22499d94e42697715758bf84558e`
+- resolved Agent permission digest: `sha256:a208dd5b82acee15f30abadf90b64aca34edc8328a7470ceeb0c666706683814`
+- Agent digest: `sha256:df3b8e9b50c4a4288af26ae4c20ea8564f45fd830dbae36ebd0a6393f35eb40d`
+- Skill digest: `sha256:332d820382b10f5fcf90ae6d2f00d8a02e44385c7099dfbe1833137e75564655`
+- experiment digest: `sha256:f48d66d8bfb9eac5193e0e17bc9e319ba91798afbd2339b4228c11af4b274313`
+- explicit real smoke: 2 tests passed (allowed `RTL_CHANGED`; actual denied write produced error and no file)
+- deterministic validation after guarded fixes: 42 Core Loop tests passed / 2 real-smoke tests skipped; 145 repository tests passed / 2 skipped
+- configured native OpenCode `1.18.2` capability probe passed again with unchanged digests
+- full repository validation: see final session log entry
 
-## Risks
+## Retention and Risk
 
-- Linux case-sensitive filesystem and Linux symlink behavior have not executed on this host; run the unified suite in Linux CI before claiming Linux readiness.
-- a `STAGING_CLEANUP_FAILED` warning means the run is valid but temporary staging may require operator cleanup.
-- before/after manifests detect net changes only; R02 must pair them with Agent permission restrictions.
-- `compilerProfileId` is syntax-validated only; R03 must define and lock the actual repository-owned profile/tool version.
-- compile-only results remain non-authoritative and do not prove RTL functionality.
+- OpenCode retains its own local session database. R02 verifies that it exists but never stores its host path in shared evidence.
+- Core Loop evidence does not persist raw JSONL, reasoning, full model text, tool arguments/results or resolved config.
+- Real smoke uses generated test data and is not evaluation evidence.
+- R02 does not establish Linux readiness or RTL functional correctness.
 
 ## Next 3 Steps
 
-1. Implement R02 against `AgentAttemptInput` and the run/write-policy API.
-2. Implement R03 independently against `CompileRequest`/`CompileResult` and lock a real Icarus version.
-3. Select/review a real dataset and evaluation profile only after R02 and R03 smoke evidence, then execute R04.
+1. Implement R03 against `CompileRequest`/`CompileResult` with a fixed Icarus profile.
+2. Keep R02 and R03 independent until R04 composes their public adapters.
+3. Select and review a dataset/provider, evaluation profile and formal model only before R04 batch execution.
 
 ## Last Updated
 
-2026-07-16T08:31:18+08:00
+2026-07-16T11:16:13+08:00

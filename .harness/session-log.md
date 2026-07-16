@@ -831,3 +831,121 @@ Resolved the two remaining P2 findings from the final guarded review and correct
 - `corepack pnpm test`: 18 files, 129 tests passed.
 - `corepack pnpm build`, `format:check`, and `peers check`: passed.
 - Final `git diff --check` and Harness: passed after the handoff update.
+
+## Entry: Implement and Validate R02 Restricted OpenCode RTL Agent
+
+### Summary
+
+Implemented R02 as one compiler-independent OpenCode turn boundary. The adapter writes strict file-based context, runs a fixed repository Agent with a native executable and argv array, projects bounded process evidence, terminates complete process trees on timeout, and accepts a workspace for R03 only after stable manifest and RTL-policy checks. Official native OpenCode `1.18.2` passed the final static and live checks on Windows.
+
+### Design and Implementation
+
+- Revised the R02 task after review: kept the full bounded `CompileResult` as optional previous feedback, left baseline compile ownership to R04, added `rtlSourceFiles`, accepted `.sv/.v/.svh/.vh`, and required a native Windows `.exe`.
+- Added the repository-owned `rtl-core-loop` Agent and Skill with deny-by-default tools, fixed temperature/steps, explicit read/edit suffix rules and no shell/web/task/compiler claims.
+- Added strict `OpenCodeCapability`, projected event, workspace violation and `AgentTurnResult` contracts. Each result binds resolved config, resolved Agent permission, Agent, Skill and experiment digests.
+- Added isolated config/environment construction, exact version/flag/Agent/config/DB probing, native executable checks and final permission-array validation.
+- Added fixed `--pure run` argv, explicit model/variant handling, `shell: false`, bounded JSONL projection, sanitized stderr, cross-platform process-tree termination and a post-exit stability window.
+- Added Agent input/source/previous-result validation, duplicate-attempt evidence refusal, whole-run before/after manifests, protected-path detection, extension/count/byte/compile-unit limits and exclusive logical evidence writing.
+- Added the thin `agent-probe` CLI plus ordinary fake-native tests and explicit network/model smoke tests gated by `CORE_LOOP_REAL_AGENT_TEST=1`.
+
+### Real OpenCode Findings Repaired
+
+- OpenCode 1.18.2 emits `run --help` on stderr; the bounded probe now checks both channels for flags while parsing machine-readable commands from stdout only.
+- Package-scoped pnpm changes cwd; CLI/test repository roots now derive from module location.
+- `--dir` makes the run workspace the OpenCode project, so the isolated environment now fixes trusted `OPENCODE_CONFIG_DIR` to repository `.opencode` rather than relying on project discovery.
+- Windows file-tool permissions match resolved absolute paths. Relative allow rules now have constrained `**/` workspace-suffix counterparts, while independent external-directory and whole-run manifest boundaries remain.
+- OpenCode appends a narrow tool-output external-directory exception. The probe hashes and validates final parsed Agent rules and rejects every other unexpected allow/ask after the deny-all rule.
+- OpenCode 1.18.2 reports tool status below `part.state.status`; event projection now records this stable status without retaining raw content or arguments.
+
+### Locked Live Evidence
+
+- installation: official native Windows x64 release executable, version `1.18.2`
+- final test-only model: `opencode/deepseek-v4-flash-free`; no credential entry was configured
+- resolved config digest: `sha256:fe6b3e25e59b50e9bcaf80a86c0d82e56efd22499d94e42697715758bf84558e`
+- resolved Agent permission digest: `sha256:a208dd5b82acee15f30abadf90b64aca34edc8328a7470ceeb0c666706683814`
+- Agent digest: `sha256:df3b8e9b50c4a4288af26ae4c20ea8564f45fd830dbae36ebd0a6393f35eb40d`
+- Skill digest: `sha256:332d820382b10f5fcf90ae6d2f00d8a02e44385c7099dfbe1833137e75564655`
+- experiment config digest: `sha256:f48d66d8bfb9eac5193e0e17bc9e319ba91798afbd2339b4228c11af4b274313`
+- allowed smoke: generated test-only Blank Generation returned `RTL_CHANGED`
+- negative smoke: a temporary test-only Agent actually called write, received projected `status:error`, and the denied target did not exist
+- OpenCode DB: availability checked; OpenCode retains local sessions, but the DB host path and raw session/JSONL are not copied into shared evidence
+
+The real inputs are generated mechanics fixtures, not a reviewed dataset and not evaluation evidence. The smoke makes no compile, simulation, functional-correctness or Linux-readiness claim.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`, `typecheck`, `build`, `format:check` and `peers check`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 5 files passed / 1 real-smoke file skipped; 39 tests passed / 2 skipped.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 2 tests passed.
+- `corepack pnpm test`: 19 files passed / 1 real-smoke file skipped; 142 tests passed / 2 skipped.
+- configured `corepack pnpm core-loop:agent:probe`: passed.
+- configured `CORE_LOOP_REAL_AGENT_TEST=1 corepack pnpm core-loop:agent:smoke`: 1 file, 2 tests passed.
+- final `git diff --check` and Harness: passed after the handoff-file update.
+
+### Next Steps
+
+1. Implement R03 independently with a repository-owned fixed Icarus profile.
+2. Let R04 call `OpenCodeRtlAgentAdapter.runTurn(input, run)` and consume only `RTL_CHANGED` workspaces for compile.
+3. Select a reviewed dataset/provider, evaluation profile and formal model before any R04 batch; do not count R02 smoke sessions as cases.
+
+## Entry: Harden R02 Process-Tree Timeout Boundary
+
+### Summary
+
+Repaired the P2 found by guarded commit review. R02 no longer swallows process-tree termination failures or waits indefinitely for child closure. Confirmed shutdown retains `AGENT_TIMEOUT`; unconfirmed shutdown returns `AGENT_PROCESS_ERROR` and cannot become compile-eligible.
+
+### Changes
+
+- bounded Windows `taskkill`, the composed graceful/force sequence, and final child-close confirmation
+- continued to forced tree kill when the Windows graceful attempt fails, while preserving fail-closed confirmation rules
+- destroyed captured pipes and unrefed an unconfirmed child before returning
+- added internal `terminationFailed` process evidence and stable sanitized stderr projection
+- added deterministic tests for a terminator that never settles and a child that never closes
+- widened the existing fake timeout test from 150ms to 500ms so capability-probe startup is not the behavior under test and remains earlier than the 700ms forbidden late write
+
+### Validation
+
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 6 files passed / 1 real-smoke file skipped; 41 tests passed / 2 skipped.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 2 tests passed.
+- `corepack pnpm test`: 20 files passed / 1 real-smoke file skipped; 144 tests passed / 2 skipped.
+- `corepack pnpm build`, `format:check`, and `peers check`: passed.
+- configured native OpenCode `1.18.2` capability probe: passed with unchanged capability digests.
+- final `git diff --check` and Harness: passed after the handoff update.
+
+### Known Limits
+
+- The explicit network/model smoke was not rerun because this fix changes only the deterministic process boundary; the prior 2-test allowed/denied smoke evidence remains valid.
+- Linux execution was not run on this Windows host; R02 still makes no Linux-readiness claim.
+
+## Entry: Bind R02 Executable Prefix into Experiment Identity
+
+### Summary
+
+Resolved the two P2 findings from the second guarded commit review. Different non-empty executable prefix argv now produce different experiment digests, and the task breakdown reports the final post-fix validation counts.
+
+### Changes
+
+- snapshotted mutable prefix, environment and workspace-limit structures when constructing the adapter
+- included ordered non-empty `executableArgumentsPrefix` values in the JCS experiment config digest
+- preserved one normalized identity for omitted and empty prefixes because both produce the same actual argv
+- added a probe-level regression test using different native launcher script paths and a post-construction source-array mutation
+- synchronized R02 acceptance evidence in the task breakdown and handoff state
+
+### Validation
+
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 6 files passed / 1 real-smoke file skipped; 42 tests passed / 2 skipped.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 2 tests passed.
+- `corepack pnpm test`: 20 files passed / 1 real-smoke file skipped; 145 tests passed / 2 skipped.
+- `corepack pnpm build`, `format:check`, and `peers check`: passed.
+- configured native OpenCode `1.18.2` capability probe: passed with unchanged production digests.
+- final `git diff --check` and Harness: passed after the handoff update.
+
+### Known Limits
+
+- The explicit network/model smoke was not rerun; the prior allowed/denied evidence is unchanged because production config has no executable prefix.
+- Linux execution remains unavailable on this Windows host; no Linux-readiness claim is made.

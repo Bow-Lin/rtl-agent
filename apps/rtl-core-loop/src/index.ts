@@ -5,21 +5,37 @@ import { fileURLToPath } from "node:url";
 import {
   CoreLoopException,
   DatasetDescriptorSchema,
+  OpenCodeRtlAgentAdapter,
+  openCodeExperimentConfigFromEnvironment,
   requireFixtureProvider,
 } from "@rtl-agent/core-loop";
 import type * as CoreLoop from "@rtl-agent/core-loop";
 import type { FixtureProvider } from "@rtl-agent/core-loop";
 
 export type RtlCoreLoopWorkspaceDependency = typeof CoreLoop.packageVersion;
+const DEFAULT_REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 export async function runRtlCoreLoopCli(
   arguments_: readonly string[],
   provider: FixtureProvider | undefined,
   writeOutput: (line: string) => void = console.log,
   writeError: (line: string) => void = console.error,
+  environment: NodeJS.ProcessEnv = process.env,
+  repositoryRoot: string = DEFAULT_REPOSITORY_ROOT,
 ): Promise<number> {
-  if (arguments_.length === 1 && arguments_[0] === "fixtures-check") {
+  if (
+    arguments_.length === 1 &&
+    (arguments_[0] === "fixtures-check" || arguments_[0] === "agent-probe")
+  ) {
     try {
+      if (arguments_[0] === "agent-probe") {
+        const adapter = new OpenCodeRtlAgentAdapter(
+          openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
+        );
+        const capability = await adapter.probe();
+        writeOutput(JSON.stringify({ ok: true, capability }));
+        return 0;
+      }
       const configured = requireFixtureProvider(provider);
       const descriptor = DatasetDescriptorSchema.parse(await configured.describe());
       writeOutput(JSON.stringify({ ok: true, descriptor }));
@@ -33,7 +49,7 @@ export async function runRtlCoreLoopCli(
       return 2;
     }
   }
-  writeError("Usage: rtl-core-loop fixtures-check");
+  writeError("Usage: rtl-core-loop <fixtures-check|agent-probe>");
   return 2;
 }
 

@@ -238,8 +238,36 @@ export const AgentAttemptInputSchema = z.strictObject({
   category: z.enum(["BLANK_GENERATION", "SEEDED_COMPILE_REPAIR"]),
   specPath: z.literal("spec.md"),
   workspaceRtlRoot: z.literal("rtl"),
+  rtlSourceFiles: z
+    .array(LogicalPathSchema)
+    .max(256)
+    .refine(sortedUnique, "RTL source files must be sorted and unique")
+    .superRefine((sourceFiles, context) => {
+      const collisionKeys = new Set<string>();
+      sourceFiles.forEach((sourceFile, index) => {
+        if (!sourceFile.startsWith("rtl/") || !/\.(?:sv|svh|v|vh)$/i.test(sourceFile)) {
+          context.addIssue({
+            code: "custom",
+            path: [index],
+            message: "RTL source files must use an allowed extension below rtl/",
+          });
+        }
+        const key = sourceFile.normalize("NFC").toLowerCase();
+        if (collisionKeys.has(key)) {
+          context.addIssue({
+            code: "custom",
+            path: [index],
+            message: "RTL source files must not collide after normalization and case folding",
+          });
+        }
+        collisionKeys.add(key);
+      });
+    }),
   topModule: SystemVerilogIdentifierSchema,
-  previousCompileResultPath: LogicalPathSchema.optional(),
+  previousCompileResultPath: LogicalPathSchema.refine(
+    (value) => value.startsWith("context/"),
+    "Previous compile result must stay below context/",
+  ).optional(),
 });
 
 export const CompileRequestSchema = z

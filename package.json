@@ -16,6 +16,8 @@
     "clean": "tsc -b tsconfig.json tsconfig.test.json --clean",
     "format:check": "prettier --check . --ignore-unknown",
     "format": "prettier --write . --ignore-unknown",
+    "core-loop:agent:probe": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop agent:probe",
+    "core-loop:agent:smoke": "vitest run packages/core-loop/test/agent-smoke.test.ts",
     "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check"
   },
   "devDependencies": {

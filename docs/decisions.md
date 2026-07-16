@@ -277,3 +277,35 @@ Define the full R02/R03 handoff now: Agent attempt input, compile request, four-
 ### Consequences
 
 R02 and R03 can implement independently against `@rtl-agent/core-loop`. No host absolute path belongs in persisted fixture/result JSON, no concrete dataset or evaluation fixture ships in R01, and missing Provider configuration fails with `DATASET_NOT_CONFIGURED`. Windows and Linux filesystem contract evidence is expected when environments are available; Windows-only execution cannot establish Linux readiness.
+
+## 2026-07-16 - Bind R02 to Resolved OpenCode Capabilities and Filesystem Evidence
+
+### Context
+
+OpenCode config is merged, `--pure` only disables external plugins, `run --help` is emitted on stderr in 1.18.2, `--dir` changes project discovery to the run workspace, and Windows file permissions are matched after paths become absolute. OpenCode also appends a narrow external-directory exception for its own tool-output storage. Checking only the executable version, Agent filename, process exit code, or model text would therefore not prove the effective turn boundary.
+
+### Decision
+
+Use the official native OpenCode executable with a fixed argv array and `shell: false`. Remove caller-owned OpenCode config overrides, set trusted `OPENCODE_CONFIG_DIR` to the repository `.opencode`, apply inline deny-only config and fixed disable variables, and run a static probe before every turn. The probe checks the exact version, flags from stdout/stderr, parsed resolved config, parsed final Agent permission rules, repository Agent/Skill bytes, and OpenCode DB availability. It rejects any post-catch-all allow/ask except the declared spec/context/RTL/Skill rules and OpenCode's narrow tool-output exception. Snapshot mutable operator config structures when constructing the adapter. Any non-empty executable argument prefix participates in the experiment digest as an ordered argv array; only the digest is persisted.
+
+Give Windows read/edit rules both relative and `**/` workspace-suffix forms because OpenCode resolves tool paths before permission matching. Keep the independent whole-run manifest, extension, compile-unit and quota checks as the final fact boundary. Persist only projected event category/tool/status, sanitized bounded stderr and capability digests; do not persist raw JSONL, tool inputs, model text, resolved config, or the OpenCode DB host path. A turn is compile-eligible only when it exits normally, changes RTL, remains stable, and passes every postcondition.
+
+### Consequences
+
+R02 remains independent of compiler and repair-loop policy. Capability drift fails before a model turn. OpenCode's internal session database remains an explicitly documented local retention surface. Test-only real smoke must separately prove an allowed RTL generation and an actual denied write; those calls and generated inputs are mechanics evidence, not dataset evaluation or functional-correctness evidence.
+
+## 2026-07-16 - Require Confirmed Bounded Process-Tree Termination in R02
+
+### Context
+
+The first R02 process runner started tree termination after a timeout but swallowed termination errors and then waited indefinitely for the child `close` event. A failed or hung OS termination command could therefore block the turn forever or leave a child process able to mutate the workspace after timeout.
+
+### Decision
+
+Bound each Windows `taskkill` invocation, the complete graceful/forced termination sequence, and the final child-close confirmation. Destroy captured pipes and unref the child when closure cannot be confirmed so the control plane can return. Preserve `AGENT_TIMEOUT` only when tree shutdown is confirmed; map an unconfirmed termination to `AGENT_PROCESS_ERROR` while retaining `timedOut: true` and a stable sanitized stderr diagnostic.
+
+On Windows, a failed non-force attempt does not prevent `/T /F` escalation. A later force failure is accepted only when a prior tree-targeted termination succeeded and the child is already confirmed closed. POSIX continues to target the detached process group and treats only `ESRCH` as an already-absent group.
+
+### Consequences
+
+Every R02 process call now has a finite post-timeout bound. An unconfirmed workspace is never compile-eligible, normal confirmed timeouts retain their existing outcome, and deterministic tests cover both a terminator that never settles and a child that never closes after a nominal termination.

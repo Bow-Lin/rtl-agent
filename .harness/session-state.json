@@ -1,43 +1,47 @@
 {
-  "task_id": "r01-core-loop-contract-fixtures",
+  "task_id": "r02-opencode-rtl-agent-protocol",
   "status": "completed",
   "current_phase": "handoff",
-  "last_updated": "2026-07-16T08:31:18+08:00",
+  "last_updated": "2026-07-16T11:16:13+08:00",
   "active_plan": [
-    "Recover repository state and inspect package/contract conventions",
-    "Finalize R01 public API and filesystem boundaries",
-    "Implement core-loop package and thin CLI app",
-    "Add contract, staging, manifest, policy, and integration tests",
-    "Run Windows validation and record unavailable Linux evidence",
-    "Align R02-R04 task documents to the implemented R01 public API",
-    "Resolve guarded review findings for cleanup, output sanitization, and manifest collisions",
-    "Close quoted/file URL sanitization and UTF-8 byte-limit bypasses"
+    "Revise the R02 design against the accepted review findings",
+    "Extend Agent input and add strict capability/turn-result contracts",
+    "Define the repository-owned RTL Agent and Skill",
+    "Implement native OpenCode probing, isolation, event projection and process-tree timeout",
+    "Enforce whole-run manifests, RTL postconditions and bounded evidence",
+    "Add thin probe CLI, deterministic fake tests and explicit real smoke",
+    "Validate OpenCode 1.18.2 allowed and denied behavior",
+    "Harden timeout termination with bounded kill and close confirmation",
+    "Bind executable prefix argv into the experiment digest and synchronize acceptance evidence",
+    "Run the unified repository checks and preserve handoff state"
   ],
   "next_3_steps": [
-    "Implement R02 using AgentAttemptInput and the run/write-policy API",
-    "Implement R03 independently using CompileRequest and CompileResult",
-    "Select and review a dataset adapter/evaluation profile before R04"
+    "Implement R03 independently against CompileRequest and CompileResult",
+    "Compose the R02 and R03 public adapters only in R04",
+    "Select and review the dataset/provider, evaluation profile and formal model before R04 batch execution"
   ],
   "changed_files": [
-    ".gitignore",
-    ".prettierignore",
-    "eslint.config.mjs",
+    ".opencode/agents/rtl-core-loop.md",
+    ".opencode/skills/rtl-core-loop/SKILL.md",
+    "apps/rtl-core-loop/package.json",
+    "apps/rtl-core-loop/src/index.ts",
+    "apps/rtl-core-loop/test/cli.test.ts",
+    "packages/core-loop/src/agent-adapter.ts",
+    "packages/core-loop/src/agent-contracts.ts",
+    "packages/core-loop/src/opencode-process.ts",
+    "packages/core-loop/src/contracts.ts",
+    "packages/core-loop/src/errors.ts",
+    "packages/core-loop/src/index.ts",
+    "packages/core-loop/test/agent-adapter.test.ts",
+    "packages/core-loop/test/opencode-process.test.ts",
+    "packages/core-loop/test/agent-smoke.test.ts",
+    "packages/core-loop/test/contracts.test.ts",
     "package.json",
-    "pnpm-lock.yaml",
-    "tsconfig.json",
-    "tsconfig.test.json",
-    "packages/core-loop/**",
-    "apps/rtl-core-loop/**",
-    "core-loop/fixtures/README.md",
-    "docs/tasks/R01-core-loop-contract-and-fixtures.md",
     "docs/tasks/R02-opencode-rtl-agent-protocol.md",
-    "docs/tasks/R03-fixed-non-authoritative-compile-adapter.md",
-    "docs/tasks/R04-bounded-repair-loop-and-evaluation.md",
-    "docs/architecture.md",
-    "docs/decisions.md",
-    "docs/error-journal.md",
     "docs/task-breakdown.md",
     "docs/verification.md",
+    "docs/decisions.md",
+    "docs/error-journal.md",
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md"
@@ -53,33 +57,35 @@
       "corepack pnpm build",
       "corepack pnpm format:check",
       "corepack pnpm peers check",
-      "missing-provider CLI diagnostic",
-      "R02-R04 stale-contract, required-term, heading, and code-fence scan",
+      "corepack pnpm core-loop:agent:probe",
+      "CORE_LOOP_REAL_AGENT_TEST=1 corepack pnpm core-loop:agent:smoke",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "R01 guarded review findings are fixed; lint, typecheck, build, formatting, peers, 27 Core Loop tests, 1 CLI test, all 129 repository tests, final diff, and Harness checks passed",
+    "last_result": "R02 guarded fixes passed native OpenCode 1.18.2 capability probe with unchanged production digests, 42 Core Loop tests with 2 real-smoke skips, 2 CLI tests, 145 repository tests with 2 skips, lint, typecheck, build, formatting and peer checks; final diff and Harness checks are recorded in the session log",
     "known_failures": [
-      "Linux filesystem contract execution unavailable: no WSL distribution, Docker, or Podman on this host"
+      "Linux execution was not run on this Windows host; R02 does not claim Linux readiness",
+      "OpenCode retains its own local session database outside shared Core Loop evidence"
     ]
   },
   "cognitive_state": {
     "failure_count": 0,
     "current_mode": "handoff",
     "tried_approaches": [
-      "Separated reusable core-loop library from the thin CLI",
-      "Moved trust from Provider claims into Core Loop staging validation",
-      "Separated fixture, baseline, and attempt/run manifest identities",
-      "Used temporary synthetic providers only for mechanics tests",
-      "Kept compiler/profile existence and execution outside R01",
-      "Made post-publication cleanup best-effort with a stable warning",
-      "Enforced host-path and manifest-collision invariants at schema boundaries",
-      "Closed quoted/file URL path bypasses and enforced preview limits in UTF-8 bytes"
+      "Separated repository Agent/Skill definitions from the mutable run workspace",
+      "Bound each turn to resolved config, final Agent permissions, Agent, Skill and experiment digests",
+      "Projected OpenCode JSON events without retaining raw model or tool payloads",
+      "Used native fake execution for deterministic process and policy coverage",
+      "Adapted help probing to stderr and config discovery to trusted OPENCODE_CONFIG_DIR",
+      "Added Windows absolute-path suffix permissions while retaining external-directory denial",
+      "Used separate real allowed-generation and actual denied-write smoke evidence",
+      "Bound graceful and forced termination plus close confirmation and mapped unconfirmed shutdown to AGENT_PROCESS_ERROR",
+      "Snapshotted mutable operator config and included ordered non-empty executable prefix arguments in the experiment digest"
     ],
     "blocked_on": null
   },
   "handoff": {
-    "last_summary": "R01 is implemented and Windows-validated; all guarded cleanup, host-path sanitization, UTF-8 byte-bound, and manifest collision findings are resolved with regression coverage.",
-    "resume_from": "Start R02 or R03 against @rtl-agent/core-loop; retain the missing Linux evidence note and do not start A04."
+    "last_summary": "R02 is implemented and Windows-validated; timeout shutdown is bounded and experiment identity now covers every non-empty executable prefix argument.",
+    "resume_from": "Start R03 against @rtl-agent/core-loop. Keep R02 live-smoke inputs out of evaluation evidence and do not start R04 until R03 and an operator-selected dataset/profile are ready."
   }
 }

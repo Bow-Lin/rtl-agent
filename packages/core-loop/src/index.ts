@@ -1,3 +1,5 @@
+export * from "./agent-contracts.js";
+export * from "./agent-adapter.js";
 export * from "./catalog.js";
 export * from "./contracts.js";
 export * from "./errors.js";
