@@ -1,16 +1,18 @@
 # RTL Agent Implementation Task Breakdown
 
-状态：Ordered implementation plan  
+状态：Ordered implementation plan；A03 后插入 Core Loop checkpoint
 依据：`docs/rtl-agent-high-level-design.md`  
 原则：任务按依赖顺序执行；一个任务只有在验收条件满足后才进入下一项
 
 ## 1. 执行规则
 
-Phase A 和 Phase B 构成第一条可信纵向闭环，必须严格按顺序执行。Phase C 在 Compile Gate 稳定后增加验证环境；Phase D 处理观测与执行隔离；Phase E 只有触发条件出现后才启动。
+当前先保留已完成的 A01–A03，在 A04 前执行 R01–R04 Core Loop checkpoint，验证 Spec → RTL → 固定编译 → 错误反馈修复是否具备真实能力信号。R01 完成后 R02 与 R03 可以并行，R04 在两者完成后汇合。R04 只产生非权威 compile-only 实验证据，完成后暂停并等待用户决定是否进入固定 TB/仿真、做一次有假设的 Core Loop 修订，或恢复 A04。
+
+原 Phase A 和 Phase B 仍构成第一条可信纵向闭环；Core Loop 不替代其中任何 trust boundary。恢复正式路线后，A04–B11 继续按依赖顺序执行。Phase C 在可信 Compile Gate 稳定后增加验证环境；Phase D 处理观测与执行隔离；Phase E 只有触发条件出现后才启动。
 
 每个任务应形成一个小型、可审查的变更集。任务内可以包含代码、测试和必要文档，但不能顺带实现后续任务。发现 HLD 与实现冲突时，先更新 `docs/decisions.md`，再继续编码。
 
-当前仓库尚无包管理和测试脚本。A01 必须建立并验证以下统一命令；后续任务默认使用它们：
+A01 已建立并验证以下统一命令；后续任务默认使用它们：
 
 ```text
 <pm> lint
@@ -73,15 +75,85 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 **验收**：所有转换分支有测试；未知事件和非法转换 fail closed；相同初始状态与事件序列产生相同结果；测试不访问数据库和文件系统。
 
+## 3. Core Loop Checkpoint：Spec → RTL → Compile Repair
+
+Core Loop 是 A03 后的产品能力检查点，不是正式工作流的 M1/M2。它使用可变的隔离 run workspace、受限 OpenCode Agent 和固定 Icarus profile；所有结果必须携带 `authoritative: false` 与 `claim: "COMPILE_ONLY"`，不得推进 A03 state 或声称 RTL 功能正确。
+
+### R01 — 定义 Core Loop Contract、运行目录与 Fixture 接口
+
+**状态**：`DONE`；2026-07-15 完成 Contract、临时 staging、run 物化、manifest/write policy 与薄 CLI。
+
+**实现文档**：[R01 — Core Loop Contract and Fixture Interface](tasks/R01-core-loop-contract-and-fixtures.md)
+
+**验收证据**：Windows Node `24.15.0` / pnpm `11.13.0`：core-loop 4 个 test files / 27 tests、薄 CLI 1 file / 1 test、全仓 18 files / 129 tests 全通过；frozen install、lint、source/test typecheck、build、format、peer、diff check 和 Harness 通过；未配置 Provider 的 CLI 稳定返回 `DATASET_NOT_CONFIGURED`/exit 2。当前主机没有 WSL distribution、Docker 或 Podman，Linux 文件系统测试未执行；不据此声称 Linux readiness。
+
+**依赖**：A03。
+
+**目标**：建立 Core Loop 内部 schema、dataset-backed `FixtureProvider`/provenance、隔离 run workspace、evidence 布局和 allowed-write postcondition。
+
+**交付物**：`@rtl-agent/core-loop` 私有库、薄 `apps/rtl-core-loop` CLI、`core-loop/fixtures/` 预留位置、provider/staging 接口、run materializer、JCS manifest、越界写检测和 test-only 临时数据测试；未提交具体评测用例或持久 fixture cache。
+
+**验收**：normalized fixture 与 dataset source 不被 run 修改；未配置 provider 时 fail closed；Agent 唯一允许写 `workspace/rtl/**`；logical path、provenance、symlink/case collision 和重复 run 失败规则有测试；所有结果类型明确 non-authoritative/compile-only。
+
+### R02 — 接入受限 OpenCode RTL Agent 协议
+
+**状态**：`NOT_STARTED`；R01 已完成，可与 R03 独立执行。
+
+**实现文档**：[R02 — OpenCode RTL Agent Protocol](tasks/R02-opencode-rtl-agent-protocol.md)
+
+**验收证据**：尚无。
+
+**依赖**：R01。可与 R03 并行。
+
+**目标**：通过固定 `opencode run` argv 启动 project-local RTL Agent，让它读取 spec/反馈并只编辑 run workspace 的 `rtl/**`。
+
+**交付物**：Agent、Skill、deny-by-default permission、capability probe、OpenCode adapter、bounded turn result 和 test-only normalized input 的真实 smoke。
+
+**验收**：锁定并记录真实 OpenCode/model 版本；shell/task/web/external/non-RTL edit 被拒绝或 postcondition 捕获；Agent exit/text 不被当作 compile success。
+
+### R03 — 实现固定的非权威 Compile Adapter
+
+**状态**：`NOT_STARTED`；R01 已完成，可与 R02 独立执行。
+
+**实现文档**：[R03 — Fixed Non-Authoritative Compile Adapter](tasks/R03-fixed-non-authoritative-compile-adapter.md)
+
+**验收证据**：尚无。
+
+**依赖**：R01。可与 R02 并行。
+
+**目标**：用 repository-owned `iverilog-systemverilog-2012-v1` profile 对 mutable run workspace 执行 compile/elaboration 并返回结构化 feedback。
+
+**交付物**：版本 probe、source discovery、fixed argv adapter、timeout/output limits、diagnostic parser 和真实 pass/error 集成测试。
+
+**验收**：固定 executable + argv、`shell: false`；Agent/fixture 不能覆盖 profile；`COMPILE_ERROR` 与 `TIMEOUT/TOOL_ERROR` 分离；结果不泄漏 host path并明确 non-authoritative/compile-only。
+
+### R04 — 实现有限修复循环与 Core Loop 评测
+
+**状态**：`NOT_STARTED`；等待 R02、R03。
+
+**实现文档**：[R04 — Bounded Repair Loop and Evaluation](tasks/R04-bounded-repair-loop-and-evaluation.md)
+
+**验收证据**：尚无。
+
+**依赖**：R01、R02、R03。
+
+**目标**：执行 baseline compile → Agent edit → fixed compile → compiler feedback → Agent repair 的最多 3 次循环，并用锁定 batch 量化能力。
+
+**交付物**：single/batch CLI、attempt evidence、停止条件、独立 final recompile、指标汇总和 `docs/experiments/spec-to-rtl-core-loop-report.md`。
+
+**验收**：对用户选定并锁定的 dataset/provider/evaluation profile 执行真实 batch；case count 与阈值在运行前登记；0 越界写；只有 compile error 进入下一轮；所有 pass 独立 recompile；报告给出 provenance、分子/分母、失败分类和 `PROCEED_TO_FUNCTIONAL_VALIDATION | REFINE_CORE_LOOP_ONCE | STOP_OR_RETHINK` 建议。R04 后必须等待用户决定。
+
+## 4. Phase A（续）：持久化、常驻服务与审核边界
+
 ### A04 — 建立 SQLite Schema 与 Migration 框架
 
-**状态**：`NOT_STARTED`；A03 已完成，可开始。
+**状态**：`NOT_STARTED`；A03 已完成，但按当前决策延期到 R04 checkpoint 之后。
 
 **实现文档**：[A04 — SQLite Storage](tasks/A04-sqlite-storage.md)
 
 **验收证据**：尚无。
 
-**依赖**：A03。
+**依赖**：A03；恢复正式可信路线的用户决定。
 
 **目标**：实现 `tasks`、`stage_attempts`、`reviews`、`workflow_events`、`idempotency_keys` 和 `outbox` 的首版 schema 与 migration runner。
 
@@ -165,7 +237,7 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 **验收**：OpenCode 退出不影响任务；Daemon 重启恢复；只有用户 CLI 能批准；所有统一验证命令通过；Phase A 验收证据写入 session log。
 
-## 3. Phase B：不可变 Compile Gate
+## 5. Phase B：不可变 Compile Gate
 
 ### B01 — 定义最小 Compile Workflow Contract
 
@@ -277,7 +349,7 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 **验收**：正式结果始终绑定不可变 snapshot；竞态只产生一个有效推进；旧结果 superseded；服务重启后任务继续；Windows 完成控制平面和 Preflight 验证，Linux CI 产生正式 Compile Gate 证据；Phase B 所有统一验证命令和 harness 通过。
 
-## 4. Phase C：验证环境、冻结与修复闭环
+## 6. Phase C：验证环境、冻结与修复闭环
 
 ### C01 — 扩展完整阶段与验证数据模型
 
@@ -327,7 +399,7 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 使用至少一个会经历编译失败、仿真失败、RTL 修复和最终通过的 fixture，并增加一次 Verification Challenge 场景。验收要求是 verification freeze 始终有效，修改测试不能伪造通过，回归身份可复现。
 
-## 5. Phase D：脱敏观测与执行硬化
+## 7. Phase D：脱敏观测与执行硬化
 
 ### D01 — 实现 Gate Sandbox
 
@@ -359,7 +431,7 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 执行网络禁用、secret 注入、超大日志、Langfuse outage、磁盘不足、Worker 泄漏和 telemetry dead-letter 测试。验收要求是敏感数据不外发、状态不依赖观测系统、资源限制可执行。
 
-## 6. Phase E：按触发条件启动的规模化 Backlog
+## 8. Phase E：按触发条件启动的规模化 Backlog
 
 这些任务不属于第一版顺序计划。只有对应触发条件出现后，才按 E01 → E05 的顺序执行。
 
@@ -383,13 +455,14 @@ A01–A05 当前采用临时平台证据策略：实现仍需面向未来 Linux 
 
 触发条件：snapshot 存储或重复 Gate 成本成为实测问题。实现全局去重、引用计数、垃圾回收、cache trust policy 和租户隔离。
 
-## 7. 里程碑与停止条件
+## 9. 里程碑与停止条件
 
 | 里程碑 | 包含任务 | 可以声称的能力 |
 |---|---|---|
+| M0 — Core Loop Capability Signal | R01–R04 | 在可变隔离 workspace 上观察到的非权威 Spec → RTL → compile repair 数据；不包含功能正确或可信 Gate 声明 |
 | M1 — Durable Control Plane | A01–A11 | 状态机、常驻 Daemon、真实人工审核可恢复 |
 | M2 — Trusted Compile Gate | B01–B11 | OpenCode 可在不可变 snapshot 上完成可信编译闭环 |
 | M3 — RTL Verification Loop | C01–C08 | 验证冻结、仿真、修复、challenge 和最终审核闭环 |
 | M4 — Hardened Observable System | D01–D05 | 执行隔离、脱敏 Langfuse 和基础设施观测 |
 
-若任一任务缺少可重复验证证据、引入未计划的跨层写入、让 Agent 获得审核决定权，或让正式 Gate 读取可变 workspace，应停止进入下一任务并先修正设计或实现。
+R04 完成后无论指标是否达标都必须停止并等待用户选择，不能自动开始 A04 或新增功能验证。正式路线中若任一任务缺少可重复验证证据、引入未计划的跨层写入、让 Agent 获得审核决定权，或让正式 Gate 读取可变 workspace，应停止进入下一任务并先修正设计或实现。

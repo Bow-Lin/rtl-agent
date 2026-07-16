@@ -1,65 +1,85 @@
 {
-  "task_id": "A03-domain-state-machine",
+  "task_id": "r01-core-loop-contract-fixtures",
   "status": "completed",
   "current_phase": "handoff",
-  "last_updated": "2026-07-15T15:02:46+08:00",
+  "last_updated": "2026-07-16T08:31:18+08:00",
   "active_plan": [
-    "Reconcile A03 review with approved A02 boundaries",
-    "Define domain aggregate, policies, errors, and invariants",
-    "Implement decide, evolveBatch, and replay",
-    "Add exhaustive domain and corruption tests",
-    "Validate on Windows and record A04 handoff"
+    "Recover repository state and inspect package/contract conventions",
+    "Finalize R01 public API and filesystem boundaries",
+    "Implement core-loop package and thin CLI app",
+    "Add contract, staging, manifest, policy, and integration tests",
+    "Run Windows validation and record unavailable Linux evidence",
+    "Align R02-R04 task documents to the implemented R01 public API",
+    "Resolve guarded review findings for cleanup, output sanitization, and manifest collisions",
+    "Close quoted/file URL sanitization and UTF-8 byte-limit bypasses"
   ],
   "next_3_steps": [
-    "Begin A04 SQLite schema and migration implementation",
-    "Persist task plus pending review for DomainState reconstruction",
-    "Load ordered workflow events as strict command batches"
+    "Implement R02 using AgentAttemptInput and the run/write-policy API",
+    "Implement R03 independently using CompileRequest and CompileResult",
+    "Select and review a dataset adapter/evaluation profile before R04"
   ],
   "changed_files": [
-    "current-task.md",
-    ".harness/session-state.json",
-    ".harness/session-log.md",
+    ".gitignore",
+    ".prettierignore",
+    "eslint.config.mjs",
+    "package.json",
+    "pnpm-lock.yaml",
+    "tsconfig.json",
+    "tsconfig.test.json",
+    "packages/core-loop/**",
+    "apps/rtl-core-loop/**",
+    "core-loop/fixtures/README.md",
+    "docs/tasks/R01-core-loop-contract-and-fixtures.md",
+    "docs/tasks/R02-opencode-rtl-agent-protocol.md",
+    "docs/tasks/R03-fixed-non-authoritative-compile-adapter.md",
+    "docs/tasks/R04-bounded-repair-loop-and-evaluation.md",
     "docs/architecture.md",
     "docs/decisions.md",
+    "docs/error-journal.md",
     "docs/task-breakdown.md",
-    "docs/tasks/A03-domain-state-machine.md",
-    "docs/tasks/A04-sqlite-storage.md",
-    "docs/tasks/A05-command-executor.md",
-    "packages/domain/package.json",
-    "packages/domain/src/**",
-    "packages/domain/test/**"
+    "docs/verification.md",
+    "current-task.md",
+    ".harness/session-state.json",
+    ".harness/session-log.md"
   ],
   "validation": {
     "last_commands": [
       "corepack pnpm install --frozen-lockfile",
       "corepack pnpm lint",
       "corepack pnpm typecheck",
-      "corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test",
+      "corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test",
+      "corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test",
       "corepack pnpm test",
       "corepack pnpm build",
       "corepack pnpm format:check",
       "corepack pnpm peers check",
-      "domain dependency and side-effect scan",
+      "missing-provider CLI diagnostic",
+      "R02-R04 stale-contract, required-term, heading, and code-fence scan",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "passed on Windows; 6 domain test files / 31 tests and 13 workspace files / 101 tests passed; Linux execution deferred by policy",
-    "known_failures": []
+    "last_result": "R01 guarded review findings are fixed; lint, typecheck, build, formatting, peers, 27 Core Loop tests, 1 CLI test, all 129 repository tests, final diff, and Harness checks passed",
+    "known_failures": [
+      "Linux filesystem contract execution unavailable: no WSL distribution, Docker, or Podman on this host"
+    ]
   },
   "cognitive_state": {
     "failure_count": 0,
     "current_mode": "handoff",
     "tried_approaches": [
-      "Used a domain-local non-empty EventBatch without adding a wire envelope",
-      "Kept TaskState lean and added complete pending review to DomainState",
-      "Separated intrinsic and transition invariants",
-      "Used executable transition and actor policy registries",
-      "Mapped corruption to internal DomainError classifications"
+      "Separated reusable core-loop library from the thin CLI",
+      "Moved trust from Provider claims into Core Loop staging validation",
+      "Separated fixture, baseline, and attempt/run manifest identities",
+      "Used temporary synthetic providers only for mechanics tests",
+      "Kept compiler/profile existence and execution outside R01",
+      "Made post-publication cleanup best-effort with a stable warning",
+      "Enforced host-path and manifest-collision invariants at schema boundaries",
+      "Closed quoted/file URL path bypasses and enforced preview limits in UTF-8 bytes"
     ],
     "blocked_on": null
   },
   "handoff": {
-    "last_summary": "A03 completed: pure batch-only Phase A state machine, 31 domain tests, and 101 workspace tests passed.",
-    "resume_from": "Begin A04 and persist enough task/review/event data to reconstruct DomainState and replay batches."
+    "last_summary": "R01 is implemented and Windows-validated; all guarded cleanup, host-path sanitization, UTF-8 byte-bound, and manifest collision findings are resolved with regression coverage.",
+    "resume_from": "Start R02 or R03 against @rtl-agent/core-loop; retain the missing Linux evidence note and do not start A04."
   }
 }

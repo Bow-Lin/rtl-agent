@@ -1,0 +1,16 @@
+{
+  "name": "@rtl-agent/rtl-core-loop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "rtl-core-loop": "./dist/index.js"
+  },
+  "scripts": {
+    "fixtures:check": "node dist/index.js fixtures-check",
+    "test": "vitest run apps/rtl-core-loop/test --config vitest.config.ts --root ../.."
+  },
+  "dependencies": {
+    "@rtl-agent/core-loop": "workspace:*"
+  }
+}

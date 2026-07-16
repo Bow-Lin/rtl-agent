@@ -229,3 +229,51 @@ Separate intrinsic state invariants from previous/next transition invariants. Ke
 ### Consequences
 
 A04 must persist request actor fields and assemble task plus pending review into `DomainState`. A05 must persist review projection changes atomically with task/events/outbox/idempotency, provide non-regressing context time, and map A03 integrity errors to a safe internal response. Later multi-event commands extend the domain batch handler explicitly without changing the A02 wire result.
+
+## 2026-07-15 - Validate Spec-to-RTL Compile Repair Before More Control-Plane Work
+
+### Context
+
+A01–A03 established a portable TypeScript baseline, strict contracts, and a pure domain state machine. The ordered plan would next spend A04–B09 on persistence, daemon, review, snapshots, jobs, and Gate APIs before B10 first connects an RTL Agent. That sequence is appropriate for a trusted system, but it delays evidence for the most important product hypothesis: whether the Agent can generate useful RTL and improve it from real compiler diagnostics.
+
+### Decision
+
+Keep A01–A03 and the accepted trusted-system HLD, but defer A04 and insert R01–R04 as a Core Loop checkpoint:
+
+1. R01 defines isolated run workspaces, non-authoritative contracts, and a dataset-backed normalized fixture/provider interface without committing concrete evaluation cases.
+2. R02 connects a restricted, version-locked OpenCode RTL Agent that can edit only the run's `rtl/**`.
+3. R03 implements one fixed Icarus Verilog compile/elaboration profile using executable plus argv and `shell: false`.
+4. R04 runs a maximum-three-attempt compiler-feedback loop and produces a batch evaluation report.
+
+Dataset source, normalized fixture metadata, spec, compiler profile, Agent context, and evidence remain outside the Agent write root. R01 reserves `core-loop/fixtures/` and a versioned provider/materialize contract; concrete cases come from a later operator-selected dataset after source/version/license review. Test-only synthetic inputs validate R01–R03 mechanics but never count as evaluation evidence. Every Core Loop result is `authoritative: false` and `claim: "COMPILE_ONLY"`; compile success does not establish functional correctness. R04 ends at an explicit user decision among functional validation, one focused Core Loop refinement, or stopping/rethinking. It does not automatically resume A04.
+
+### Alternatives Considered
+
+- Continue directly with A04–B10: deferred because it invests heavily in trust and durability before demonstrating the core Agent capability.
+- Revert A01–A03 and build an unrelated script: rejected because the existing toolchain, contracts discipline, and pure state model remain useful and do not prevent a lightweight experiment.
+- Implement simulation/testbench generation immediately: deferred until compile generation and repair show a measurable signal.
+- Treat the Core Loop compiler as the first formal Gate: rejected because it reads a mutable per-run workspace, lacks immutable snapshots/review/job boundaries, and only checks compile/elaboration.
+
+### Consequences
+
+The next implementation task is R01, not A04. R02 and R03 may proceed in parallel after R01 and converge in R04. The Core Loop is the continuing base for later fixed-TB, simulation, and repair improvements, so its package, CLI, run directory, and result types use stable capability names rather than lifecycle labels. Dataset adapters remain replaceable at the `FixtureProvider` boundary; dataset identity, version, split, license reference, selection, adapter version, and normalized digest become part of evaluation evidence. Trusted workflow layers may wrap this base without renaming it. A04–B11 remain the authoritative-system backlog and must still implement persistence, review, immutable snapshots, Linux Gate evidence, and result ingestion before any trusted claim.
+
+## 2026-07-15 - Keep R01 as One Core Library with Validated Ephemeral Staging
+
+### Context
+
+The initial R01 draft placed contracts and filesystem behavior directly in one application, allowed a Provider to return a supposedly normalized fixture, mixed compiler/attempt policy into the fixture, and left manifest identity and write-policy scope underspecified. Those choices would make R02 and R03 depend on ambiguous data and would trust dataset adapters at the wrong boundary.
+
+### Decision
+
+Create one private `@rtl-agent/core-loop` library and keep `apps/rtl-core-loop` as a thin CLI; do not split additional packages. Separate `NormalizedFixture`, `CoreLoopRunProfile`, and `CreateRunRequest`. Model blank generation and seeded compile repair as a discriminated union. Stable fixture identity is the structured dataset/version/split/case tuple; `fixtureId` is only a display alias.
+
+Providers write candidate files only into a Core Loop-created temporary staging directory and return declarative materialization metadata. Core Loop independently rejects links, special or undeclared files, logical-path/case/Unicode collisions, validates provenance, hashes raw file bytes, and computes the normalized fixture. Publish each run once into a new directory and do not add a persistent fixture cache in R01. A successful atomic publication is definitive: subsequent staging cleanup is best-effort and reports the stable `STAGING_CLEANUP_FAILED` warning instead of rewriting the published run as failed.
+
+Use three explicit identities: normalized fixture digest; baseline manifest over stable spec and initial RTL only; attempt/run manifest over the complete run root. Manifest digests are SHA-256 over A02 JCS-canonical sorted file entries. Agent-turn postconditions compare the complete run before/after and permit net changes only below `workspace/rtl/**`; this does not detect transient write-and-restore behavior, so R02 permissions remain a required companion control.
+
+Define the full R02/R03 handoff now: Agent attempt input, compile request, four-way compile result (`COMPILE_PASSED | COMPILE_ERROR | TIMEOUT | TOOL_ERROR`), byte-bounded sanitized captured output, final result, and a small versioned Core Loop error vocabulary. Captured output applies generic drive/UNC/POSIX host-path redaction even without caller hints and rejects residual host paths at the schema boundary. File manifest parsing independently rejects NFC/case-fold collisions so hand-built inputs cannot bypass generator checks. R01 validates compiler profile ID syntax only; R03/R04 own repository profile existence and tool execution.
+
+### Consequences
+
+R02 and R03 can implement independently against `@rtl-agent/core-loop`. No host absolute path belongs in persisted fixture/result JSON, no concrete dataset or evaluation fixture ships in R01, and missing Provider configuration fails with `DATASET_NOT_CONFIGURED`. Windows and Linux filesystem contract evidence is expected when environments are available; Windows-only execution cannot establish Linux readiness.

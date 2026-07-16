@@ -2,92 +2,84 @@
 
 ## Goal
 
-Execute A03 by implementing the pure Phase A domain state machine in `@rtl-agent/domain`.
+Complete R01 as the reusable, non-authoritative foundation for Spec → RTL → compile/repair experiments, without selecting a dataset or implementing an Agent/compiler.
 
 ## Current Status
 
-Completed. The package now provides deterministic `decide`, batch-only projection and replay, a self-contained pending-review aggregate, executable actor/transition policy, separate state/transition invariants, and fail-closed internal integrity errors. All required Windows validation passed.
+Completed on Windows. `@rtl-agent/core-loop` now owns the version 1 Core Loop contracts, pinned dataset provenance, Provider catalog/staging validation, normalized fixture identity, atomic run publication, JCS file manifests, whole-run net-write policy, output sanitization, and stable errors. `apps/rtl-core-loop` is a thin CLI and fails closed with `DATASET_NOT_CONFIGURED` until a reviewed Provider is configured.
 
-## Scope
+R01 does not establish Linux readiness. This host has no WSL distribution, Docker, or Podman, so Linux filesystem contract execution remains follow-up evidence.
 
-Completed:
+The guarded commit review found that the R02–R04 task documents still described pre-R01 field names, result statuses, attempt ownership, and app-level adapter placement. Those documents are now aligned to the implemented R01 API: reusable adapters/orchestration stay in `packages/core-loop`, the app remains a thin CLI, R02 writes strict `AgentAttemptInput`, R03 consumes strict `CompileRequest` and returns strict `CompileResult`, and R04 reads `CreateRunRequest.profile.maxAttempts` with `COMPILE_PASSED` as the success outcome.
 
-- implemented `Result`, `DomainError`, `DomainState`, `PendingReviewState`, `DecisionContext`, and domain-local `EventBatch`
-- implemented executable Stage × Status × Command transition policy and actor matrix
-- implemented `START_WORKFLOW`, Phase A `REQUEST_REVIEW`, and `RECORD_REVIEW_DECISION`
-- required the exact safe Spec Approval decision set
-- implemented strict context ID/time validation and one version increment per command batch
-- implemented batch validation, projection, ordered replay, and full-stream duplicate detection
-- separated intrinsic state invariants from previous/next transition invariants
-- kept A02 EventEnvelope arrays and A04 per-event persistence rather than adding a second batch wire contract
-- updated A04/A05 specifications for aggregate reconstruction, request actor persistence, review projection writes, monotonic context, and internal-error mapping
-- added public-API tests for transition coverage, decisions, bindings, actors, batch corruption, replay, determinism, and immutability
+A follow-up guarded review found three R01 boundary defects. They are resolved: successful atomic run publication is no longer changed into a failure by staging cleanup errors and instead returns `STAGING_CLEANUP_FAILED`; captured output now removes drive, UNC, and POSIX host paths without relying on caller hints and rejects residual paths at the schema boundary; and `FileManifestSchema` itself rejects NFC/case-fold path collisions.
 
-Not performed:
+The final guarded review also found that quoted POSIX paths and `file://` URLs bypassed sanitization, and that the Schema's preview maximum counted JavaScript string units instead of UTF-8 bytes. Both are fixed with boundary regression tests; ordinary HTTP(S) URLs remain unchanged.
 
-- repository, SQLite transaction, CAS, idempotency, or Command Executor behavior; belongs to A04/A05
-- review nonce/authentication or CLI behavior; belongs to A09/A10
-- Phase B/C review transitions, snapshots, gates, or routing
-- Linux execution evidence; deferred under the active A01–A05 policy
+## Scope Completed
 
-## Relevant Files
+- added `packages/core-loop` and wired it into pnpm/TypeScript/Vitest
+- added full `NormalizedFixture`, run profile/request, Agent input, compile request/result, final result, captured output, manifest, and error schemas
+- separated `BLANK_GENERATION` from `SEEDED_COMPILE_REPAIR`
+- implemented structured dataset/case/adapter/normalization provenance and deterministic case listing checks
+- made Provider output untrusted staging input; rejected links, special/undeclared files, non-RTL starter files, traversal and case/Unicode collisions
+- computed raw-byte file digests and RFC 8785 JCS manifest/fixture digests
+- atomically published fresh `.rtl-agent/runs/<run-id>` workspaces and evidence without a persistent fixture cache
+- enforced the post-turn net-change rule across the whole run root, allowing only `workspace/rtl/**`
+- added UTF-8 byte truncation and host-path redaction for captured output
+- made post-publication staging cleanup best-effort with a stable warning while preserving the published run
+- enforced generic host-path rejection in `CapturedOutputSchema` and collision rejection in `FileManifestSchema`
+- reserved `core-loop/fixtures/` without dataset content and ignored local `.rtl-agent/` output
+- added a thin fixture-check CLI with stable missing-provider behavior
 
-- `packages/domain/src/**`
-- `packages/domain/test/**`
-- `packages/domain/package.json`
-- `docs/tasks/A03-domain-state-machine.md`
-- `docs/tasks/A04-sqlite-storage.md`
-- `docs/tasks/A05-command-executor.md`
-- `docs/decisions.md`
+## Not Performed
 
-## Plan
+- no concrete dataset, adapter, canonical fixture, reference answer, hidden test, or evaluation result
+- no OpenCode Agent/model call; belongs to R02
+- no Icarus/Verilator compile; belongs to R03
+- no repair loop, batch metrics, simulation, testbench, or functional-correctness claim
+- no A03 state update, SQLite, daemon, MCP, snapshot, review, or formal Gate work
+- no Linux test execution because no Linux runtime/container is available locally
 
-1. Reconcile the A03 review with approved A02 batch and platform decisions.
-2. Define the domain aggregate, errors, executable policies, and invariant layers.
-3. Implement pure decide, evolveBatch, and replay through one projection path.
-4. Add exhaustive policy, corruption, determinism, and immutability tests.
-5. Run Windows validation and record the A04 handoff.
+## Public R01 Boundaries
 
-## Validation Commands
+- library: `@rtl-agent/core-loop`
+- Provider: `describe`, deterministic `listCases`, staging-only `materialize`
+- run entry: `createCoreLoopRun`
+- manifests: `createBaselineWorkspaceManifest`, `createAttemptRunManifest`
+- write policy: `checkAllowedRunChanges` / `assertAllowedRunChanges`
+- output: `captureOutput`
+- fixture diagnostic: `corepack pnpm core-loop:fixtures:check` (expected exit 2 until configured)
 
-```powershell
-corepack pnpm install --frozen-lockfile
-corepack pnpm lint
-corepack pnpm typecheck
-corepack pnpm --filter @rtl-agent/domain --fail-if-no-match test
-corepack pnpm test
-corepack pnpm build
-corepack pnpm format:check
-corepack pnpm peers check
-rg -n "node:(fs|path|process|child_process|crypto)|@modelcontextprotocol|sqlite|better-sqlite3|Date\.now|new Date|Math\.random|randomUUID|process\." packages/domain/src
-git diff --check
-& 'C:\Program Files\Git\bin\bash.exe' scripts/harness_check.sh
-```
+## Validation Evidence
 
-The dependency/side-effect scan is successful only when it returns no matches.
-
-## Acceptance Criteria
-
-- every Phase A Stage × Status × Command branch is covered by executable policy tests
-- `decide` generates events and obtains next state only through `evolveBatch`
-- pending review identity, binding, actor, allowed decisions, and request time survive projection/replay
-- batch and full-stream version/index/task/command/event identity failures fail closed
-- equal inputs produce equal outputs without mutation or implicit time/random/I/O
-- all required Windows commands and harness checks pass
+- `corepack pnpm install --frozen-lockfile`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 4 files, 27 tests passed
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 1 test passed
+- `corepack pnpm test`: 18 files, 129 tests passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `corepack pnpm peers check`: passed
+- missing Provider diagnostic: `DATASET_NOT_CONFIGURED`, exit 2 as expected
+- R02–R04 stale-contract/required-term/heading/code-fence scan: passed
+- final `git diff --check` and Harness: passed after the handoff update
 
 ## Risks
 
-- Linux execution remains unverified under the temporary A01–A05 evidence exception
-- A04 must persist requested actor fields and assemble task plus pending review atomically
-- Phase A supports one event per command; later multi-event commands must explicitly extend domain event-sequence policy
-- A09 must still compute `specDigest` at the trusted workspace boundary
+- Linux case-sensitive filesystem and Linux symlink behavior have not executed on this host; run the unified suite in Linux CI before claiming Linux readiness.
+- a `STAGING_CLEANUP_FAILED` warning means the run is valid but temporary staging may require operator cleanup.
+- before/after manifests detect net changes only; R02 must pair them with Agent permission restrictions.
+- `compilerProfileId` is syntax-validated only; R03 must define and lock the actual repository-owned profile/tool version.
+- compile-only results remain non-authoritative and do not prove RTL functionality.
 
 ## Next 3 Steps
 
-1. Begin A04 from `docs/tasks/A04-sqlite-storage.md`.
-2. Persist task and review projections so they reconstruct A03 `DomainState` without hidden repository queries.
-3. Return ordered event rows in command batches suitable for strict A03 replay.
+1. Implement R02 against `AgentAttemptInput` and the run/write-policy API.
+2. Implement R03 independently against `CompileRequest`/`CompileResult` and lock a real Icarus version.
+3. Select/review a real dataset and evaluation profile only after R02 and R03 smoke evidence, then execute R04.
 
 ## Last Updated
 
-2026-07-15T15:02:46+08:00
+2026-07-16T08:31:18+08:00

@@ -15,7 +15,8 @@
     "build": "tsc -b tsconfig.json --pretty false",
     "clean": "tsc -b tsconfig.json tsconfig.test.json --clean",
     "format:check": "prettier --check . --ignore-unknown",
-    "format": "prettier --write . --ignore-unknown"
+    "format": "prettier --write . --ignore-unknown",
+    "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

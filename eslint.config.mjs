@@ -10,6 +10,7 @@ export default defineConfig([
     "**/.vitest/**",
     "**/.harness/**",
     "**/.rtl-workflow/**",
+    "**/.rtl-agent/**",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

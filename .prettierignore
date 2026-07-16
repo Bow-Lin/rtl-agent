@@ -5,6 +5,7 @@ node_modules
 **/*.tsbuildinfo
 .harness
 .rtl-workflow
+.rtl-agent
 docs
 skills
 scripts

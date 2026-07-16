@@ -11,8 +11,10 @@
   "include": ["apps/**/test/**/*.ts", "packages/**/test/**/*.ts"],
   "references": [
     { "path": "./packages/contracts" },
+    { "path": "./packages/core-loop" },
     { "path": "./packages/domain" },
     { "path": "./packages/storage" },
+    { "path": "./apps/rtl-core-loop" },
     { "path": "./apps/workflow-daemon" },
     { "path": "./apps/workflow-cli" }
   ]

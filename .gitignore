@@ -4,3 +4,4 @@ node_modules/
 **/.vitest/
 **/*.tsbuildinfo
 .rtl-workflow/
+.rtl-agent/

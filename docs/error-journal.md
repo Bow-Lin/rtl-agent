@@ -52,3 +52,27 @@ For future package-scoped test scripts, first verify the actual working director
 
 - `packages/contracts/package.json`
 - `vitest.config.ts`
+
+## 2026-07-16 - Host-path sanitizer alternated between URL false positives and quoted-path false negatives
+
+### Symptom
+
+The first generic Windows drive rule redacted the tail of an HTTP URL. After preserving HTTP(S), a guarded review showed that quoted POSIX paths and `file://` paths still passed through unchanged.
+
+### Root Cause
+
+The sanitizer tried to infer every host path with broad expressions but did not define URL classes and path-token boundaries independently. The captured-output Schema reused that same incomplete detector, so it did not provide an independent fail-closed result.
+
+### Fix
+
+Preserve ordinary HTTP(S) URLs, explicitly redact `file://` URLs, accept punctuation and quotes as POSIX path boundaries, and add the same quoted/file cases to capture and Schema-boundary tests. The Schema also now applies its preview maximum using UTF-8 byte length rather than JavaScript string length.
+
+### Prevention
+
+Every path sanitizer change must test Windows drive, UNC, bare POSIX, quoted POSIX, `file://`, HTTP(S), and multibyte byte-limit cases at both the helper and public Schema boundaries.
+
+### Related Files
+
+- `packages/core-loop/src/sanitization.ts`
+- `packages/core-loop/src/contracts.ts`
+- `packages/core-loop/test/contracts.test.ts`

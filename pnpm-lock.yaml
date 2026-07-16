@@ -30,6 +30,12 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.13.3)(vite@8.1.4(@types/node@24.13.3))
 
+  apps/rtl-core-loop:
+    dependencies:
+      '@rtl-agent/core-loop':
+        specifier: workspace:*
+        version: link:../../packages/core-loop
+
   apps/workflow-cli:
     dependencies:
       '@rtl-agent/contracts':
@@ -59,6 +65,15 @@ importers:
 
   packages/contracts:
     dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
+  packages/core-loop:
+    dependencies:
+      '@rtl-agent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       zod:
         specifier: 4.4.3
         version: 4.4.3

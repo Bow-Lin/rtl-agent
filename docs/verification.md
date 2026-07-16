@@ -30,6 +30,18 @@ corepack pnpm peers check
 
 A01–A05 currently use Windows lint, typecheck, unit, storage, integration, and build evidence as their completion gate. Their implementation must remain portable and retain future Linux CI entry points, but a successful Linux result is temporarily deferred and does not block `DONE`. The A01 GitHub Actions Linux job is advisory. Before claiming production Linux readiness, the deferred Linux control-plane suite must pass. Formal compile/simulation/coverage Gate evidence is still produced on Linux; a non-Linux formal-Gate invocation must be tested to return `LINUX_GATE_REQUIRED` rather than a downgraded success.
 
+R01–R04 form a separate Core Loop checkpoint. Its fixed local Icarus compile may run on the current Windows host, but every result must be marked `authoritative: false` and `claim: "COMPILE_ONLY"`. This evidence may support a product-direction decision only; it does not satisfy B07/B11, prove Linux readiness, or establish RTL functional correctness. R01 contract tests and R02/R03 smoke tests use temporary generated inputs and do not count as evaluation evidence. A real R04 batch requires an operator-selected, version/license-reviewed dataset provider and a predeclared evaluation profile. Task-specific OpenCode and Icarus commands are added when R02/R03 lock actual installed versions.
+
+R01-specific checks are:
+
+```powershell
+corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test
+corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test
+corepack pnpm core-loop:fixtures:check
+```
+
+The first two commands use only temporary synthetic mechanics inputs. Until an operator configures a reviewed Provider, `core-loop:fixtures:check` must exit non-zero with `DATASET_NOT_CONFIGURED`; that diagnostic is the expected result, not a failed fallback. R01 filesystem contract tests should run on Windows and Linux because case sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing command/evidence and do not claim Linux readiness.
+
 ## Change-Type Validation Matrix
 
 | Change Type | Required Validation |
@@ -43,6 +55,7 @@ A01–A05 currently use Windows lint, typecheck, unit, storage, integration, and
 | A01–A05 portable control plane | Windows checks required; Linux execution evidence temporarily deferred |
 | Production Linux readiness / later portable milestones | Windows checks plus Linux CI checks |
 | Formal RTL Gate | Linux execution plus non-Linux rejection test |
+| R01–R04 Core Loop | Unified checks plus task-specific real OpenCode/Icarus smoke or batch evidence; results remain non-authoritative |
 
 ## If Validation Cannot Be Run
 

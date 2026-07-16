@@ -537,3 +537,297 @@ Implemented the Phase A state machine in `@rtl-agent/domain`. The public API is 
 1. Execute A04 from the revised SQLite specification.
 2. Persist enough task/review data to reconstruct `DomainState` after restart.
 3. Read workflow events in command batches and prove strict A03 replay from stored rows.
+
+## Entry: P01-P04 Spec-to-RTL Prototype Task Design
+
+### Summary
+
+Inserted a non-authoritative Prototype checkpoint after A03 and wrote implementation-ready specifications for P01 through P04. The new route tests Spec → RTL generation, fixed Icarus compile/elaboration, compiler-error feedback, bounded Agent repair, and batch evaluation before more durable control-plane work. A04 and the trusted HLD remain intact but are deferred until P04 and an explicit user decision.
+
+### Files Created
+
+- `docs/tasks/P01-prototype-contract-and-fixtures.md`
+- `docs/tasks/P02-opencode-rtl-agent-protocol.md`
+- `docs/tasks/P03-fixed-non-authoritative-compile-adapter.md`
+- `docs/tasks/P04-bounded-repair-loop-and-evaluation.md`
+
+### Files Updated
+
+- `docs/task-breakdown.md`
+- `docs/architecture.md`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Design Decisions
+
+- Execute P01, then P02 and P03 independently or in parallel, then converge in P04.
+- Materialize every canonical fixture into a fresh ignored run workspace; Agent writes are limited to `workspace/rtl/**` and checked again with before/after manifests.
+- Use project-local OpenCode Agent/Skill configuration and `opencode run --format json` through fixed executable/argv with `shell: false`; lock the actual OpenCode/model version during P02.
+- Use profile ID `iverilog-systemverilog-2012-v1`; lock the actual installed Icarus release during P03 rather than inventing an unverified version.
+- Mark every Prototype result `authoritative: false` and `claim: "COMPILE_ONLY"`. Compile pass never means functional correctness or trusted Gate success.
+- Limit P04 to three Agent attempts, continue only after `COMPILE_ERROR`, independently recompile every final pass, and evaluate at least six fixtures.
+- P04 ends with `PROCEED_TO_FUNCTIONAL_VALIDATION`, `REFINE_PROTOTYPE_ONCE`, or `STOP_OR_RETHINK`, then waits for user direction.
+
+### Validation
+
+- Four-file required-heading scan: each document has all 8 required task-spec headings.
+- Task ID scan: exactly P01, P02, P03, and P04, all unique.
+- Breakdown link target check: all four implementation documents exist.
+- Markdown code-fence check: each document has 12 fence markers and is balanced.
+- `.harness/session-state.json` parse: passed.
+- `corepack pnpm format:check`: passed.
+- `git diff --check`: passed after removing one trailing-space pair from the updated breakdown status line.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed; rerun after final handoff evidence update.
+
+### Known Issues / Risks
+
+- `opencode`, `iverilog`, and `verilator` were not found on the current host. P02/P03 must install/probe real tools and lock actual versions before they can be `DONE`.
+- OpenCode CLI/config surfaces are version-sensitive; P02 requires a capability probe against current official interfaces.
+- The Prototype reads a mutable per-run workspace and retains only local ignored evidence. It cannot replace immutable snapshot, review, job, Linux Gate, or result-ingestion work.
+- Compile/elaboration success does not prove the RTL meets the specification. If P04 succeeds, fixed TB/simulation is the expected next capability decision.
+
+### Next Steps
+
+1. Execute P01 only from `docs/tasks/P01-prototype-contract-and-fixtures.md`.
+2. After P01 validation, execute P02 and P03 using the shared Prototype contract.
+3. Execute P04 only after both a real OpenCode turn and real Icarus compile evidence exist.
+
+## Entry: Stable Spec-to-RTL Core Loop Naming
+
+### Summary
+
+Replaced the lifecycle-oriented Prototype/P01–P04 naming in all active planning and handoff documents. The capability now has a stable name intended to survive later fixed-TB, simulation, and repair improvements: Spec-to-RTL Core Loop with tasks R01–R04.
+
+The preceding Session Log entry is preserved as historical evidence of the original authoring step, including its then-current filenames. Active documents and links now use only the stable names.
+
+### Naming Result
+
+- phase/capability: `Spec-to-RTL Core Loop`
+- tasks: `R01` → (`R02` || `R03`) → `R04`
+- application/package: `apps/rtl-core-loop`, `@rtl-agent/rtl-core-loop`
+- OpenCode Agent/Skill: `rtl-core-loop`
+- CLI: `rtl-agent run`, `rtl-agent evaluate`
+- canonical fixtures: `core-loop/fixtures/**`
+- local runs/evidence: `.rtl-agent/runs/**`
+- result types: `RtlCompileStatus`, `RtlRunOutcome`, and other `Rtl*` names
+- evaluation suite/report: `core-loop-v1`, `docs/experiments/spec-to-rtl-core-loop-report.md`
+
+Non-authoritative behavior remains expressed by `authoritative: false` and `claim: "COMPILE_ONLY"`; it is not encoded in the capability name.
+
+### Files Renamed
+
+- `docs/tasks/P01-prototype-contract-and-fixtures.md` → `docs/tasks/R01-core-loop-contract-and-fixtures.md`
+- `docs/tasks/P02-opencode-rtl-agent-protocol.md` → `docs/tasks/R02-opencode-rtl-agent-protocol.md`
+- `docs/tasks/P03-fixed-non-authoritative-compile-adapter.md` → `docs/tasks/R03-fixed-non-authoritative-compile-adapter.md`
+- `docs/tasks/P04-bounded-repair-loop-and-evaluation.md` → `docs/tasks/R04-bounded-repair-loop-and-evaluation.md`
+
+### Files Updated
+
+- `docs/task-breakdown.md`
+- `docs/architecture.md`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `docs/tasks/A04-sqlite-storage.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- Active stale-name scan: passed; no lifecycle-oriented names or legacy task IDs remain outside historical Session Log entries.
+- Old task-file absence and R01–R04 breakdown link targets: passed.
+- Required-heading/code-fence check: all four documents have 8 required headings and 12 balanced fence markers.
+- Task ID scan: exactly R01, R02, R03, and R04, all unique.
+- Stable package/CLI/type/suite/report/run-path presence scan: passed.
+- `.harness/session-state.json` parse: passed.
+- `corepack pnpm format:check`: passed.
+- `git diff --check`: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed; rerun after final evidence update.
+
+### Next Steps
+
+1. Execute R01 from `docs/tasks/R01-core-loop-contract-and-fixtures.md`.
+2. Preserve the stable names when adding implementation files.
+3. Express future trust upgrades through contracts/layers rather than renaming the Core Loop.
+
+## Entry: Dataset-Backed Fixture Boundary
+
+### Summary
+
+Removed the requirement to design and commit concrete Core Loop fixtures during R01. Fixture now means the normalized internal representation produced from an external evaluation dataset. R01 reserves the location and provider/materialize contract; dataset selection, download, license review, adapter implementation, and concrete cases are deferred until evaluation preparation.
+
+### Design Changes
+
+- Added `FixtureProvider`, `DatasetDescriptor`, `DatasetSelection`, `FixtureCaseRef`, `NormalizedFixture`, and dataset provenance responsibilities to R01.
+- Reserved `core-loop/fixtures/README.md`; R01 does not ship a fixture catalog or evaluation dataset.
+- Required dataset ID/version/split/case ID/source digest/license reference and adapter version to participate in evaluation evidence.
+- Required hidden tests/reference answers to remain outside the Agent workspace.
+- R01–R03 mechanics tests use temporary generated inputs that are cleaned up and cannot count as evaluation evidence.
+- R04 no longer hard-codes six fixtures, a 5/6 pass target, or a built-in suite. Dataset selection, case count, category coverage, sampling, and success thresholds must be declared in a versioned evaluation profile before the batch runs.
+- Missing dataset/provider configuration fails closed rather than falling back to bundled samples or downloading a floating latest dataset.
+
+### Files Updated
+
+- `docs/tasks/R01-core-loop-contract-and-fixtures.md`
+- `docs/tasks/R02-opencode-rtl-agent-protocol.md`
+- `docs/tasks/R03-fixed-non-authoritative-compile-adapter.md`
+- `docs/tasks/R04-bounded-repair-loop-and-evaluation.md`
+- `docs/task-breakdown.md`
+- `docs/architecture.md`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- Concrete-fixture/count/threshold stale scan: passed; no active R01–R04 requirement still commits a fixed case set or repository-wide pass fraction.
+- Dataset/provider/provenance/fail-closed presence scan: passed.
+- R01–R04 required-heading and code-fence check: all four documents valid and balanced.
+- `.harness/session-state.json` parse: passed.
+- `corepack pnpm format:check`: passed.
+- `git diff --check`: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed; rerun after final evidence update.
+
+### Next Steps
+
+1. Execute R01 without selecting or committing an evaluation dataset.
+2. Use test-only temporary providers for R01–R03 mechanics validation.
+3. Before R04, explicitly select and review a real dataset, adapter, split, sample policy, license, and evaluation thresholds.
+
+## Entry: R01 Core Loop Contract, Staging, Runs, and Manifests
+
+### Summary
+
+Implemented R01 as a reusable private `@rtl-agent/core-loop` library with a thin `apps/rtl-core-loop` CLI. The library defines the complete R02/R03 handoff contract, validates dataset-backed Provider output in ephemeral staging, atomically publishes isolated runs, computes raw-byte/JCS manifests, and detects protected net writes. No concrete dataset, persistent fixture cache, Agent, compiler, repair loop, or formal workflow state integration was added.
+
+### Files Created or Updated
+
+- `packages/core-loop/**`: contracts, stable errors, catalog, Provider boundary, filesystem scanner, manifests, materializer, output capture, and 22 tests
+- `apps/rtl-core-loop/**`: thin fixture-configuration CLI and one test
+- `core-loop/fixtures/README.md`: reserved Provider location with no dataset content
+- root workspace references, lockfile, `.rtl-agent/` ignore policy, lint/format ignores
+- R01 task, architecture, verification, decisions, task breakdown, and handoff state
+
+### Public API and Boundaries
+
+- `NormalizedFixture` is separate from `CoreLoopRunProfile` and `CreateRunRequest`; blank generation and seeded repair are a strict discriminated union.
+- Stable fixture identity is dataset ID/version/split/case ID. `fixtureId` is a display alias. Provenance additionally records optional dataset digest, required case digest, license, adapter version, and normalization version.
+- R02 receives `AgentAttemptInput`; R03 receives `CompileRequest` and returns the four-way `CompileResult`. Results use `COMPILE_PASSED`, never bare `PASSED`, and repeat `authoritative: false` / `COMPILE_ONLY`.
+- Captured output stores a sanitized UTF-8 byte-bounded preview, truncation flag, original byte length, and optional logical artifact path.
+- Provider `materialize` writes candidate files only into a new Core Loop staging directory. Core Loop independently rejects symlink/junction/special/undeclared files, non-RTL starter content, invalid logical paths, and NFC/case-fold collisions before hashing and publication.
+- No `.rtl-agent/fixture-cache` or CAS exists. Staging is removed after a run is published.
+- `normalizedFixtureDigest`, baseline workspace manifest, and attempt/run manifest have distinct scopes. File digests cover raw bytes; manifest digests are SHA-256 of A02 JCS-canonical sorted `{path, byteLength, contentDigest}` entries.
+- Write policy compares the complete run root and permits net file changes only below `workspace/rtl/**`. It does not detect transient write-and-restore behavior; R02 permissions remain required.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 4 files, 22 tests passed.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 1 test passed.
+- `corepack pnpm test`: 18 files, 124 tests passed.
+- `corepack pnpm build`: passed.
+- `corepack pnpm format:check`: passed.
+- `corepack pnpm peers check`: no peer issues.
+- `fixtures-check` with no configured Provider: stable `DATASET_NOT_CONFIGURED`, exit code 2 as expected.
+- `git diff --check` and `scripts/harness_check.sh`: passed after the final handoff update.
+
+### Failures Found and Repaired
+
+- The first typecheck used a non-exported Zod discriminated-union option type and an overly narrow compile-time JCS input type. The final schema uses public Zod APIs and A02 runtime JCS validation.
+- The first output-capture test did not actually cross its byte limit; the limit was corrected and the UTF-8 truncation path now executes.
+- Lint rejected intentional control-character regular expressions and an unused test parameter; the sanitizer intent is now locally documented and the test interface simplified.
+- The initial public types inherited one generic string brand from a helper. The helper now preserves distinct literal brands for fixture, dataset, profile, and adapter identifiers.
+
+### Missing Linux Evidence / Risk
+
+`wsl --list --verbose` reported no installed distribution, and neither Docker nor Podman is installed. Linux filesystem contract tests were therefore not run. Windows tests include a real junction rejection plus pure normalization/case-collision checks, but Linux case-sensitive duplicate-directory behavior remains unexecuted. Run the unified suite in Linux CI before claiming Linux readiness; this does not change the non-authoritative classification of Core Loop results.
+
+### Next Steps
+
+1. Implement R02 against `AgentAttemptInput`, `createCoreLoopRun`, captured output, and whole-run write-policy APIs.
+2. Implement R03 independently against `CompileRequest`/`CompileResult` and lock the actual Icarus profile/tool version.
+3. Select and review a real dataset adapter and evaluation profile only after R02/R03 smoke evidence, then execute R04.
+
+## Entry: Align R02-R04 with the Implemented R01 Contract
+
+### Summary
+
+Resolved the guarded commit review findings in the three active downstream task documents. R02, R03, and R04 now use the exact R01 public field/status vocabulary and preserve the implemented library/thin-CLI boundary. No TypeScript implementation or task scope was changed.
+
+### Documentation Changes
+
+- R02 now writes strict `AgentAttemptInput`: `attempt`, `category`, `workspaceRtlRoot`, and optional `previousCompileResultPath`. Baseline/previous compiler feedback is a separate bounded, sanitized `CompileResult` file below `workspace/context/`.
+- R02 places reusable OpenCode adapter/probe behavior in `packages/core-loop`; `apps/rtl-core-loop` only parses CLI commands and calls the public API. Agent stdout/stderr reuse R01 `CapturedOutput` semantics.
+- R03 now accepts strict non-empty `CompileRequest`, uses `attempt: 0` for seeded baseline and `1..3` after Agent turns, and returns only the four R01 `CompileResult` variants with exact fields and exit-code rules.
+- R03 issues use `kind/message` plus optional `path/line/column`; schema-external issue codes, cleanup fields, and a second source-manifest field were removed.
+- Empty source discovery returns a separate `NO_RTL_SOURCE` preparation result and never constructs an invalid empty `CompileRequest`.
+- R04 reads `CreateRunRequest.profile.maxAttempts` (1–3), uses `COMPILE_PASSED`, treats blank baseline as compiler-not-invoked evidence, and ends an Agent turn with no source as `AGENT_FAILED` without fabricating compiler evidence.
+- R04 final evidence must pass `FinalResultSchema`; incomplete/aborted runs remain batch-level classifications rather than new final outcomes. CLI examples use the existing `rtl-core-loop` bin.
+
+### Validation
+
+- Exact stale terms removed from active R02–R04 documents: bare `PASSED`, old Agent input fields, fixture/evaluation max-attempt overrides, old manifest/output fields, cleanup result fields, and the old CLI bin.
+- Required implemented terms present: `AgentAttemptInputSchema`, `previousCompileResultPath`, `CompileRequestSchema`, `COMPILE_PASSED`, `workspaceManifestDigest`, `CapturedOutput`, `CreateRunRequest.profile.maxAttempts`, and the package/app ownership boundary.
+- Required task headings and balanced Markdown code fences: passed for all three documents.
+- `git diff --check` and `scripts/harness_check.sh`: passed after the final handoff update.
+
+## Entry: Resolve R01 Guarded Review Findings
+
+### Summary
+
+Fixed the three P2 findings from the guarded commit review without expanding R01 scope. An already published run remains successful if staging cleanup fails, captured output no longer depends on caller-provided path hints to remove host absolute paths, and manifest collision safety is enforced at the public schema boundary.
+
+### Changes
+
+- `createCoreLoopRun` now treats post-publication staging cleanup as best-effort and returns the stable `STAGING_CLEANUP_FAILED` warning while keeping the published run readable.
+- `captureOutput` generically redacts Windows drive, UNC, and POSIX absolute paths; `CapturedOutputSchema` rejects residual host paths. HTTP(S) URLs remain intact.
+- `FileManifestSchema` independently rejects logical paths that collide after NFC normalization and case folding, including hand-built manifests that bypass generator helpers.
+- Added regression tests for cleanup failure after publication, redaction without hints, schema-boundary host-path rejection, URL preservation, and schema-boundary case/Unicode collisions.
+- Updated the R01 task and architecture decision record with the hardened boundary semantics.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`: passed.
+- `corepack pnpm typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 4 files, 26 tests passed.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 1 test passed.
+- `corepack pnpm test`: 18 files, 128 tests passed.
+- `corepack pnpm build`, `format:check`, and `peers check`: passed.
+- Missing Provider diagnostic remained `DATASET_NOT_CONFIGURED` with exit code 2.
+- `git diff --check` and `scripts/harness_check.sh`: passed after the final handoff update.
+
+### Failure Repaired During Validation
+
+The first generic Windows drive-path expression interpreted the tail of `https:/` as a drive path and redacted a normal URL. The rule now requires a valid token boundary before a drive prefix; regression coverage verifies that host paths are removed while `https://example.com/docs` is preserved.
+
+## Entry: Close Final R01 Output Boundary Findings
+
+### Summary
+
+Resolved the two remaining P2 findings from the final guarded review and corrected stale R01 validation counts. Quoted POSIX paths and `file://` URLs can no longer bypass captured-output sanitization, and the public Schema now enforces its maximum in UTF-8 bytes.
+
+### Changes
+
+- Added explicit `file://` redaction and punctuation-aware POSIX path boundaries while preserving ordinary HTTP(S) URLs.
+- Replaced the JavaScript string-length preview limit with a UTF-8 byte-length refinement.
+- Added helper/Schema regression coverage for quoted POSIX paths, file URLs, HTTP(S), and multibyte previews over 1 MiB.
+- Updated R01 task evidence to 27 Core Loop tests and 129 repository tests and recorded the sanitizer failure mode in the error journal.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint` and `typecheck`: passed.
+- `corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test`: 4 files, 27 tests passed.
+- `corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test`: 1 file, 1 test passed.
+- `corepack pnpm test`: 18 files, 129 tests passed.
+- `corepack pnpm build`, `format:check`, and `peers check`: passed.
+- Final `git diff --check` and Harness: passed after the handoff update.
