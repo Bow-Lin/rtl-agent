@@ -8,6 +8,7 @@
   },
   "scripts": {
     "agent:probe": "node dist/index.js agent-probe",
+    "compile:smoke": "node dist/index.js compile-smoke",
     "fixtures:check": "node dist/index.js fixtures-check",
     "test": "vitest run apps/rtl-core-loop/test --config vitest.config.ts --root ../.."
   },

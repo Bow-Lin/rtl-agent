@@ -174,6 +174,8 @@ RtlRunOutcome =
 
 每个 final result 必须重复 `authoritative: false` 与 `claim: "COMPILE_ONLY"`，并记录 `fixtureId`、`runId`、`outcome`、attempt 数、最终 RTL manifest digest、profile/version 和开始/结束时间。时间用于实验记录，不参与结果身份或正式状态推进。
 
+这里的 `iverilog-systemverilog-2012-v1` 只是 R01 用于证明 profile ID 语法和 handoff shape 的 test placeholder；R01 不声明 repository profile 存在。R03 冻结的实际 profile 是 `iverilog-systemverilog-2012-null-v1`。R03 实现前只会补充两项向后兼容的表达能力：`TOOL_ERROR` 可使用 `toolVersion: null`，以及 `originalByteLength` 表示脱敏前的 raw pipe bytes。其余 R01 workspace、manifest、attempt 和 status 边界保持不变。
+
 R01 还完整定义 `AgentAttemptInput`、`CompileRequest`、四分支 `CompileResult` 和 `FinalResult`，使 R02/R03 可以只依赖 R01 公共 API 并行实现。stdout/stderr 使用 UTF-8 byte 截断，保存 sanitized preview、`truncated`、`originalByteLength` 和可选 logical artifact path；JSON 中不得出现宿主绝对路径。所有用户可见 message、日志和 issue 采用 profile 固定上限。
 
 ## Run 目录与隔离规则

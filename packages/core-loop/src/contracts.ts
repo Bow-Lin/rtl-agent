@@ -211,10 +211,7 @@ export const CapturedOutputSchema = z
   })
   .superRefine((value, context) => {
     const previewBytes = Buffer.byteLength(value.preview, "utf8");
-    if (
-      (value.truncated && value.originalByteLength <= previewBytes) ||
-      (!value.truncated && value.originalByteLength !== previewBytes)
-    ) {
+    if (value.truncated && value.originalByteLength <= previewBytes) {
       context.addIssue({
         code: "custom",
         path: ["originalByteLength"],
@@ -319,7 +316,6 @@ const compileResultCommon = {
   runId: RunIdSchema,
   attempt: z.int().nonnegative().max(3),
   compilerProfileId: CompilerProfileIdSchema,
-  toolVersion: ToolVersionSchema,
   topModule: SystemVerilogIdentifierSchema,
   workspaceManifestDigest: Sha256DigestSchema,
   durationMs: z.int().nonnegative(),
@@ -332,17 +328,25 @@ export const CompileResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     ...compileResultCommon,
     status: z.literal("COMPILE_PASSED"),
+    toolVersion: ToolVersionSchema,
     exitCode: z.literal(0),
   }),
   z.strictObject({
     ...compileResultCommon,
     status: z.literal("COMPILE_ERROR"),
+    toolVersion: ToolVersionSchema,
     exitCode: z.int().refine((value) => value !== 0, "Compile errors require a non-zero exit code"),
   }),
-  z.strictObject({ ...compileResultCommon, status: z.literal("TIMEOUT"), exitCode: z.null() }),
+  z.strictObject({
+    ...compileResultCommon,
+    status: z.literal("TIMEOUT"),
+    toolVersion: ToolVersionSchema,
+    exitCode: z.null(),
+  }),
   z.strictObject({
     ...compileResultCommon,
     status: z.literal("TOOL_ERROR"),
+    toolVersion: ToolVersionSchema.nullable(),
     exitCode: z.int().nullable(),
   }),
 ]);
@@ -357,7 +361,6 @@ const finalResultCommon = {
   normalizedFixtureDigest: Sha256DigestSchema,
   profileId: CoreLoopProfileIdSchema,
   compilerProfileId: CompilerProfileIdSchema,
-  toolVersion: ToolVersionSchema,
   attemptCount: z.int().nonnegative().max(3),
   finalRtlManifestDigest: Sha256DigestSchema,
   startedAt: IsoTimestampSchema,
@@ -378,8 +381,16 @@ export const FinalResultSchema = z
   .strictObject({
     ...finalResultCommon,
     outcome: z.enum(finalOutcomes),
+    toolVersion: ToolVersionSchema.nullable(),
   })
   .superRefine((value, context) => {
+    if (value.outcome !== "TOOL_ERROR" && value.toolVersion === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["toolVersion"],
+        message: "Only tool-error final results may omit the tool version",
+      });
+    }
     if (value.completedAt < value.startedAt) {
       context.addIssue({
         code: "custom",

@@ -5,86 +5,173 @@
 - 权威进度：以 `docs/task-breakdown.md` 为准
 - 进入条件：R01 已完成并提供 fixture/run contract
 - 前置任务：R01
-- 可并行任务：R02
+- 可并行任务：R02（当前已完成；R03 仍不直接调用 R02）
 - 汇合任务：R04
 - 进度与验收证据登记位置：`docs/task-breakdown.md`、`.harness/session-log.md`
 
-## 目标
+## 目标与能力边界
 
-使用一个 repository-owned、固定参数的 Icarus Verilog profile，对 run workspace 的 SystemVerilog RTL 执行语法解析与 top elaboration，并输出有界、结构化、明确 `authoritative: false` 的结果。
+使用 repository-owned、固定参数的 Icarus Verilog profile，对 mutable run workspace 中一组明确绑定的 SystemVerilog/Verilog 源文件执行预处理、语法解析和 top elaboration，并返回有界、结构化、明确 `authoritative: false` 的结果。
 
-R03 的结果只回答“这组源文件能否被当前固定 compiler profile 编译/elaborate”。它不回答 RTL 是否满足 spec，不运行 testbench，也不是 Phase B 的正式 Compile Gate。
+R03 只回答：当前 workspace 中被 request 与 manifest 绑定的输入，是否被锁定版本的 Icarus profile 接受。它不执行 VVP code generation，不运行生成结果、testbench、仿真、coverage、SVA 或 synthesis，也不证明 RTL 满足 spec 或完整符合 IEEE 1800-2012。R03 不是 Phase B 的正式 Compile Gate；immutable snapshot、sandbox、job、lease 和 authoritative result ingestion 仍由 B02–B11 实现。
 
-## Adapter 选择
+## R01 兼容性前置修订
 
-Core Loop v1 选用 Icarus Verilog，profile ID 固定为：
+R01 已实现的 workspace、logical path、manifest、attempt 和四分支 status 设计继续有效。R03 不重命名这些公共类型，也不改变 R02 已实现的 Agent turn 边界。实现 adapter 前只允许完成以下向后兼容的契约修订，因为现有 schema 无法诚实表达已经声明的 R03 行为：
 
-```text
-iverilog-systemverilog-2012-v1
-```
+1. `CompileResult.status === "TOOL_ERROR"` 时允许 `toolVersion: null`。成功 probe 后仍必须填写实际版本；版本不匹配时填写实际探测值；executable missing、probe spawn failure、probe timeout 或无法取得可信版本时填写 `null`。
+2. `FinalResult.outcome === "TOOL_ERROR"` 时同样允许 `toolVersion: null`，否则 R04 无法汇总前述合法的工具故障。
+3. `CapturedOutput.originalByteLength` 固定表示工具向对应 pipe 写出的原始字节数。ANSI 清理、控制字符移除和 host-path 脱敏可能改变 preview 的 UTF-8 长度，因此 schema 不再要求未截断时二者相等。`truncated` 表示 capture 或最终 sanitized preview 因上限丢失了内容。
 
-原因：
-
-- CLI 小、启动快，适合短小 fixture 的编译反馈实验。
-- 官方文档提供跨 Windows/Linux 一致的参数形式。
-- `-g2012` 明确启用 IEEE 1800-2012 SystemVerilog，`-s <top>` 明确选择 elaboration root。
-
-参考：[Icarus Verilog Command Line Flags](https://steveicarus.github.io/iverilog/usage/command_line_flags.html)、[Getting Started](https://steveicarus.github.io/iverilog/usage/getting_started.html)。
-
-R03 实施时必须安装并锁定一个实际 Icarus Verilog release，记录 executable resolution、`iverilog -V` 原始版本摘要和当前 host。文档不预填一个尚未验证的版本号。如果当前环境无法安装/运行 Icarus Verilog，R03 标记 `BLOCKED`；不得静默改用 Verilator、在线编译器或 mock 作为完成证据。以后更换工具需要新的 profile ID 与 `docs/decisions.md` 记录。
-
-## 范围
-
-### 必须实现
-
-- `packages/core-loop` 中的 compiler profile、source discovery、process adapter、diagnostic parser 和 compile result writer；`apps/rtl-core-loop` 只增加薄 CLI 命令解析和调用。
-- 固定 `iverilog` executable + argv、`shell: false`。
-- `.sv`/`.v` 源文件的受控递归发现、logical-path 排序和 top module elaboration。
-- compile timeout、bounded stdout/stderr、best-effort termination 和临时输出清理。
-- 将 Icarus diagnostics 映射为稳定 Core Loop issue，无法解析时保留有界 fallback issue。
-- 实际 compiler version probe 与版本漂移拒绝。
-- fake compiler 单元测试和使用临时生成 RTL 的真实 Icarus 集成测试；不依赖 repository evaluation case。
-- 向 R02/R04 提供只读结构化 feedback。
-
-### 非目标
-
-- 不运行 `vvp`，不执行 testbench、仿真、coverage、SVA 或 synthesis。
-- 不实现多 compiler fallback 或让 Agent/fixture选择 executable/argv。
-- 不实现 immutable snapshot、job queue、lease、sandbox、result ingestion 或 Linux authoritative Gate；属于 B02–B11。
-- 不保证生产级 process-tree/sandbox isolation。timeout/termination 的平台限制必须记录，不能包装成正式 Gate 能力。
-- 不把 warning 当作功能错误，也不通过自定义 warning suppression 掩盖 compiler error。
+这些修订只能放宽此前无法表示的失败或脱敏结果；已有合法 R01/R02 数据保持合法。必须补充 contract regression tests，证明非 `TOOL_ERROR` 结果仍要求非空 `toolVersion`，已有 captured output 仍可解析，且 host absolute path 拒绝规则不变。不得借此修改 R02 process、permission、manifest 或 evidence 逻辑。
 
 ## 固定 Profile
 
-首版 argv 由 adapter 按以下顺序构造：
+Core Loop v1 使用以下 profile ID：
 
 ```text
-iverilog
+iverilog-systemverilog-2012-null-v1
+```
+
+固定 argv 按以下顺序构造：
+
+```text
+<resolved-absolute-iverilog-executable>
   -g2012
+  -tnull
   -s <validated-top-module>
-  -o <orchestrator-owned-temporary-output>
   <sorted-source-host-path-1>
   <sorted-source-host-path-2>
   ...
 ```
 
-规则：
+`-tnull` 明确禁止 code generation，因此没有 `-o`、临时 VVP output 或 output cleanup。`-g2012` 只选择 Icarus 的 IEEE 1800-2012 language generation；`COMPILE_ERROR` 只表示设计未被这个锁定 profile 接受，不能单独证明 RTL 违反 SystemVerilog 标准。
 
-- `-g2012`、`-s`、`-o` 和顺序由 profile 常量定义。
-- `<top>` 来自已校验的 R01 normalized fixture，不能含 flag prefix、空白或任意表达式。
-- source list 只来自 `workspace/rtl/**` 下普通 `.sv`/`.v` 文件；使用 R01 logical-path policy 与 case-collision 检查。
-- source 路径稳定排序后逐项放入 argv；不使用 shell glob、response/command file、pipeline 或字符串拼接。
-- 临时 output 位于 orchestrator-owned temp/evidence 路径，不位于 Agent 可写 root。compile 完成后删除；删除失败写入独立 adapter evidence/log，不扩展严格的 `CompileResult`，也不把 compile error 改写成 success。
-- Core Loop v1 不接受 `-D`、`-I`、library directory、parameter override、filelist 或额外用户 flags。需要这些能力时新增版本化 profile，不向 run request 开任意 argv 入口。
-- executable 来自 operator config 并在启动时解析/锁定；fixture、spec 和 Agent input 不能覆盖。
+repository 中必须保存 profile ID 到完整语义的不可变映射，至少包括：
 
-R01 `CompileRequestSchema.sourceFiles` 要求至少一个 `.sv`/`.v` 文件。source discovery 没有发现文件时，不得构造空 `CompileRequest`；R03 的 request-builder 返回稳定的 `NO_RTL_SOURCE` 准备结果，由 R04 保存为“compiler not invoked”证据。实际 compiler adapter 只接收通过 `CompileRequestSchema` 的请求。如果 top 无法 elaborate，则保留有界 Icarus message，并以 `CompileIssue.kind = "ERROR"` 返回；路径和位置只有在证据充分时填写。
+```text
+executableProduct: Icarus Verilog
+expectedVersion: Icarus Verilog version 12.0 (devel) (s20150603-1539-g2693dd32b)
+argvPrefix: [-g2012, -tnull]
+topSelection: [-s, validated-top-module]
+sourceOrdering: ECMAScript UTF-16 ordinal (`<` comparator)
+includePolicy: forbidden
+compilationUnitPolicy: ordered sources in one Icarus compilation unit
+environmentPolicy: win32 [ComSpec, Path, SystemRoot, TEMP, TMP]; POSIX [PATH, TMPDIR]
+timeoutMs: 30000
+```
 
-baseline 使用 `attempt: 0`，Agent 编辑后的 compile 使用 `attempt: 1..3`。`compilerProfileId` 必须与锁定的 repository-owned profile 相等，`sourceFiles` 必须排序、去重并通过 R01 collision/extension policy，`workspaceManifestDigest` 绑定调用时的 workspace manifest。
+实际 Icarus release/build identity、target、language/strict/extension/warning flags、source ordering、include policy、compilation-unit policy或环境语义发生变化时，必须使用新 profile ID 或提升 profile version，并在 `docs/decisions.md` 记录。实现时必须安装并锁定一个实际 release；如果当前 host 无法运行真实 Icarus，R03 标记 `BLOCKED`，不得以 fake compiler、Verilator 或在线编译器替代完成证据。
+
+## Source Preparation 与输入绑定
+
+request-builder 只发现 `workspace/rtl/**` 下的普通 `.sv`/`.v` 文件。它复用 R01 logical-path、workspace containment、symlink/special-file、NFC/case-fold collision 和 extension policy，不接受 shell glob、filelist、library directory、`-D`、`-I`、parameter override 或任意 caller flags。
+
+source list 使用一个共享的、与 `CompileRequestSchema` 和 manifest 生成器一致的 ordinal comparator 排序，禁止 `localeCompare()`。当前 R01 若继续使用 ECMAScript 字符串 `<`，R03 就沿用并将其记录为 profile 语义；只有同时修改公共 comparator、schema 和生成器后才能改称 Unicode code-point ordering。文件顺序属于 compiler 语义，不只是输出稳定性处理。Core Loop v1 fixture 不得依赖跨文件 macro 状态或 compiler directive 传播；多文件 mechanics fixture 只验证 module instantiation 和 top elaboration。
+
+### Include policy
+
+Core Loop v1 禁止 `` `include``。source preparation 必须在 spawn 前对全部 source 执行保守的预处理指令扫描；发现任何非注释中的 `` `include`` 指令时返回稳定的 `UNSUPPORTED_INCLUDE_DIRECTIVE` preparation failure，不判断条件编译分支当前是否激活，也不调用 compiler。scanner 必须覆盖跨 chunk、字符串、行注释和块注释边界，不能用会把注释文本误判为指令的单行正则替代。
+
+如以后支持 header，必须新增 profile，并同时实现受控相对解析、workspace containment、普通文件/symlink 检查、header manifest binding 和 include-search policy；不得在本任务中隐式扩大范围。
+
+### Preparation result
+
+R01 `CompileRequestSchema.sourceFiles` 至少包含一个 `.sv`/`.v` 文件。R03 新增独立的严格 `CompilePreparationResult` 判别联合，不修改或复用已经实现的 `CoreLoopErrorCodeSchema`：
+
+```text
+READY:
+  schemaVersion: 1
+  runId
+  attempt: 0..3
+  compilerProfileId
+  compilerInvoked: false
+  request: CompileRequest
+
+NO_RTL_SOURCE | UNSUPPORTED_INCLUDE_DIRECTIVE | SOURCE_POLICY_VIOLATION:
+  schemaVersion: 1
+  runId
+  attempt: 0..3
+  compilerProfileId
+  compilerInvoked: false
+  message: bounded stable text
+```
+
+`READY` 只表示 request 已准备好，尚未调用 compiler。空 RTL root 返回 `NO_RTL_SOURCE`；include 返回 `UNSUPPORTED_INCLUDE_DIRECTIVE`；非法路径、碰撞、symlink、special file 或非法 extension 返回 `SOURCE_POLICY_VIOLATION`。所有 failure 都不构造 `CompileResult`，由 R04 保存为 compiler-not-invoked evidence。这个新增 union 是 R03 request-builder 的 additive API，不改变 R01/R02 已有 error envelope。
+
+request-builder 为 `READY.request` 写入刚刚确认稳定的 workspace manifest digest。compile adapter 仍必须独立复查；request 建立后发生 digest mismatch 时构造 `TOOL_ERROR`，不能退回 preparation failure 或信任旧 request。
+
+baseline 使用 `attempt: 0`，Agent 编辑后的 compile 使用 `attempt: 1..3`。`compilerProfileId` 必须等于上述 repository profile；fixture、spec、Agent 和 run request 均不能覆盖 executable、argv、environment、cwd、timeout 或 output limits。
+
+### Mutable workspace 检测
+
+R03 不把 mutable workspace 包装成 snapshot。manifest scope 固定复用 R01 baseline workspace scope：相对 run root 的 `workspace/spec.md` 与 `workspace/rtl/**`，不包含 `workspace/context/**` 或 evidence。每次执行必须按以下顺序验证：
+
+1. spawn 前连续生成两个 scope 一致的 workspace manifest；两者必须稳定，并与 request 的 `workspaceManifestDigest` 相等；
+2. 在 filesystem boundary 重新验证每个 source 的存在性、普通文件属性、extension、logical-path collision、workspace containment 和非 symlink 状态；
+3. compiler `close` 后再次连续生成两个同 scope manifest；
+4. 后两个 manifest 必须稳定并与 spawn 前 manifest 相等；否则返回 `TOOL_ERROR`，使用稳定无 host path 的 issue message `WORKSPACE_CHANGED_DURING_COMPILE`。
+
+manifest 稳定检查仍不能提供原子输入视图，因此结果保持 non-authoritative。R04 必须保证 R02 Agent turn 已完全退出并通过其 postconditions 后才能调用 R03。
+
+## Version Probe 与 Process Profile
+
+adapter 构造时将 operator config 做不可变快照，将 executable 解析为当前 host 的绝对普通文件，并拒绝 shell wrapper。每次 compile 前重新执行固定版本 probe；只有 probe 成功、版本可解析且与 profile 的 `expectedVersion` 完全一致时才启动 compile。probe 本身使用独立 timeout、持续 drain 和 bounded output；原始多行版本摘要只进入有界 adapter evidence，`toolVersion` 保存规范化的实际 identity。
+
+compile 和 probe 都使用显式 spawn options：
+
+```ts
+{
+  shell: false,
+  cwd: orchestratorOwnedWorkingDirectory,
+  stdio: ["ignore", "pipe", "pipe"],
+  env: controlledEnvironment,
+  windowsHide: true,
+  detached: false,
+}
+```
+
+`cwd` 由 orchestrator 创建或绑定，不能继承 CLI 的任意当前目录。environment 采用经过真实 smoke 验证的最小固定 allowlist，不记录完整 host environment。Windows 只提供一个规范化的 `Path` 键；`SystemRoot`、`TEMP`、`TMP` 等仅在实际安装版本证明需要后加入并冻结到 profile 语义。后续 compile 直接 spawn 已解析的绝对 executable。
+
+## Bounded Output Capture
+
+stdout 和 stderr 分别持续 drain，不能在达到 preview 上限后暂停 stream、移除 listener 或停止读取。每个 stream：
+
+1. 使用 `Buffer.length` 累计工具写出的原始 `originalByteLength`；
+2. 只保留 capture 上限内的 bytes，超出部分继续读取但丢弃；
+3. 使用 streaming UTF-8 decoder 处理 chunk 边界；
+4. 在 `close` 后执行换行规范化、ANSI/control-character 清理、workspace path logical 化、workspace 外 host-path 脱敏和最终 UTF-8 byte truncation；
+5. 对 stdout、stderr、单条 issue、issue 数量和整个 result 分别执行固定上限。
+
+达到 issue 数上限后不再追加 issue，但仍继续 drain 两个 stream。每个 stream 内保持接收的字节和行顺序；stdout/stderr 不声明 compiler 写入时的全局顺序。issue 使用固定 stream precedence 形成确定性顺序，首版固定先解析 stderr、再解析 stdout。
+
+## Diagnostic 与 Status 判定
+
+parser 只从明确 diagnostic token 提取 `kind`、path、line 和 column。workspace 内 host path 转成 logical path；workspace 外 path 从 issue、stdout 和 stderr 中统一替换。缺少证据时省略 path/line/column，不能写 `null` 或猜测。
+
+status 使用以下优先级，先匹配的结果获胜：
+
+| 优先级 | 观察结果 | status |
+|---:|---|---|
+| 1 | request preparation 失败 | 不生成 `CompileResult`，compiler not invoked |
+| 2 | version probe missing、spawn/timeout/parse failure 或 version mismatch | `TOOL_ERROR` |
+| 3 | compile spawn 发出 `error` | `TOOL_ERROR` |
+| 4 | 任何 termination/最终 `close` 未在硬期限内确认，或 adapter internal failure | `TOOL_ERROR` |
+| 5 | request digest 不匹配，或 compile 前后 manifest 不稳定/不一致 | `TOOL_ERROR` |
+| 6 | timeout 已触发，且 termination 与最终 `close` 均确认 | `TIMEOUT` |
+| 7 | 非 timeout signal termination | `TOOL_ERROR` |
+| 8 | exit 0，但 parser 产生明确 `ERROR` 或 adapter consistency failure | `TOOL_ERROR` |
+| 9 | exit 0，且没有 `ERROR` 或 adapter failure | `COMPILE_PASSED` |
+| 10 | 非零 exit，存在明确 syntax/elaboration/root-module diagnostic | `COMPILE_ERROR` |
+| 11 | 非零 exit，只有明确 internal/helper/crash diagnostic 或无法可靠分类 | `TOOL_ERROR` |
+
+`COMPILE_ERROR` 必须至少包含一个 `kind: "ERROR"` issue。只有 process outcome 已被可靠分类为设计错误、但位置或正文无法结构化解析时，adapter 才能生成无 path 的有界 fallback `ERROR`；未知非零退出不能仅靠 fallback 被降格为设计错误。warning 可以出现在 `COMPILE_PASSED.issues[]` 中。
+
+timeout 由 timer 触发且进程关闭得到确认后，即使 kill 产生非零 exit 仍保持 `TIMEOUT`。非 timeout signal 的 `exitCode` 为 `null`。runner 必须使用一次性 finalize guard 处理 `error`、timeout、`exit` 和 `close` 的竞态；capture 和 result 以 `close` 为正常完成边界。timeout 后执行当前 host 已验证的 bounded termination，并对 termination 和最终 close confirmation 分别设置硬期限；无法确认关闭时返回 `TOOL_ERROR`，不能无限等待或继续声称普通 `TIMEOUT`。
 
 ## Compile Result
 
-R03 必须原样返回 R01 `CompileResultSchema`，不能增加 cleanup 字段、自定义 issue code 或第二个 manifest 字段：
+R03 返回经兼容修订后的 R01 `CompileResultSchema`，不增加 cleanup 字段、自定义 issue code、signal 字段或第二个 manifest 字段：
 
 ```text
 schemaVersion: 1
@@ -94,82 +181,71 @@ claim: COMPILE_ONLY
 runId
 attempt: 0..3
 compilerProfileId
-toolVersion
+toolVersion: string | null  # 仅 TOOL_ERROR 可为 null
 topModule
 workspaceManifestDigest
 exitCode: number | null
 durationMs
 issues[]
-stdout/stderr: preview + truncated + originalByteLength + optional artifactPath
+stdout/stderr: sanitized preview + truncated + raw originalByteLength + optional artifactPath
 ```
 
-Issue 严格使用 R01 `CompileIssueSchema`：
+分支约束：
 
-```json
-{
-  "kind": "ERROR",
-  "path": "rtl/counter.sv",
-  "line": 12,
-  "column": 7,
-  "message": "bounded compiler message"
-}
-```
-
-`kind` 只有 `ERROR | WARNING | NOTE`；`path`、`line`、`column` 缺少可靠证据时直接省略，不能写 `null` 或猜测。稳定分类文本可以放在 bounded `message` 中，但 R03 不得临时给严格 schema 增加 `code`、`severity` 或 `file` 字段。输出截断由 `CapturedOutput.truncated` 表达。
-
-`TIMEOUT` 与 `TOOL_ERROR` 不是 RTL compile error，R04 默认不得把它们反馈给 Agent 反复改 RTL：
-
-- `COMPILE_ERROR`：compiler 正常启动并返回设计错误，可进入 repair。
-- `TIMEOUT`：超过固定 timeout；停止 run，等待 operator 检查。
-- `TOOL_ERROR`：executable missing/version mismatch/spawn failure/异常退出或 adapter internal failure；停止 run。
-- `COMPILE_PASSED`：exit code 0 且没有 adapter-level failure，只表示 compile/elaboration pass。
-
-各分支的 `exitCode` 必须符合判别联合：`COMPILE_PASSED` 固定为 `0`，`COMPILE_ERROR` 为非零整数，`TIMEOUT` 为 `null`，`TOOL_ERROR` 为整数或 `null`。
-
-## Diagnostic 解析与脱敏
-
-- 首先保存有界 raw stdout/stderr，再做 best-effort parse；parser 失败不能丢失原始摘要。
-- 将位于 run workspace 内的宿主路径转换为 logical path，例如 `rtl/counter.sv`。
-- workspace 外路径不得写入 result；替换为固定 `<tool-path>` 或删除 path 部分。
-- 去除 ANSI control sequence 和不可打印控制字符，统一换行后再截断。
-- 单条 message、issue 数、stdout/stderr 和总 result 都采用 R01 上限。
-- diagnostic 排序保持 compiler 原始顺序；`kind/path/line/column/message` 只能由 adapter 从工具输出提取，不能接受 Agent 提交或重分类。
-- parser 只提取明确的 path/line/column/kind；不确定时把有界原文放入 `message`，不猜测位置或添加 schema 外字段。
-
-## Process 与平台边界
-
-- 使用 Node `child_process.spawn(executable, argv, { shell: false })`。
-- environment 采用最小 allowlist；不得把整个开发机环境记录进证据。
-- compile timeout 默认 30 秒，operator config 可在 5–120 秒范围固定；fixture/Agent/run request 不得覆盖。
-- stdout/stderr 必须边读边限流，不能在内存中无界累积。
-- timeout 后终止 compiler，并记录 termination 尝试/结果。Core Loop 只承诺当前已验证 host 上不会继续等待；生产级跨平台 process-tree termination 留给 B07。
-- R03 可在当前 Windows host 形成非权威 Core Loop 证据。它不触发 `LINUX_GATE_REQUIRED`，也不能被正式 workflow 当成 Gate success。
-- 同一 final RTL 在 declared profile/version 下立即重跑应得到相同 pass/fail classification；duration 和日志顺序细节不作为确定性保证。
+- `COMPILE_PASSED`：`exitCode: 0`，`toolVersion` 非空；
+- `COMPILE_ERROR`：`exitCode` 为非零整数，`toolVersion` 非空；
+- `TIMEOUT`：`exitCode: null`，`toolVersion` 非空；
+- `TOOL_ERROR`：`exitCode` 为整数或 `null`，`toolVersion` 为实际版本或 `null`。
 
 ## 实现步骤
 
-1. 安装 Icarus Verilog，记录 executable、version 和 host smoke。
-2. 实现固定 profile/version probe；版本不匹配 fail closed。
-3. 实现 source discovery、extension/path/case validation 和稳定排序。
-4. 实现 argv builder，单元测试其无 shell、无自由 flags。
-5. 实现 bounded process runner、timeout、独立 cleanup evidence 和严格 `CompileResultSchema` mapping。
-6. 实现 Icarus diagnostic parser与 path normalization。
-7. 用 fake executable覆盖 pass/error/timeout/spawn failure/oversized output。
-8. 用 test-only provider 临时生成 blank、valid、syntax error、missing top 和多文件输入，并用真实 compiler 验证后清理。
-9. 更新 `docs/verification.md`，加入 compiler probe和 Core Loop compile专项命令。
+1. 完成并回归验证限定的 R01 schema 兼容修订，不改 R02 行为。
+2. 安装真实 Icarus，记录绝对 executable、规范化版本、bounded probe 摘要和 host。
+3. 冻结 `iverilog-systemverilog-2012-null-v1` profile 的 release、argv、ordering、include、env、cwd、timeout 和 limits。
+4. 实现 source discovery、include scanner、stable manifest preparation 和 filesystem revalidation。
+5. 实现 version probe、fixed argv builder 和 bounded process runner。
+6. 实现持续 drain、timeout/termination/close 状态机和严格 result mapping。
+7. 实现 diagnostic parser、path normalization、stream precedence 和 fallback policy。
+8. 用 fake executable 覆盖确定性边界；用临时生成 RTL 执行独立、不可静默 skip 的真实 Icarus 验收。
+9. 更新 `docs/verification.md`、task breakdown、decision 与 handoff evidence。
 
 ## 测试要求
 
-- missing executable、version mismatch 和 spawn error 返回 `TOOL_ERROR`。
-- 空 rtl root 返回 `NO_RTL_SOURCE` request-preparation result，不构造空 `CompileRequest` 且不 spawn。
-- source 只接受普通 `.sv`/`.v`；symlink、case collision、越界或非法 extension被拒绝。
-- argv 顺序固定，含 `-g2012`、validated `-s`、orchestrator-owned `-o` 和排序 source；没有 shell string。
-- fake compiler exit 0/1、timeout、signal、超大 stdout/stderr 对应正确 status和 truncation。
-- diagnostics 中 workspace host path变为 logical path，外部 host path不泄漏。
-- 真实 Icarus 对临时 valid input 返回 `COMPILE_PASSED`，对 syntax error/missing top 返回 `COMPILE_ERROR`。
-- 临时多文件输入证明 top elaboration 与 source 排序可用，不构成评测样例。
-- `COMPILE_PASSED` result 始终含 `authoritative: false` 和 `claim: "COMPILE_ONLY"`。
-- 对 final RTL 连续重跑两次，classification 和 `workspaceManifestDigest` 一致。
+### Contract 与 preparation
+
+- 旧的合法 R01/R02 contract fixtures 继续通过；只有 `TOOL_ERROR` 允许 `toolVersion: null`。
+- raw `originalByteLength` 与 sanitized preview 长度不同时 schema 可正确表达，host path 拒绝不放宽。
+- 空 RTL root 返回 `NO_RTL_SOURCE`，include 返回 `UNSUPPORTED_INCLUDE_DIRECTIVE`，二者均不 spawn。
+- 注释或字符串中的 `` `include`` 文本不误报；真实 directive、chunk boundary 和 block comment boundary 被覆盖。
+- source 只接受普通 `.sv`/`.v`；symlink、case collision、越界、非法 extension 和 request 后文件替换被拒绝。
+- source ordering 使用共享 comparator；相同 basename、不同目录能稳定映射 diagnostic。
+- compile 期间 manifest 变化返回 `TOOL_ERROR` 和稳定 message。
+
+### Process 与 parser
+
+- argv 固定含 `-g2012 -tnull -s <top>` 和排序 source，不含 `-o`、shell string 或自由 flags。
+- missing executable、probe spawn/timeout/oversized output、version mismatch 和 compile spawn error 返回 `TOOL_ERROR`。
+- fake compiler 覆盖 exit 0、明确 design error、未知非零、internal error、非 timeout signal、timeout 与 termination 未确认。
+- exit 0 + warning 返回 `COMPILE_PASSED`；exit 0 + 明确 ERROR 返回 `TOOL_ERROR`。
+- timeout 触发且关闭确认后不被 kill exit code 改写；termination/close 未确认则为 `TOOL_ERROR`；正常 completion 等待 `close`。
+- UTF-8 字符跨 chunk、ANSI、NUL、其他控制字符和 CRLF/LF 规范化有确定结果。
+- Windows `C:\...` diagnostic 不把 drive colon 当作位置分隔符。
+- workspace 外路径在 issue、stdout 和 stderr 中均不泄漏。
+- stdout/stderr 超限后 fake compiler 仍正常退出，证明 runner 持续 drain。
+
+### 真实 Icarus
+
+- 临时 valid input 返回 `COMPILE_PASSED`；syntax error、missing top、blank source with declared top 和明确 elaboration error 返回 `COMPILE_ERROR`。
+- 临时多文件输入验证固定 ordering、module instantiation 和 top elaboration，不依赖跨文件 macro/directive。
+- `-tnull` 不产生 VVP output，测试过程不调用 `vvp`。
+- 对同一 final RTL 立即连续重跑，classification、profile/version 和 `workspaceManifestDigest` 一致。
+
+普通单元测试在未安装 Icarus 时可以运行，但真实验收必须有独立命令且不得自动 skip。建议实现以下稳定入口：
+
+```powershell
+corepack pnpm --filter @rtl-agent/core-loop test:integration:iverilog
+corepack pnpm --filter @rtl-agent/rtl-core-loop compile:smoke
+```
 
 ## 验证命令
 
@@ -178,6 +254,8 @@ corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test
 corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test
+corepack pnpm --filter @rtl-agent/core-loop test:integration:iverilog
+corepack pnpm --filter @rtl-agent/rtl-core-loop compile:smoke
 corepack pnpm test
 corepack pnpm build
 corepack pnpm format:check
@@ -186,16 +264,27 @@ git diff --check
 & 'C:\Program Files\Git\bin\bash.exe' scripts/harness_check.sh
 ```
 
-真实 compile smoke 由 R03 实现的 Core Loop CLI 与 test-only provider 执行，并在 Session Log 记录实际命令入口、profile/version和每类结果。
+真实 compile smoke 只使用临时生成输入，不依赖 evaluation case，也不计入 R04 评测证据。Session Log 必须记录实际 executable、version、profile identity、host、pass/error/timeout/tool-error 结果和当前 host termination 限制。
 
 ## 完成定义
 
-- 固定版本 Icarus Verilog 在当前 host 通过真实 pass/error/elaboration集成测试。
-- executable、argv、timeout、source discovery和profile不接受 Agent/fixture自由覆盖。
-- compile feedback有界、logical-path化、结构化，并区分设计错误和工具故障。
-- 每个结果明确非权威且仅 compile-only；不执行仿真或推进正式 state。
-- breakdown 中 R03 标记 `DONE` 并登记 tool/version、临时真实编译、timeout 和重跑证据。
+- 限定的 R01 schema 兼容修订通过 regression tests，R02 全部既有测试继续通过。
+- 固定版本 Icarus 在当前 host 通过独立、不可 skip 的 pass/error/elaboration/null-target 验收。
+- executable、argv、cwd、environment、timeout、source discovery 和 profile 均不能由 Agent、fixture 或 run request 覆盖。
+- compiler 实际输入受 include policy、stable manifest 和 filesystem revalidation 约束；workspace 变化不会被绑定到旧 digest。
+- process 状态机持续 drain 输出、等待 close、区分 design error 与 timeout/tool failure，并在 termination 无法确认时 fail closed。
+- feedback 有界、logical-path 化且不泄漏 host path；每个结果明确 non-authoritative/compile-only。
+- breakdown 中 R03 标记 `DONE` 并登记 profile/version、真实 smoke、timeout、manifest drift 和重跑证据。
+
+## 参考资料
+
+- [Icarus Verilog Command Line Flags](https://steveicarus.github.io/iverilog/usage/command_line_flags.html)
+- [The null Code Generator (`-tnull`)](https://steveicarus.github.io/iverilog/targets/tgt-null.html)
+- [Icarus Verilog Quirks](https://steveicarus.github.io/iverilog/usage/icarus_verilog_quirks.html)
+- [Node.js `child_process`](https://nodejs.org/api/child_process.html)
 
 ## 实现交接内容
 
-Session Log 记录 Icarus executable/version、固定 argv profile、timeout/output limits、当前 host termination限制、diagnostic覆盖率、test-only compile结果和 R04 应仅对 `COMPILE_ERROR` 继续修复的规则。不得把临时输入当成评测集。
+Session Log 记录 R01 compatibility patch、Icarus executable/version、完整 profile mapping、timeout/output limits、include policy、manifest scope、当前 host termination 限制、diagnostic 分类覆盖率、test-only compile 结果，以及 R04 只能对 `COMPILE_ERROR` 继续修复的规则。不得把临时 mechanics fixture 当成评测集，也不得把 Windows Core Loop 结果描述为 Linux authoritative Gate evidence。
+
+实现于 2026-07-17 完成。Windows evidence 绑定 winget package `Icarus.Verilog 12.2022.06.11`、`C:\iverilog\bin\iverilog.exe`、上述 exact identity、`-g2012 -tnull -s`、30 秒 compile timeout、5 秒 probe timeout、500 毫秒 termination grace、每流 64 KiB preview、128 KiB retained capture、100 条 issue 和 2048-byte issue message。真实 integration 5/5、CLI smoke、165 项全仓测试及统一质量命令均通过；权威进度和 digest 以 `docs/task-breakdown.md` 与 Session Log 为准。

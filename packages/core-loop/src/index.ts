@@ -1,12 +1,24 @@
 export * from "./agent-contracts.js";
 export * from "./agent-adapter.js";
+export * from "./batch-evaluator.js";
 export * from "./catalog.js";
+export * from "./compile-preparation.js";
+export * from "./compiler-adapter.js";
+export * from "./compiler-contracts.js";
+export * from "./compiler-diagnostics.js";
+export * from "./compiler-process.js";
+export * from "./compiler-profile.js";
 export * from "./contracts.js";
 export * from "./errors.js";
+export * from "./evaluation-contracts.js";
+export * from "./evaluation-metrics.js";
+export * from "./evidence.js";
 export * from "./filesystem.js";
 export * from "./fixture-provider.js";
+export * from "./include-scanner.js";
 export * from "./manifest.js";
 export * from "./materialize.js";
 export * from "./output.js";
+export * from "./run-orchestrator.js";
 
 export const packageVersion = "0.0.0" as const;

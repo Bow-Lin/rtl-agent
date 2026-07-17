@@ -67,14 +67,24 @@ if (args[0] === "agent" && args[1] === "list") {
   process.exit(0);
 }
 if (args[0] === "debug" && args[1] === "config") {
-  process.stdout.write(JSON.stringify({
+  const resolved = {
+    autoupdate: false,
+    share: "disabled",
+    snapshot: false,
+    formatter: false,
+    lsp: false,
     plugin: [],
     mcp: {},
     instructions: [],
     permission: process.env.FAKE_CONFIG_MODE === "allow"
       ? { "*": "deny", read: "allow" }
       : { "*": "deny" }
-  }));
+  };
+  if (process.env.FAKE_CONFIG_DRIFT_KEY) {
+    resolved[process.env.FAKE_CONFIG_DRIFT_KEY] =
+      process.env.FAKE_CONFIG_DRIFT_KEY === "share" ? "auto" : true;
+  }
+  process.stdout.write(JSON.stringify(resolved));
   process.exit(0);
 }
 if (args[0] === "db" && args[1] === "path") {
@@ -119,7 +129,7 @@ switch (process.env.FAKE_OPENCODE_MODE) {
     process.exit(7);
   case "timeout": {
     const latePath = path.join(rtl, "late.sv");
-    const childSource = "setTimeout(() => require('node:fs').writeFileSync(process.env.FAKE_LATE_PATH, 'module late; endmodule\\n'), 700)";
+    const childSource = "setTimeout(() => require('node:fs').writeFileSync(process.env.FAKE_LATE_PATH, 'module late; endmodule\\n'), 2000)";
     spawn(process.execPath, ["-e", childSource], {
       env: { ...process.env, FAKE_LATE_PATH: latePath },
       stdio: "ignore"
@@ -220,6 +230,11 @@ describe("OpenCode RTL Agent adapter", () => {
     expect(isolated.OPENCODE_PERMISSION).toBeUndefined();
     expect(isolated.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
     expect(JSON.parse(isolated.OPENCODE_CONFIG_CONTENT!) as unknown).toMatchObject({
+      autoupdate: false,
+      share: "disabled",
+      snapshot: false,
+      formatter: false,
+      lsp: false,
       plugin: [],
       mcp: {},
       instructions: [],
@@ -271,6 +286,8 @@ describe("OpenCode RTL Agent adapter", () => {
     expect(turn).not.toContain("--thinking");
     expect(turn).not.toContain("--continue");
     expect(turn).not.toContain("--session");
+    expect(turn).not.toContain("--fork");
+    expect(turn).not.toContain("--attach");
   });
 
   it("changes the experiment digest when executable prefix arguments change", async () => {
@@ -328,14 +345,17 @@ describe("OpenCode RTL Agent adapter", () => {
     const fake = await createFakeOpenCode(root);
     const run = await createRun(root);
     const result = await new OpenCodeRtlAgentAdapter(
-      config(fake, "timeout", { timeoutMs: 500 }),
+      config(fake, "timeout", {
+        timeoutMs: 500,
+        terminationGraceMs: 250,
+      }),
     ).runTurn(inputFor(run, ["rtl/dut.sv"]), run);
     expect(result).toMatchObject({
       outcome: "AGENT_TIMEOUT",
       workspaceUsableForCompile: false,
       timedOut: true,
     });
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, 2200));
     await expectMissing(path.join(run.workspaceDirectory, "rtl", "late.sv"));
   });
 
@@ -371,6 +391,25 @@ describe("OpenCode RTL Agent adapter", () => {
       error: { code: "OPENCODE_CAPABILITY_MISMATCH" },
     });
   });
+
+  it.each(["autoupdate", "share", "snapshot", "formatter", "lsp"] as const)(
+    "rejects effective OpenCode %s drift",
+    async (key) => {
+      const root = await temporaryRoot();
+      const fake = await createFakeOpenCode(root);
+      const adapter = new OpenCodeRtlAgentAdapter(
+        config(fake, "no-change", {
+          environment: {
+            FAKE_OPENCODE_LOG: fake.log,
+            FAKE_CONFIG_DRIFT_KEY: key,
+          },
+        }),
+      );
+      await expect(adapter.probe()).rejects.toMatchObject({
+        error: { code: "OPENCODE_CAPABILITY_MISMATCH" },
+      });
+    },
+  );
 
   it("rejects a resolved Agent that retains an unexpected tool allow", async () => {
     const root = await temporaryRoot();

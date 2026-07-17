@@ -278,6 +278,32 @@ Define the full R02/R03 handoff now: Agent attempt input, compile request, four-
 
 R02 and R03 can implement independently against `@rtl-agent/core-loop`. No host absolute path belongs in persisted fixture/result JSON, no concrete dataset or evaluation fixture ships in R01, and missing Provider configuration fails with `DATASET_NOT_CONFIGURED`. Windows and Linux filesystem contract evidence is expected when environments are available; Windows-only execution cannot establish Linux readiness.
 
+## 2026-07-16 - Freeze R03 as a Null-Target, Input-Bound Compile Profile
+
+### Context
+
+The first R03 specification described syntax parsing and top elaboration but used Icarus's default VVP code-generation target with `-o`. It limited command-line sources to `.sv`/`.v` without preventing `` `include`` from reading unbound files, trusted a request manifest across mutable compiler execution, and did not fully define process/output/status races. Two implemented R01 schema rules also could not represent declared R03 failures honestly: every `TOOL_ERROR` required a non-empty `toolVersion`, including missing-executable failures, and untruncated captured output required sanitized preview bytes to equal raw tool bytes even though redaction can change length.
+
+### Decision
+
+Use `iverilog-systemverilog-2012-null-v1` with fixed `-g2012 -tnull -s <top>` argv. The profile freezes exact Icarus identity, source ordering, forbidden-include policy, one-compilation-unit behavior, absolute executable, controlled cwd/environment, timeout and output limits. Preparation conservatively rejects non-comment `` `include`` directives and revalidates every source at the filesystem boundary. R03 adds its own strict `CompilePreparationResult` instead of expanding the implemented R01 error envelope. Compile execution requires stable matching manifests before spawn and stable unchanged manifests after `close`; any drift is a non-repairable `TOOL_ERROR`, not snapshot evidence.
+
+Continuously drain stdout/stderr, count raw bytes, sanitize only bounded previews, wait for `close`, and use a single-finalize process state machine. Only explicit syntax/elaboration/root-module diagnostics are repairable `COMPILE_ERROR`; timeout, signal, internal/helper failure, unknown non-zero failure, version failure and unconfirmed termination stop the loop.
+
+Before implementing the adapter, make only two backward-compatible R01 contract corrections: allow `toolVersion: null` for `CompileResult.status === "TOOL_ERROR"` and `FinalResult.outcome === "TOOL_ERROR"`, and define `CapturedOutput.originalByteLength` as raw pipe bytes without requiring equality to sanitized preview length. Existing valid results remain valid, host-path rejection remains strict, and R02 behavior must not change.
+
+### Alternatives Considered
+
+- Keep default VVP generation: rejected because R03 claims elaboration-only behavior and does not consume the generated program.
+- Support controlled headers in v1: deferred because safe include resolution, dependency binding and search semantics require a separate profile.
+- Treat request validation as sufficient filesystem validation: rejected because files can change after request construction.
+- Classify every non-zero exit as repairable: rejected because compiler crashes, helper failures and unknown tool faults must not drive Agent RTL edits.
+- Redesign all R01/R02 contracts: rejected because the established workspace, manifest, attempt, status and evidence boundaries remain sound; only the two proven representational contradictions are changed.
+
+### Consequences
+
+R03 remains a non-authoritative mutable-workspace experiment and cannot satisfy B07/B11. Its implementation begins with narrow contract regression tests, then adds the profile and adapter. R04 may invoke R03 only after the R02 turn has fully exited and passed postconditions, and may continue Agent repair only for `COMPILE_ERROR`.
+
 ## 2026-07-16 - Bind R02 to Resolved OpenCode Capabilities and Filesystem Evidence
 
 ### Context
@@ -309,3 +335,57 @@ On Windows, a failed non-force attempt does not prevent `/T /F` escalation. A la
 ### Consequences
 
 Every R02 process call now has a finite post-timeout bound. An unconfirmed workspace is never compile-eligible, normal confirmed timeouts retain their existing outcome, and deterministic tests cover both a terminator that never settles and a child that never closes after a nominal termination.
+
+## 2026-07-17 - Bind R03 to the Verified Windows Icarus Build and Minimal Environment
+
+### Context
+
+The repository profile needed a real executable and exact release identity before R03 could be accepted. The Windows package's version probe worked with only the compiler directory on `Path`, but compile invocations exited silently with `0xffffffff` until `ComSpec` was present. This made the effective environment part of the compiler behavior rather than an incidental host detail.
+
+### Decision
+
+Bind `iverilog-systemverilog-2012-null-v1` to winget package `Icarus.Verilog 12.2022.06.11` and normalized identity `Icarus Verilog version 12.0 (devel) (s20150603-1539-g2693dd32b)`. The validated Windows executable is `C:\iverilog\bin\iverilog.exe`; the adapter stores only its digest in capability evidence and accepts an operator-owned absolute executable path, never a fixture or Agent override.
+
+Freeze `-g2012 -tnull -s <top>`, ECMAScript UTF-16 ordinal source order, forbidden includes, one ordered compilation unit, a 30-second compile timeout, a 5-second probe timeout, 500-millisecond termination grace, 64 KiB per-stream previews, 128 KiB retained capture, 100 issues and 2048-byte issue messages. Snapshot the controlled environment at adapter construction. Windows uses only `ComSpec`, normalized `Path`, `SystemRoot`, `TEMP` and `TMP`; POSIX retains the portable `PATH`/`TMPDIR` entry point but has no real R03 acceptance evidence yet.
+
+### Alternatives Considered
+
+- Inherit the complete host environment: rejected because it would make compiler behavior and evidence depend on unrelated mutable host state.
+- Omit `ComSpec`: rejected by real compile evidence; this build fails silently before producing diagnostics.
+- Use Icarus V13 source or an unverified alternative Windows build: deferred because the available installed build passed the required fixed-profile evidence and profile changes require a new identity.
+- Treat Windows smoke as a formal Compile Gate: rejected because R03 still reads a mutable workspace and has no Linux sandbox, immutable snapshot or authoritative ingestion.
+
+### Consequences
+
+R03 can be marked `DONE` for the non-authoritative Core Loop checkpoint. Profile semantic changes require a new profile ID or version. Windows process-tree termination, valid/error/elaboration/null-target behavior and deterministic reruns are evidenced; POSIX helper-tree termination and Linux compiler execution remain unverified and cannot support B07/B11 or production-readiness claims.
+
+## 2026-07-17 - Compose R04 from Existing Strict Adapter Outcomes
+
+### Context
+
+The first R04 specification predated the final R02/R03 implementations. It referred to a nonexistent R02 `COMPLETED` outcome, required raw Agent JSONL that R02 intentionally does not retain, treated conditional compiler results as unconditional evidence, and did not define final-recompile failure, invalid fixture, infrastructure-failure, or metric-denominator semantics. A review also proposed reimplementing Agent workspace/process priority in R04 even though R02 already enforces that boundary.
+
+### Decision
+
+R04 consumes `AgentTurnResult` and `CompileResult` as strict facts and does not repeat R02 workspace/process policy or R03 compiler classification. Only `AgentTurnResult.outcome === "RTL_CHANGED"` is compile-eligible, and only `CompileResult.status === "COMPILE_ERROR"` can start another Agent turn. R04 persists the projected Agent result and never raw JSONL, reasoning, full Assistant text, or tool arguments/results.
+
+Split batch execution into preflight and evaluation. Before the first Agent turn, probe and lock effective Agent/compiler capabilities, resolve the ordered selection, materialize every selected fixture into a batch-owned run workspace, lock normalized fixture digests, and validate every baseline. Invalid fixtures receive a batch-level case validation record and no `FinalResult`; valid cases are evaluated without returning to the Provider.
+
+Every compiler invocation has unconditional preparation evidence and a conditional compile result. A first compile pass enters a distinct final-recompile step that rebuilds the request and checks the same manifest, profile, tool identity, and second pass. Nondeterministic pass/error classification or manifest/preparation drift is a tool failure, not an additional repair attempt.
+
+`maxAttempts` is the total number of Agent turns, including the first generation/edit; baseline is attempt zero and the maximum number of repair turns is `maxAttempts - 1`. `FinalResult.attemptCount` is the number of Agent turns started. A strict `FinalResult` is written last only when all required evidence is durable and a trustworthy final RTL manifest can be computed. Evidence failure, an unscannable final workspace, or process interruption leaves the run incomplete and is classified only in batch evidence.
+
+Capability metrics include every preflight-valid case that starts formal Agent evaluation unless independent infrastructure invalidity is proven. Policy violation, no change, Agent failure, Agent timeout, and post-Agent compile timeout remain evaluation failures. Raw compiler-confirmed metrics remain separate from review-accepted checkpoint metrics, and Blank Generation and Seeded Compile Repair are reported separately. Metric names use `within-max-attempts` unless a profile explicitly fixes three turns.
+
+Harden the existing R02 effective-config probe narrowly by explicitly disabling and validating snapshot, formatter, and LSP behavior together with the already locked autoupdate, sharing, MCP, plugins, instructions, and deny-only permissions. R04 binds the probed digests; it does not parse OpenCode configuration itself.
+
+### Alternatives Considered
+
+- Add invalid fixture and aborted outcomes to R01 `FinalResult`: rejected because those are batch/preflight or incomplete-execution facts, not completed compile-repair results.
+- Reimplement R02 manifests and process-outcome priority in R04: rejected because it would create two conflicting policy authorities.
+- Persist raw OpenCode JSONL for debugging: rejected because it contradicts the established R02 privacy boundary.
+- Exclude every timeout or Agent failure from capability denominators: rejected because it would bias product-level success rates upward.
+
+### Consequences
+
+R04 adds batch-owned local evidence and metrics but remains non-durable, mutable-workspace, compile-only, and non-authoritative. Mechanics implementation and synthetic tests can complete before a real dataset exists, but R04 cannot be marked `DONE` or emit a checkpoint recommendation until an operator-selected, license-reviewed Provider and versioned evaluation profile run a real locked batch plus human review.

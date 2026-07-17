@@ -28,13 +28,26 @@ export interface CaptureOutputOptions {
   readonly limitBytes: number;
   readonly artifactPath?: string;
   readonly redactHostPaths?: readonly string[];
+  readonly logicalPathReplacements?: Readonly<Record<string, string>>;
+  readonly originalByteLength?: number;
+  readonly inputTruncated?: boolean;
 }
 
 export function captureOutput(text: string, options: CaptureOutputOptions): CapturedOutput {
   if (!Number.isSafeInteger(options.limitBytes) || options.limitBytes < 1) {
     throw new TypeError("limitBytes must be a positive safe integer");
   }
+  const rawByteLength = options.originalByteLength ?? Buffer.byteLength(text, "utf8");
+  if (!Number.isSafeInteger(rawByteLength) || rawByteLength < 0) {
+    throw new TypeError("originalByteLength must be a non-negative safe integer");
+  }
   let sanitized = text.replace(ANSI_ESCAPE, "").replace(UNSAFE_CONTROL, "�");
+  const replacements = Object.entries(options.logicalPathReplacements ?? {}).sort(
+    ([left], [right]) => right.length - left.length,
+  );
+  for (const [hostPath, logicalPath] of replacements) {
+    if (hostPath.length > 0) sanitized = sanitized.split(hostPath).join(logicalPath);
+  }
   const redactions = [...(options.redactHostPaths ?? [])]
     .filter((candidate) => candidate.length > 0)
     .sort((left, right) => right.length - left.length);
@@ -43,12 +56,12 @@ export function captureOutput(text: string, options: CaptureOutputOptions): Capt
   }
   sanitized = redactHostAbsolutePaths(sanitized);
 
-  const originalByteLength = Buffer.byteLength(sanitized, "utf8");
+  const sanitizedByteLength = Buffer.byteLength(sanitized, "utf8");
   const preview = truncateUtf8(sanitized, options.limitBytes);
   return CapturedOutputSchema.parse({
     preview,
-    truncated: originalByteLength > options.limitBytes,
-    originalByteLength,
+    truncated: (options.inputTruncated ?? false) || sanitizedByteLength > options.limitBytes,
+    originalByteLength: rawByteLength,
     ...(options.artifactPath === undefined
       ? {}
       : { artifactPath: LogicalPathSchema.parse(options.artifactPath) }),

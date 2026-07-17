@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { lstat, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { LogicalPathSchema } from "@rtl-agent/contracts";
@@ -13,6 +13,7 @@ import type {
   AgentWorkspaceViolation,
   OpenCodeCapability,
 } from "./agent-contracts.js";
+import { writeJsonEvidenceExclusive } from "./evidence.js";
 import { resolveLogicalPath, sha256Bytes, sha256Jcs } from "./filesystem.js";
 import {
   checkAllowedRunChanges,
@@ -105,6 +106,9 @@ function validateConfig(config: OpenCodeExperimentConfig): void {
 const INLINE_CONFIG = {
   autoupdate: false,
   share: "disabled",
+  snapshot: false,
+  formatter: false,
+  lsp: false,
   plugin: [],
   mcp: {},
   instructions: [],
@@ -311,6 +315,21 @@ function validateResolvedConfig(value: unknown): void {
       "OpenCode debug config did not return an object",
     );
   }
+  const requiredIsolation = {
+    autoupdate: false,
+    share: "disabled",
+    snapshot: false,
+    formatter: false,
+    lsp: false,
+  } as const;
+  for (const [key, expected] of Object.entries(requiredIsolation)) {
+    if (config[key] !== expected) {
+      throw new CoreLoopException(
+        "OPENCODE_CAPABILITY_MISMATCH",
+        `Resolved OpenCode config does not preserve locked ${key} isolation`,
+      );
+    }
+  }
   for (const key of ["plugin", "plugins"] as const) {
     const plugins = config[key];
     if (plugins !== undefined && (!Array.isArray(plugins) || plugins.length > 0)) {
@@ -386,14 +405,6 @@ function activeArguments(
   arguments_: readonly string[],
 ): string[] {
   return [...(config.executableArgumentsPrefix ?? []), ...arguments_];
-}
-
-async function writeJsonExclusive(hostPath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(hostPath), { recursive: true });
-  await writeFile(hostPath, `${JSON.stringify(value, undefined, 2)}\n`, {
-    encoding: "utf8",
-    flag: "wx",
-  });
 }
 
 async function writeAgentInput(
@@ -744,7 +755,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       stderr: processResult.stderr,
       evidencePath,
     });
-    await writeJsonExclusive(resolveLogicalPath(run.runDirectory, evidencePath), result);
+    await writeJsonEvidenceExclusive(run.runDirectory, evidencePath, result);
     return result;
   }
 }

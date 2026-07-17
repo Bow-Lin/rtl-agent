@@ -1,5 +1,176 @@
 # Session Log
 
+## Entry: R04 Bounded Repair Loop Mechanics and Evaluation Boundary
+
+### Summary
+
+Implemented the reusable R04 mechanics without weakening or duplicating R01–R03. The Core Loop now performs locked all-case preflight, valid blank/seeded baseline classification, bounded Agent/compile attempts, structured compiler feedback, independent final recompile, strict completion evidence, batch metrics, and separate human-review adjustment. R04 remains `IN_PROGRESS`: no operator-selected, license-reviewed dataset Provider or versioned evaluation profile is registered, so no real batch, capability metric, or checkpoint recommendation was fabricated.
+
+### Implementation
+
+- Added strict evaluation profile, compiler/Agent capability lock, case-validation, run execution, batch input/result/review, metric, diagnostic-coverage, and checkpoint contracts with cross-field and digest validation.
+- Added exclusive atomic JSON evidence publication, atomic context replacement, RTL before/after copies, append-only run states, conditional compile evidence, final RTL manifest validation, and last-write `final-result.json`.
+- Added blank and seeded baseline rules: blank expects `NO_RTL_SOURCE` without compiler invocation; seeded repair requires an actual `COMPILE_ERROR`.
+- Added a total-Agent-turn `maxAttempts` loop. Only R02 `RTL_CHANGED` reaches R03 preparation, and only R03 `COMPILE_ERROR` can start another Agent turn.
+- Added explicit mappings for policy violation, no change, Agent process error/timeout, preparation failure, compiler timeout/tool error, capability drift, final-recompile inconsistency, and incomplete evidence/orchestration.
+- Added all-fixtures-before-Agent batch preflight with Provider descriptor and implementation digest, expected case count/order, complete selected case refs, normalized fixture/run identities, and a self-validating batch manifest.
+- Added overall and category metrics for raw/review-adjusted first attempt, within-max-attempts, and repair recovery; failure counts; medians; diagnostic coverage; invalid/not-executed cases; minimum denominators; and human-review-gated checkpoint assessment.
+- Added a thin injected-dependency CLI for `run --profile --case` and `evaluate --profile`; standalone execution remains fail-closed until a repository/operator Provider and profile are registered.
+- Added deterministic orchestration, batch, review, contract, and CLI tests plus a synthetic R04 integration that composes a fake Agent with the real fixed Icarus adapter.
+
+### R02 Compatibility Hardening
+
+- Kept the established fixed turn protocol but made effective isolation explicit with `autoupdate: false`, sharing/snapshot/formatter/LSP disabled, empty MCP/plugin/instructions, and existing deny-first permissions.
+- Removed any fork/attach ambiguity from the locked argv tests.
+- Reused R04's exclusive atomic evidence writer for `AgentTurnResult`.
+- Official OpenCode `1.18.2` probe passed with:
+  - model: `opencode/deepseek-v4-flash-free`
+  - resolved config digest: `sha256:d5109770f13d6e9db609fe66bd161efcbf1cfba29ad269ed46c13cc710fc8d03`
+  - resolved permission digest: `sha256:a208dd5b82acee15f30abadf90b64aca34edc8328a7470ceeb0c666706683814`
+  - Agent digest: `sha256:df3b8e9b50c4a4288af26ae4c20ea8564f45fd830dbae36ebd0a6393f35eb40d`
+  - Skill digest: `sha256:332d820382b10f5fcf90ae6d2f00d8a02e44385c7099dfbe1833137e75564655`
+  - experiment digest: `sha256:5a98e3fdf4cedc9a4857c88bc22a2df3f9cdea4d8b1e007502ab1b92891cd310`
+- The real allowed-edit and denied-write smoke tests both passed after this hardening.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`, `typecheck`, `build`, `format:check`, and `peers check`: passed.
+- focused R04 run/batch/CLI tests: 3 files and 27 tests passed.
+- Core Loop ordinary tests: 12 files passed / 1 real-Agent-smoke file skipped; 88 tests passed / 2 skipped.
+- thin CLI tests: 1 file and 5 tests passed.
+- full repository tests: 26 files passed / 1 skipped; 194 tests passed / 2 skipped in three consecutive isolated runs after timeout hardening.
+- real Icarus integration: 2 files and 6 tests passed, including seeded baseline, fake Agent repair, real compile, and independent real recompile.
+- fixed CLI compile smoke: passed with expected `COMPILE_PASSED` and `COMPILE_ERROR` classifications.
+- configured real OpenCode static probe: passed.
+- configured real OpenCode live smoke: 1 file and 2 tests passed.
+- unconfigured `core-loop:fixtures:check`: exited 2 with the required stable `DATASET_NOT_CONFIGURED` diagnostic.
+- final `git diff --check` and Harness check: passed after the handoff update.
+
+### Failure Found and Repaired
+
+Running process-heavy package tests concurrently with typecheck and CLI tests caused unrelated five-second test timeouts and cleanup races. An isolated single-worker diagnostic passed, followed by successful documented package and full-suite runs. The fake late-child-write timing was moved outside the bounded shutdown window without changing production timeout semantics; the validation orchestration lesson is recorded in `docs/error-journal.md`.
+
+A later isolated aggregate run still placed three unrelated filesystem/process-heavy tests just beyond Vitest's default five-second case timeout. The shared test harness now uses a finite 15-second case timeout while all production process deadlines remain unchanged. The full 194-test suite then passed three consecutive isolated runs.
+
+### Windows Actions Format Repair
+
+- The supplied `windows-latest` log failed only because Prettier saw CRLF in `eslint.config.mjs` and `prettier.config.mjs`; the Ubuntu job passed.
+- `core.autocrlf=true` plus the missing `*.mjs` rule made the checkout platform-dependent. `.gitattributes` now forces LF for portable MJS configuration files.
+- `git check-attr -a -- eslint.config.mjs prettier.config.mjs` reports `text: set` and `eol: lf`; local `corepack pnpm format:check` passes.
+- GitHub CLI was unavailable on this host, so the historical run could not be queried directly. The supplied job log and the repository checkout attributes were sufficient to reproduce and correct the failure boundary.
+
+### Evidence Limits and Next Step
+
+- `docs/experiments/spec-to-rtl-core-loop-report.md` remains `NOT_EXECUTED` / `PENDING_REAL_BATCH`.
+- Synthetic tests, real OpenCode smoke sessions, and the real-Icarus composition test are mechanics evidence only.
+- No functional correctness, formal Gate, Linux readiness, dataset capability rate, or checkpoint recommendation is claimed.
+- Resume by selecting and license-reviewing the real dataset/Provider, registering its locked evaluation profile, running the batch, completing the predeclared human review, and then recording exactly one checkpoint recommendation.
+
+## Entry: R03 Fixed Non-Authoritative Compile Adapter
+
+### Summary
+
+Implemented R03 end to end. The Core Loop now prepares manifest-bound compile requests, rejects uncontrolled includes, probes and runs one fixed Icarus null-target profile, continuously drains bounded output, waits for confirmed close, detects workspace drift and returns strict non-authoritative compile-only results. The established R01/R02 behavior remains intact except for the two previously documented compatibility corrections.
+
+### Implementation
+
+- Added `CompilePreparationResult` with `READY`, `NO_RTL_SOURCE`, `UNSUPPORTED_INCLUDE_DIRECTIVE` and `SOURCE_POLICY_VIOLATION`.
+- Added streaming include scanning, strict `.sv`/`.v` discovery, ordinal ordering and compiler-boundary filesystem revalidation.
+- Added immutable `iverilog-systemverilog-2012-null-v1` mapping, exact-version capability probe, executable/profile digests and construction-time environment snapshot.
+- Added fixed `-g2012 -tnull -s <top>` argv, `shell: false`, controlled cwd/environment, bounded Windows tree termination and close confirmation.
+- Added raw-byte output accounting, streaming UTF-8 decoding, ANSI/control cleanup, logical path projection, host-path redaction and deterministic stderr-before-stdout issue parsing.
+- Added status priority for version/spawn/internal/manifest/timeout/signal/design/unknown outcomes.
+- Added thin CLI `compile-smoke` and independent non-skippable real-Icarus integration.
+
+### R01 Compatibility Corrections
+
+- `CompileResult.status === "TOOL_ERROR"` and `FinalResult.outcome === "TOOL_ERROR"` may use `toolVersion: null`; every other branch still requires a non-empty version.
+- `CapturedOutput.originalByteLength` represents raw pipe bytes and no longer has to equal sanitized preview bytes when untruncated. Host-path rejection and preview limits remain strict.
+
+### Locked Profile and Host Evidence
+
+- host: Windows x64
+- package: winget `Icarus.Verilog 12.2022.06.11`
+- installer SHA-256: `a614057374dfaed5da0fe454cdeb410e54981fd85dbd28bd472f4ccb765deb84`
+- executable: `C:\iverilog\bin\iverilog.exe`
+- tool identity: `Icarus Verilog version 12.0 (devel) (s20150603-1539-g2693dd32b)`
+- executable digest: `sha256:803b8844af2cc8ed70b5f08b07ffa749901280e81339617ca3e72cbbb852bd2b`
+- profile digest: `sha256:a3d0eff6e8da8396e3e68398badfa6bf50614dff4181f8667a75f5477fd930b1`
+- profile: `-g2012 -tnull -s`, one ordered compilation unit, includes forbidden
+- limits: 30-second compile, 5-second probe, 500-millisecond termination grace, 64 KiB previews, 128 KiB retained capture, 100 issues, 2048-byte issue messages
+- Windows environment: `ComSpec`, normalized `Path`, `SystemRoot`, `TEMP`, `TMP`
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed.
+- `corepack pnpm lint`, `typecheck`, `build`, `format:check` and `peers check`: passed.
+- Core Loop ordinary tests: 10 files passed / 1 real-Agent-smoke file skipped; 61 tests passed / 2 skipped.
+- thin CLI tests: 1 file, 3 tests passed.
+- full repository tests: 24 files passed / 1 skipped; 165 tests passed / 2 skipped.
+- real Icarus integration: 1 file, 5 tests passed for valid multi-file, syntax error, missing top, blank source, elaboration error, null target and deterministic rerun.
+- CLI compile smoke: returned `COMPILE_PASSED` and `COMPILE_ERROR`; the temporary run contained only spec and RTL inputs, with no VVP output.
+- deterministic tests covered include boundaries, source policy, version/missing/spawn/signal/unknown failures, manifest drift, confirmed timeout, unconfirmed termination, continuous drain, UTF-8 chunking, status priority and path redaction.
+- `git diff --check` and Harness check: passed after final handoff update.
+
+### Failure Found and Repaired
+
+The first minimal Windows environment passed `iverilog -V` but every real compile exited silently as `0xffffffff`. Controlled comparisons isolated `ComSpec` as required by this Windows build. It is now part of the frozen Windows allowlist, and all real integration cases pass.
+
+### Known Limits and Next Step
+
+- Windows tree termination is evidenced; real Linux Icarus execution and POSIX helper-tree termination were not run.
+- Stable manifest scans are not an immutable snapshot. Every result remains `authoritative: false` and `claim: "COMPILE_ONLY"`.
+- Synthetic mechanics inputs are not R04 evaluation evidence.
+- R04 may compose R02 and R03 only after a reviewed dataset/provider and evaluation profile are selected, and may continue Agent repair only for `COMPILE_ERROR`.
+
+## Entry: R03 Compile Adapter Specification Revision
+
+### Summary
+
+Revised R03 after review and froze it as a non-authoritative Icarus null-target compile/elaboration profile. The new specification binds compiler inputs, forbids uncontrolled includes, detects mutable-workspace drift, fixes process/output/status semantics and limits compatibility work to two proven R01 schema contradictions. R03 implementation remains `NOT_STARTED`.
+
+### Files Created or Updated
+
+- `docs/tasks/R03-fixed-non-authoritative-compile-adapter.md`
+- `docs/tasks/R04-bounded-repair-loop-and-evaluation.md`
+- `docs/tasks/R01-core-loop-contract-and-fixtures.md`
+- `docs/task-breakdown.md`
+- `docs/decisions.md`
+- `docs/verification.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Main Decisions
+
+- Use `iverilog-systemverilog-2012-null-v1` with fixed `-g2012 -tnull -s <top>` and no VVP output.
+- Reject non-comment `` `include`` directives through an additive `CompilePreparationResult`; do not modify the existing Core Loop error envelope.
+- Reuse the R01 baseline workspace manifest scope and require stable matching scans before and after compile.
+- Continuously drain stdout/stderr, count raw bytes, wait for `close` and fail closed when termination cannot be confirmed.
+- Allow `toolVersion: null` only for tool-error compile/final results, and remove the invalid equality requirement between raw output length and sanitized preview length.
+- Preserve all other R01/R02 workspace, Agent, permission, process and evidence behavior.
+
+### Validation
+
+- Markdown code-fence balance: passed for all changed documents.
+- Stale R03 profile/argv scan: only the explicitly documented R01 syntax-test placeholder remains.
+- `git diff --check`: passed.
+- `corepack pnpm format:check`: passed.
+- `C:\Program Files\Git\bin\bash.exe scripts/harness_check.sh`: passed.
+
+### Known Issues / Risks
+
+- No production schema or adapter code was changed; the documented R01 compatibility patch is the first R03 implementation step.
+- Real Icarus probe/integration/smoke was not run because R03 implementation remains `NOT_STARTED`.
+- Stable manifest scans detect change but do not provide an immutable snapshot or authoritative Gate evidence.
+
+### Next Steps
+
+1. Implement and regression-test the narrow R01 schema compatibility patch.
+2. Install/probe the real Icarus executable and freeze the exact profile mapping.
+3. Implement preparation, include scanning, manifest validation and the bounded process adapter.
+
 ## Entry: Harness Initialization
 
 ### Summary

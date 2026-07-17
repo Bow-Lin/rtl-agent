@@ -5,7 +5,8 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "test": "vitest run packages/core-loop/test --config vitest.config.ts --root ../.."
+    "test": "vitest run packages/core-loop/test --config vitest.config.ts --root ../..",
+    "test:integration:iverilog": "vitest run --config vitest.iverilog.config.ts --root ../.."
   },
   "exports": {
     ".": {

@@ -141,6 +141,27 @@ describe("Core Loop contracts", () => {
     },
   );
 
+  it("allows an unknown tool version only for tool-error results", () => {
+    const common = {
+      schemaVersion: 1,
+      authoritative: false,
+      claim: "COMPILE_ONLY",
+      runId: RUN_ID,
+      attempt: 1,
+      compilerProfileId: PROFILE.compilerProfileId,
+      toolVersion: null,
+      topModule: "dut",
+      workspaceManifestDigest: CASE_DIGEST,
+      exitCode: null,
+      durationMs: 3,
+      issues: [],
+      stdout: { preview: "", truncated: false, originalByteLength: 0 },
+      stderr: { preview: "", truncated: false, originalByteLength: 0 },
+    } as const;
+    expect(CompileResultSchema.safeParse({ ...common, status: "TOOL_ERROR" }).success).toBe(true);
+    expect(CompileResultSchema.safeParse({ ...common, status: "TIMEOUT" }).success).toBe(false);
+  });
+
   it("requires explicit non-authoritative compile-only final results", () => {
     const result = {
       schemaVersion: 1,
@@ -162,6 +183,10 @@ describe("Core Loop contracts", () => {
     expect(FinalResultSchema.safeParse(result).success).toBe(true);
     expect(FinalResultSchema.safeParse({ ...result, authoritative: true }).success).toBe(false);
     expect(FinalResultSchema.safeParse({ ...result, extra: true }).success).toBe(false);
+    expect(FinalResultSchema.safeParse({ ...result, toolVersion: null }).success).toBe(false);
+    expect(
+      FinalResultSchema.safeParse({ ...result, outcome: "TOOL_ERROR", toolVersion: null }).success,
+    ).toBe(true);
   });
 
   it("captures sanitized UTF-8 byte-bounded output without host paths", () => {
@@ -220,6 +245,15 @@ describe("Core Loop contracts", () => {
         originalByteLength: Buffer.byteLength(preview, "utf8"),
       }).success,
     ).toBe(false);
+  });
+
+  it("tracks raw pipe bytes independently from a sanitized preview", () => {
+    const output = captureOutput("C:\\secret\\dut.sv\u001b[31m", { limitBytes: 1024 });
+    expect(output.preview).toBe("<host-path>");
+    expect(output.truncated).toBe(false);
+    expect(output.originalByteLength).toBe(Buffer.byteLength("C:\\secret\\dut.sv\u001b[31m"));
+    expect(output.originalByteLength).not.toBe(Buffer.byteLength(output.preview));
+    expect(CapturedOutputSchema.safeParse(output).success).toBe(true);
   });
 
   it("enforces fixed retryability and the safe internal error", () => {

@@ -18,7 +18,7 @@ materialize fixture
   → Agent edit
   → fixed compile
   → structured compiler feedback
-  → Agent repair（最多 N 次）
+  → Agent repair（最多 maxAttempts - 1 次）
   → final result + batch metrics
 ```
 
@@ -68,49 +68,57 @@ rtl-core-loop evaluate --profile <evaluation-profile-id>
 
 如需对比模型或参数，创建新的命名 evaluation profile和独立 batch ID，不在同一 batch中途变更。
 
-## 单 Run 状态机
+## Batch Preflight 与单 Run 状态机
+
+R04 分成 `BATCH_PREFLIGHT` 和 `RUN_EVALUATION`。在第一个 Agent turn 前，preflight 必须：
+
+1. 验证 evaluation profile、dataset descriptor、selection 和 Provider/adapter identity。
+2. probe 并锁定 R02 effective capability 与 R03 compiler capability。
+3. 按固定顺序列出并物化全部 selected cases 到 batch-owned run roots。
+4. 在 batch input manifest 中保存完整 ordered case refs、物化成功项的 normalized fixture digests，并锁定 ordered case IDs 与 manifest digest。
+5. 对全部物化成功的 case 执行 blank/seeded baseline validation。
+
+preflight 结束后不再访问 Provider。无效 case 写 batch-level `case-validation-result.json`，不执行 Agent，也不产生 `FinalResult`。物化失败的 case 不创建 run；已物化但 baseline 无效的 run 只保留 preflight evidence，不成为完成的 evaluation run。
 
 R04 只在 `packages/core-loop` 内部使用一个小型显式状态，不复用或修改 A03 正式 `DomainState`：
 
 ```text
 MATERIALIZING
+BASELINE_PREPARING
 BASELINE_COMPILING
 AGENT_RUNNING
+AGENT_VALIDATING
+COMPILE_PREPARING
 COMPILING
-COMPILE_PASSED
-MAX_ATTEMPTS
-AGENT_FAILED
-TOOL_ERROR
-TIMEOUT
-POLICY_VIOLATION
-NO_RTL_CHANGE
+FINAL_RECOMPILING
+COMPLETED
 ```
 
-状态保存在本地 evidence JSON即可。它不是 durable workflow，不要求 crash resume；进程中断后的 incomplete run标记 `ABORTED` 或由报告忽略，不能继续追加到旧run。
+`COMPILE_PASSED | MAX_ATTEMPTS | AGENT_FAILED | TOOL_ERROR | TIMEOUT | POLICY_VIOLATION | NO_RTL_CHANGE` 是 final outcome，不与执行状态混用。状态以只追加、带 sequence 的本地 evidence JSON 保存。它不是 durable workflow，不要求 crash resume；进程中断或缺少必需 evidence 的 run 使用独立 `INCOMPLETE` execution result，由 batch 计入 infrastructure-invalid，并把受全局终止影响的后续 case 计为 not-executed；不能继续追加到旧 run。
 
 ## 执行算法
 
-### 1. 物化与 baseline
+### 1. Preflight 物化与 baseline
 
-1. 通过 R01 `FixtureProvider` 解析 dataset case 并校验锁定 evaluation profile/provenance。
-2. R01 materialize 新的 normalized fixture、run workspace 和 evidence 目录。
+1. 通过 R01 `FixtureProvider` 一次性解析全部 dataset cases 并校验锁定 evaluation profile/provenance。
+2. R01 materialize 全部 normalized fixtures、batch-owned run workspaces 和 evidence 目录；全部成功或失败状态都在第一个 Agent turn 前确定。
 3. 写入 immutable-for-Agent 的 run request、normalized fixture metadata、dataset provenance 和 baseline manifest。
-4. seeded fixture 使用 `attempt: 0` 构造严格 `CompileRequest`，再调用 R03；blank fixture 没有 source file，保存 `NO_RTL_SOURCE` request-preparation evidence，不构造空请求也不启动 compiler。
-5. baseline compile result 或 skipped evidence 都必须保存；它只用于描述起点，不占用 Agent attempt。
+4. 每个 fixture 使用 `attempt: 0` 调用 R03 request-builder并保存 `compile-preparation.json`；只有 `CompilePreparationResult.status === "READY"` 才取出严格 `CompileRequest` 并调用 compiler、保存 `compile-result.json`。blank fixture 没有 source file，预期得到 `NO_RTL_SOURCE`，不构造空请求也不启动 compiler。
+5. baseline 只用于描述起点，不占用 Agent attempt。`compile-result.json` 是 compiler 实际启动后的条件必需证据，不能用伪造结果占位。
 
-对于 `BLANK_GENERATION`，`NO_RTL_SOURCE` request-preparation result 是预期起点，不是 `CompileResult`，也不算工具故障。对于 `SEEDED_COMPILE_REPAIR`，baseline 必须为 `COMPILE_ERROR`；若返回 `COMPILE_PASSED`，说明 case normalization 无效，整个 batch 配置失败，而不是记为 Agent 成功。baseline 的 `TIMEOUT`/`TOOL_ERROR` 同样使 batch/run 基础设施无效。
+对于 `BLANK_GENERATION`，`NO_RTL_SOURCE` preparation result 是预期起点，不是 `CompileResult`，也不算工具故障。对于 `SEEDED_COMPILE_REPAIR`，任何 preparation failure 都说明 case normalization 或 batch 输入无效；若 compiler 返回 `COMPILE_PASSED`，同样说明 case normalization 无效，而不是 Agent 成功。有效 seeded baseline 必须为 `COMPILE_ERROR`；baseline 的 `TIMEOUT`/`TOOL_ERROR` 使 batch/run 基础设施无效。
 
 ### 2. Agent/compile attempts
 
-执行 `CreateRunRequest.profile.maxAttempts` 指定的次数；该值来自锁定的 `CoreLoopRunProfile`，R01 schema 已限制为 1–3。`NormalizedFixture` 不含 `maxAttempts`，evaluation profile 只能引用完整 run profile，不能另设覆盖值。
+执行 `CreateRunRequest.profile.maxAttempts` 指定的 Agent turn 总数；该值来自锁定的 `CoreLoopRunProfile`，R01 schema 已限制为 1–3。第一次生成/编辑是 attempt 1，后续 repair 最多 `maxAttempts - 1` 次，baseline attempt 0 不计入。`FinalResult.attemptCount` 是已启动 Agent turn 的数量；即使某 turn timeout/error 也计数。`NormalizedFixture` 不含 `maxAttempts`，evaluation profile 只能引用完整 run profile，不能另设覆盖值。
 
 1. 写严格的 `AgentAttemptInput` 到 `context/agent-input.json`。blank fixture 的第一次 attempt 省略 `previousCompileResultPath`；seeded fixture 的第一次 attempt 引用 baseline `CompileResult`，后续 attempt 引用上一轮结果。被引用结果的有界脱敏副本写入 `context/previous-compile-result.json`。
 2. 保存 attempt开始前 workspace manifest与 `rtl-before/**` 副本。
 3. 通过 R02 启动一个全新 OpenCode session。
-4. 保存 Agent process result、bounded JSONL/text、turn后manifest与 `rtl-after/**` 副本。
-5. R02 outcome非 `COMPLETED` 时按停止表结束，不调用下一轮Agent。
-6. 用 R03 request-builder 发现 source、构造并校验 `CompileRequest` 后编译当前 RTL，保存完整 result；若 Agent turn 后仍没有 source，记录 `NO_RTL_SOURCE` 准备结果并结束为 `AGENT_FAILED`，不伪造 `CompileRequest` 或 `CompileResult`。
-7. `COMPILE_PASSED` 时执行一次独立 final recompile；两次均返回 `COMPILE_PASSED` 才结束为 `COMPILE_PASSED`。
+4. 保存严格 `AgentTurnResult`、turn 后 manifest 与 `rtl-after/**` 副本；不持久化 raw JSONL、reasoning、完整 Assistant text 或 tool arguments/results。
+5. 穷举 R02 outcome：`POLICY_VIOLATION`、`NO_RTL_CHANGE`、`AGENT_PROCESS_ERROR`、`AGENT_TIMEOUT` 立即按停止表结束；只有 `RTL_CHANGED` 进入 compile preparation。R02 已拥有 workspace/process priority，R04 不重新解释原始 process evidence。
+6. 用 R03 request-builder 发现 source 并保存严格 `CompilePreparationResult`。只有 `READY` 才取出 `CompileRequest` 并调用 compiler。Agent turn 后的 `NO_RTL_SOURCE` 结束为 `AGENT_FAILED`；`UNSUPPORTED_INCLUDE_DIRECTIVE` 或 `SOURCE_POLICY_VIOLATION` 结束为 `POLICY_VIOLATION`。所有 preparation failure 都保存 compiler-not-invoked evidence，不伪造 `CompileRequest` 或 `CompileResult`；request 建立后的 manifest mismatch 由 compile adapter 返回 `TOOL_ERROR`。
+7. 首次 `COMPILE_PASSED` 时进入 `FINAL_RECOMPILING`：重新执行 preparation、构造新的 `CompileRequest`、确认 profile/tool/version/top/manifest identity 未漂移，再调用 compiler。只有第二次也为 `COMPILE_PASSED` 才结束为 `COMPILE_PASSED`。第二次 `COMPILE_ERROR`、preparation failure 或 manifest/identity mismatch 均结束为 `TOOL_ERROR`；第二次 `TIMEOUT`/`TOOL_ERROR` 保持对应终态，不增加 Agent attempt。
 8. `COMPILE_ERROR` 且仍有attempt时，把结构化结果反馈给下一轮。
 9. `COMPILE_ERROR` 且已达上限时结束为 `MAX_ATTEMPTS`。
 10. `TIMEOUT`/`TOOL_ERROR` 立即结束，不让Agent通过改RTL“修复”基础设施。
@@ -122,18 +130,21 @@ NO_RTL_CHANGE
 | 观察结果 | Final outcome | 是否继续 Agent |
 |---|---|---|
 | compile pass 且独立 recompile pass | `COMPILE_PASSED` | 否 |
-| 已达到 3 次上限仍 compile error | `MAX_ATTEMPTS` | 否 |
+| 已达到 `maxAttempts` 上限仍 compile error | `MAX_ATTEMPTS` | 否 |
 | Agent process error | `AGENT_FAILED` | 否 |
 | Agent 或 compiler timeout | `TIMEOUT` | 否 |
 | compiler/tool adapter error或version漂移 | `TOOL_ERROR` | 否 |
 | Agent turn 后没有 `.sv`/`.v` source | `AGENT_FAILED` | 否 |
+| Agent turn 后出现 include 或 source policy violation | `POLICY_VIOLATION` | 否，workspace作废 |
 | 非 `rtl/**` 变化 | `POLICY_VIOLATION` | 否，workspace作废 |
 | Agent正常退出但RTL digest未变化 | `NO_RTL_CHANGE` | 否 |
 | compile error且还有attempt | 仍在运行 | 是 |
 
 不允许“再试一次看看”、自动增加token/timeout、切换model/compiler或忽略 policy violation。
 
-`final-result.json` 必须严格通过 R01 `FinalResultSchema`，包含 `runId`、fixture display/structured identity、normalized fixture digest、profile/compiler identity、锁定 tool version、attempt count、final RTL manifest digest 和 canonical start/completion time。所有 outcome 都重复 `authoritative: false` 与 `claim: "COMPILE_ONLY"`；不能增加 `ABORTED`、人工审查分类或 batch 状态作为 `FinalResult.outcome`。进程中断的 run 保持 incomplete evidence，由 batch 报告单独分类。
+`final-result.json` 必须严格通过 R01 `FinalResultSchema`，包含 `runId`、fixture display/structured identity、normalized fixture digest、profile/compiler identity、锁定 tool version、attempt count、可信 final RTL manifest digest 和 canonical start/completion time。所有 outcome 都重复 `authoritative: false` 与 `claim: "COMPILE_ONLY"`；不能增加 `ABORTED`、人工审查分类或 batch 状态作为 `FinalResult.outcome`。
+
+`final-result.json` 是 run completion marker，必须在全部分支必需 evidence 成功提交后最后写入。若 evidence writer 失败、final workspace 无法安全扫描、进程中断或 final result 自身写入失败，run 保持 incomplete，由 batch 报告单独分类；不能为使 schema 通过而把 last-known manifest 冒充 final workspace，也不能用 `TOOL_ERROR` 伪装 evidence-incomplete run。
 
 ## Evidence Layout
 
@@ -145,42 +156,50 @@ evidence/
   fixture.json
   dataset-provenance.json
   baseline-manifest.json
-  baseline-compile-result.json
+  states/
+    0001.json
+  baseline/
+    compile-preparation.json
+    compile-result.json           # 仅 READY 且 compiler 实际启动后存在
   attempts/
-    001/
+    1/
       agent-input.json
       previous-compile-result.json  # 存在 baseline/上一轮 CompileResult 时
       workspace-before-manifest.json
       rtl-before/**
-      agent-result.json
-      agent-output.jsonl
+      agent-turn-result.json
       workspace-after-manifest.json
       rtl-after/**
-      compile-result.json
-    002/**
-    003/**
-  final-recompile-result.json
+      compile/
+        preparation.json
+        result.json               # 仅 READY 且 compiler 实际启动后存在
+      final-recompile/
+        preparation.json          # 仅首次 compile pass 后存在
+        result.json               # 仅 READY 且 compiler 实际启动后存在
+    2/**
+    3/**
+  final-rtl-manifest.json
   final-result.json
 ```
 
 这些证据位于 `.rtl-agent/` 并被 gitignore。它们用于本地实验复盘，不是 immutable snapshot或审计级记录。正式报告只提交汇总、dataset/selection/normalized fixture/batch digest、工具/model版本和必要的脱敏错误分类，不提交完整prompt、spec、RTL、reference answer、hidden tests或reasoning。
 
-如果 output因上限截断，证据明确记录。缺少任一必需attempt文件的run不能进入成功率分母，应记为 harness/infrastructure invalid并单独报告。
+JSON evidence 使用同目录临时文件、完整写入后 exclusive atomic publication；run/batch 目录禁止覆盖旧 ID。`final-result.json` 最后写。若 output 因上限截断，证据明确记录。证据完整性根据实际分支的 expected file set 验证；缺少任一分支必需文件的 run 不作为完成 run，应记为 harness/infrastructure-invalid 并单独报告。
 
 ## Batch Evaluation
 
-R04 不内置任何具体 case 清单。执行前创建一个版本化 evaluation profile，引用已审查的 `FixtureProvider` 与 dataset selection，并记录：
+R04 不内置任何具体 case 清单。执行前创建一个版本化 evaluation profile，引用已审查的 `FixtureProvider` 与 dataset selection，并预先锁定：
 
 - evaluation profile digest
-- provider/adapter ID 与 version
+- provider/adapter ID、version 与 repository/operator-locked implementation digest
 - dataset ID/version/source digest/license reference
-- split、selection rule、case count 与稳定 case IDs digest
-- 每个 normalized fixture content digest
-- OpenCode/version/provider/model
-- Agent/Skill/config digest
-- Icarus executable/version/profile
+- split、selection rule、预期 case count 与 ordered case IDs digest
+- 期望的 OpenCode/version/provider/model 与 Agent/Skill/effective config/permission/experiment digests
+- 期望的 Icarus executable digest/version/profile digest
 - `CoreLoopRunProfile`（含 maxAttempts、compiler profile 与 output/issue limits）和 timeouts
-- batch开始/结束时间
+- checkpoint thresholds 与人工抽样规则
+
+preflight 实际 probe/materialization 后另记录每个 normalized fixture content digest、ordered case IDs digest、batch input manifest digest 和 batch 开始/结束时间。probe 结果必须与 profile 期望值严格匹配；每个 Agent turn 的 capability digests 也必须与 preflight lock 一致。
 
 按 evaluation profile 固定顺序执行 cases；首版可串行，避免并发引入rate limit、workspace和日志交叉影响。某个run失败不阻止后续case，除非发现全局 `TOOL_ERROR`、dataset/provider/version漂移或配置损坏；此时batch终止并标记invalid。
 
@@ -192,24 +211,30 @@ R04 不内置任何具体 case 清单。执行前创建一个版本化 evaluatio
 
 | 指标 | 定义 |
 |---|---|
-| first-attempt compile rate | 第一次Agent编辑后compile pass的有效fixture比例 |
-| within-3-attempt compile rate | 最多3次内最终pass的有效fixture比例 |
+| raw first-attempt compile rate | attempt 1 compile pass且独立recompile确认的evaluation-valid case比例 |
+| raw within-max-attempts compile rate | 在profile的`maxAttempts`内最终pass且独立recompile确认的evaluation-valid case比例 |
 | repair recovery rate | 第一次Agent后compile fail的case中，后续attempt恢复pass的比例 |
+| review-accepted repair recovery rate | repair recovery中未被预登记人工检查拒绝的比例 |
+| review-accepted first-attempt rate | raw first-attempt中通过预登记人工检查的比例 |
+| review-accepted within-max-attempts rate | raw within-max-attempts中通过预登记人工检查的比例 |
 | median attempts to pass | pass case所需Agent turn中位数 |
 | median wall time | 每个有效run总时长中位数 |
 | policy violation count | 越界写run数量 |
 | no-change count | Agent正常退出但RTL未变化数量 |
-| tool/timeout count | 非设计错误导致的失败数量 |
-| diagnostic parse coverage | compile diagnostics中成功提取logical file/line的比例 |
+| Agent/process/timeout count | Agent失败、Agent timeout与post-Agent compile timeout数量，仍属于evaluation failure |
+| infrastructure-invalid count | capability/dataset/baseline tool/evidence/orchestrator失败数量 |
+| diagnostic path/line/path+line coverage | Agent attempt compiler issues中对应字段成功提取的分子/分母 |
 
-所有比例同时报告分子/分母，不能只给百分比。对样本量小和非确定性作显式说明。
+通过 preflight 并开始正式 Agent evaluation 的 case 都进入能力指标分母，除非之后有独立于 Agent 输出的基础设施无效证据。`POLICY_VIOLATION`、`NO_RTL_CHANGE`、`AGENT_FAILED`、Agent timeout 和 post-Agent compile timeout 都是 evaluation failure，不能从分母移除。baseline tool failure、capability/provider/dataset drift、evidence failure和 orchestrator crash 是 infrastructure-invalid，不进入能力分母；全局终止后尚未运行的 case 记为 not-executed。
+
+所有比例同时报告分子/分母，不能只给百分比。指标分别报告 `BLANK_GENERATION`、`SEEDED_COMPILE_REPAIR` 和 overall；若 `maxAttempts` 不是 3，不得把指标命名为 within-3。人工拒绝不改写原始 R03 result，只影响对应 first-attempt、within-max-attempts、repair-recovery 的 review-accepted/checkpoint numerator。人工复核样本未完成时不能发布最终 review artifact。对样本量小和非确定性作显式说明。
 
 ## Checkpoint 判定
 
 Core Loop 进入下一能力层的判定规则必须在 evaluation profile 中随 dataset selection 一起预先登记，不能看完结果后调整。至少包括：
 
 1. 有效 case 的最低数量、split 和类别覆盖；理由应来自所选数据集，而不是在 Core Loop contract 中硬编码统一样本数。
-2. first-attempt、within-3-attempt 和 repair recovery 的目标值及最小分母；样本不足时只能报告 inconclusive。
+2. first-attempt、within-max-attempts 和 repair recovery 的目标值及最小分母；样本不足时只能报告 inconclusive。
 3. 若第一次 Agent 后存在 compile fail case，repair recovery 必须报告实际分子/分母；若没有此类 case，标记 `N/A`，不能虚构 100%。
 4. 0 次 policy violation，0 次 compiler profile/spec/normalized fixture/dataset source 修改。
 5. 所有 final pass 都通过独立 recompile，profile/version、`workspaceManifestDigest` 与 final RTL manifest identity 一致。
@@ -258,7 +283,7 @@ Checkpoint输出三选一建议：
 - 只有 `COMPILE_ERROR` 会触发下一轮；timeout/tool error/policy/no-change立即停止。
 - Agent exit 0不产生pass；必须由R03 pass + 独立recompile确认。
 - 越界写优先于process outcome，污染workspace不再编译。
-- final result与evidence文件在所有终态存在；中断run不混入有效batch。
+- evidence-complete且final workspace可安全扫描的终态写严格final result；evidence失败、unscannable或中断run保持incomplete且不混入有效batch。
 - batch 固定 dataset/provider/selection/evaluation profile/model/compiler，检测中途 version 或 config digest 漂移。
 - 未配置 provider/dataset 时 fail closed；test-only smoke input 不得进入 batch。
 - metric分子/分母和N/A语义正确；invalid run不悄悄当compile failure。
@@ -299,4 +324,4 @@ corepack pnpm --filter @rtl-agent/rtl-core-loop exec rtl-core-loop evaluate --pr
 
 ## 实现交接内容
 
-Session Log 记录 dataset/provider/version/license reference、selection/evaluation profile digest、case 分子分母、first/within-3/recovery指标、attempt/time统计、policy/no-change/tool failure、OpenCode/model/Icarus版本、人工审查拒绝项、报告路径和下一步建议。不得仅记录一个总成功率。
+Session Log 记录 dataset/provider/version/implementation digest/license reference、selection/evaluation profile digest、case 分子分母、first/within-max-attempts/recovery指标、attempt/time统计、policy/no-change/tool failure、OpenCode/model/Icarus版本、人工审查拒绝项、报告路径和下一步建议。不得仅记录一个总成功率。

@@ -151,3 +151,77 @@ Every operator-controlled value that changes executable argv must either partici
 - `packages/core-loop/src/agent-adapter.ts`
 - `packages/core-loop/test/agent-adapter.test.ts`
 - `docs/task-breakdown.md`
+
+## 2026-07-17 - Windows Icarus compile silently required ComSpec
+
+### Symptom
+
+The exact-version probe passed under the first minimal environment, but every real compile exited as `0xffffffff` with empty stdout and stderr, including valid input.
+
+### Root Cause
+
+The installed Windows Icarus v12 build requires `ComSpec` during compile/helper orchestration. `Path`, `SystemRoot`, `TEMP` and `TMP` alone were sufficient for `iverilog -V` but not for `-g2012 -tnull` compilation.
+
+### Fix
+
+Add `ComSpec` to the frozen Windows environment allowlist and snapshot the resulting environment when constructing the adapter. A controlled comparison proved that adding `ComSpec` alone changed the silent failure into normal diagnostics, after which all five real integration cases passed.
+
+### Prevention
+
+Do not infer compile environment requirements from a successful version probe. Every new compiler build or profile must run both probe and real pass/error smoke with the exact controlled environment before its identity is accepted.
+
+### Related Files
+
+- `packages/core-loop/src/compiler-profile.ts`
+- `packages/core-loop/src/compiler-adapter.ts`
+- `packages/core-loop/test/iverilog.integration.test.ts`
+
+## 2026-07-17 - Concurrent validation made bounded process tests exceed Vitest's case timeout
+
+### Symptom
+
+Running typecheck, CLI tests, and the package-wide Core Loop suite concurrently caused unrelated Agent, compiler, R04 run, and batch tests to exceed Vitest's five-second per-test limit. Timeout cleanup also raced an active evidence write and reported `ENOTEMPTY`.
+
+### Root Cause
+
+The package script intentionally discovers the whole Core Loop suite even when extra positional arguments are appended. Starting it beside two other CPU/process-heavy commands first exposed the issue, but a later isolated aggregate run proved that Vitest's own multi-file concurrency could also push unrelated filesystem/process-heavy cases just beyond its default five-second case timeout. This was validation contention rather than a failed behavioral assertion. A prior fake timeout fixture also placed its forbidden late write too close to the adapter's bounded shutdown window.
+
+### Fix
+
+Move the fake child write farther beyond the termination window while preserving production timeout semantics. Set the repository-wide Vitest case timeout to 15 seconds: still finite and below the bounded external-process failure windows, but no longer coupled to host scheduling around five seconds. Run process-heavy test suites independently; use a direct single-worker Vitest command only for focused diagnosis, then rerun the repository-supported package and full-suite commands without competing jobs.
+
+### Prevention
+
+Do not parallelize separate process-tree, real-tool, or full Vitest commands on this host. Keep the explicit finite test timeout in the shared Vitest config, treat a cluster of timeouts across unrelated tests as possible host contention, verify with an isolated run, and still finish with the documented package and aggregate commands.
+
+### Related Files
+
+- `packages/core-loop/test/agent-adapter.test.ts`
+- `packages/core-loop/package.json`
+- `vitest.config.ts`
+- `docs/verification.md`
+
+## 2026-07-17 - Windows Actions converted unclassified MJS configs to CRLF
+
+### Symptom
+
+GitHub Actions passed lint, typecheck, tests, and build on `windows-latest` but `prettier --check` rejected only `eslint.config.mjs` and `prettier.config.mjs`. The Ubuntu job passed.
+
+### Root Cause
+
+The repository and Windows checkout use `core.autocrlf=true`. `.gitattributes` fixed LF for TypeScript, JSON, YAML, Markdown, shell, Python, and RTL files but omitted `*.mjs`, so Actions could check out the two configuration modules with CRLF while Prettier expected LF.
+
+### Fix
+
+Add `*.mjs text eol=lf` to `.gitattributes`. This fixes the checkout boundary instead of rewriting files during CI or weakening Prettier.
+
+### Prevention
+
+Every portable source/config extension added to the repository must have an explicit LF rule. Use `git check-attr -a -- <file>` when a format check differs between Windows and Linux.
+
+### Related Files
+
+- `.gitattributes`
+- `eslint.config.mjs`
+- `prettier.config.mjs`
+- `.github/workflows/ci.yml`

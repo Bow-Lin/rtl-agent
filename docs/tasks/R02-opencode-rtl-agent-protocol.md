@@ -31,9 +31,9 @@ R02 只回答：“这次 Agent turn 是否在受控范围内产生了可交给 
 OpenCode 配置是 merge 而非 replace；`--pure` 只禁用外部 plugin，不能自动清空全局 MCP、instructions 或其他非冲突配置。R02 因此同时采用：
 
 1. `--pure`。
-2. runtime inline config 与禁用自动更新、自动分享、默认 plugin、Claude 兼容 prompt/skill、LSP 下载的固定环境变量。
+2. runtime inline config 显式设置 `autoupdate: false`、`share: disabled`、`snapshot: false`、`formatter: false`、`lsp: false`、空 plugin/MCP/instructions 和 deny-only permission，并配合禁用自动更新、自动分享、默认 plugin、Claude 兼容 prompt/skill、LSP 下载的固定环境变量。
 3. 不继承调用者提供的 `OPENCODE_CONFIG`、`OPENCODE_CONFIG_DIR` 或 `OPENCODE_PERMISSION` override。
-4. `opencode debug config` 后的 allowlist 检查；存在 active MCP、外部 plugin 或额外 instructions 时 fail closed。
+4. `opencode debug config` 后的 allowlist 检查；上述 isolation 值未实际生效，或存在 active MCP、外部 plugin、额外 instructions、非 deny-only permission 时 fail closed。
 5. 只保存 resolved config 的 JCS digest，不保存可能含 credential 的原始配置。
 
 R02 锁定并记录：OpenCode version、安装方式、原生 executable 类型、provider/model 标识、可选 variant、Agent temperature/steps、Agent/Skill digest、resolved config digest、timeout/output/event/file limits。固定 provider/model 只表示固定请求标识，不宣称服务商模型权重不可变。
@@ -196,9 +196,9 @@ Static probe 顺序：
 
 1. executable 类型/平台检查。
 2. `--version` 精确匹配。
-3. `run --help` 包含所需 flags，且 adapter 永不传 `--auto`、`--thinking`、`--continue`、`--session`。
+3. `run --help` 包含所需 flags，且 adapter 永不传 `--auto`、`--thinking`、`--continue`、`--session`、`--fork` 或 `--attach`。
 4. 在 repository root 执行 `agent list` 并发现 `rtl-core-loop`。
-5. 执行 `debug config`，解析 JSON、检查 active MCP/plugin/instructions allowlist，只持久化 digest。
+5. 执行 `debug config`，解析 JSON、验证 autoupdate/share/snapshot/formatter/LSP isolation 与 active MCP/plugin/instructions allowlist，只持久化 digest。
 6. 解析最终 Agent permission rules，并计算 resolved config、resolved Agent permission、Agent、Skill 和完整 experiment config digest。
 
 Live smoke 是显式的真实 model turn，不由 `--help` 或 mock 替代。它需要 native OpenCode、认证和 operator model config；缺一项时 R02 可以实现但不能标记完整 `DONE`。
@@ -306,8 +306,8 @@ OpenCode 自身可能保留 session。真实 smoke 前必须执行 `opencode db 
 ## 测试要求
 
 - missing/non-native executable、version/flags/Agent/config mismatch 返回稳定 capability error。
-- argv snapshot 证明 `--pure` 位于 `run` 前、model/variant 显式、无 `--auto`/thinking/continuation、无 shell string。
-- isolation environment 删除外部 OpenCode overrides并设置固定禁用变量。
+- argv snapshot 证明 `--pure` 位于 `run` 前、model/variant 显式、无 `--auto`/thinking/continuation/session/fork/attach、无 shell string。
+- isolation environment 删除外部 OpenCode overrides并设置固定禁用变量；effective config 必须保持 autoupdate/share/snapshot/formatter/LSP、MCP/plugin/instructions 与 permission lock。
 - `rtlSourceFiles` 与真实文件不一致、previous result 无效或跨 run 时 fail closed。
 - fake exit 0 + 合法 RTL 修改返回 `RTL_CHANGED`；无变化返回 `NO_RTL_CHANGE`。
 - 非零 exit、spawn failure、timeout 分别返回稳定 outcome，且异常 workspace 不可编译。
