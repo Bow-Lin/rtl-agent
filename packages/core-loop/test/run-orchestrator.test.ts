@@ -63,6 +63,32 @@ function executionOptions(agent: ScriptedAgentAdapter, compiler: ScriptedCompile
 }
 
 describe("bounded Core Loop run orchestration", () => {
+  it("accepts prompted functional repair with a compiler-not-invoked baseline", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      {
+        caseId: "case/debug-001",
+        fixtureId: "debug-001",
+        category: "PROMPTED_FUNCTIONAL_REPAIR",
+      },
+    ]);
+    const run = await createEvaluationTestRun(root, provider, 3);
+    const compiler = new ScriptedCompilerAdapter([]);
+    const validated = await validateCoreLoopRunBaseline(run, {
+      caseIndex: 0,
+      compilerAdapter: compiler,
+      lockedCompilerCapability: compilerCapabilityLockFromCapability(TEST_COMPILER_CAPABILITY),
+    });
+
+    expect(validated.validation).toMatchObject({
+      status: "VALID",
+      category: "PROMPTED_FUNCTIONAL_REPAIR",
+      baselinePreparationStatus: "NO_RTL_SOURCE",
+      baselineCompileStatus: null,
+    });
+    expect(compiler.requests).toEqual([]);
+  });
+
   it("repairs only after COMPILE_ERROR and independently recompiles the final pass", async () => {
     const root = await temporaryRoot();
     const compiler = new ScriptedCompilerAdapter([

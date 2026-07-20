@@ -11,8 +11,86 @@ import {
   TEST_PROVIDER_IMPLEMENTATION_DIGEST,
   testEvaluationProfile,
 } from "../../../packages/core-loop/test/evaluation-test-fixtures.js";
+import {
+  CHIPBENCH_DATASET_LOCK,
+  VERILOG_EVAL_DATASET_LOCK,
+} from "../../../packages/core-loop/src/index.js";
 
 describe("rtl-core-loop CLI boundary", () => {
+  it("prepares the pinned dataset through an injected cache boundary", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    let destinationDirectory: string | undefined;
+    const exitCode = await runRtlCoreLoopCli(
+      ["dataset-prepare"],
+      undefined,
+      (line) => output.push(line),
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      undefined,
+      {
+        cacheRoot: path.join("operator-cache"),
+        prepareDataset: async (options) => {
+          destinationDirectory = options.destinationDirectory;
+          return {
+            datasetVersion: "v2-c498220d",
+            datasetSourceDigest: VERILOG_EVAL_DATASET_LOCK.contentManifestDigest,
+            expectedCaseCount: 156,
+            reused: false,
+          };
+        },
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(errors).toEqual([]);
+    expect(destinationDirectory).toBe(path.resolve("operator-cache", "v2-c498220d"));
+    expect(JSON.parse(output[0]!) as unknown).toMatchObject({
+      ok: true,
+      result: { expectedCaseCount: 156, reused: false },
+    });
+    expect(output[0]).not.toContain("operator-cache");
+  });
+
+  it("prepares ChipBench only when it is selected explicitly", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    let destinationDirectory: string | undefined;
+    const exitCode = await runRtlCoreLoopCli(
+      ["dataset-prepare", "--dataset", "chipbench"],
+      undefined,
+      (line) => output.push(line),
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      undefined,
+      {
+        chipBenchCacheRoot: path.join("chipbench-cache"),
+        prepareChipBenchDataset: async (options) => {
+          destinationDirectory = options.destinationDirectory;
+          return {
+            datasetVersion: CHIPBENCH_DATASET_LOCK.datasetVersion,
+            datasetSourceDigest: CHIPBENCH_DATASET_LOCK.contentManifestDigest,
+            expectedCaseCount: 223,
+            reused: false,
+          };
+        },
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(errors).toEqual([]);
+    expect(destinationDirectory).toBe(
+      path.resolve("chipbench-cache", CHIPBENCH_DATASET_LOCK.datasetVersion),
+    );
+    expect(JSON.parse(output[0]!) as unknown).toMatchObject({
+      ok: true,
+      result: { expectedCaseCount: 223, reused: false },
+    });
+    expect(output[0]).not.toContain("chipbench-cache");
+  });
+
   it("reports the stable missing-dataset diagnostic instead of using built-in samples", async () => {
     const output: string[] = [];
     const errors: string[] = [];

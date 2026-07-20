@@ -2,7 +2,7 @@
 
 ## Status
 
-`NOT_EXECUTED` — R04 mechanics are implemented, but no operator-selected, license-reviewed dataset Provider and versioned evaluation profile are registered. This document must not contain synthetic-test metrics or a checkpoint recommendation.
+`NOT_EXECUTED` — R04 mechanics and the pinned VerilogEval v2 and ChipBench generation/debugging Provider/cache boundaries are implemented, but the final license-review disposition and versioned evaluation profile are not registered. This document must not contain Provider mechanics, synthetic-test metrics, or a checkpoint recommendation.
 
 ## Required Locked Inputs
 
@@ -33,7 +33,17 @@ Synthetic fake-adapter tests and the fake-Agent/real-Icarus integration validate
 
 ## Dataset and Batch
 
-Pending operator registration.
+Dataset source selected and mechanically locked:
+
+- NVlabs VerilogEval v2 `spec-to-rtl`
+- ChipBench `Verilog Gen`: `cpu-ip`, `not-self-contained`, and `self-contained`
+- ChipBench `Verilog Debugging`: eight zero/one-shot arithmetic, assignment, state-machine, and timing splits; compile-only results cannot establish functional repair
+- upstream commit `c498220d0a52248f8e3fdffe279075215bde2da6`
+- 156 ordered cases
+- MIT license metadata recorded; final operator review disposition pending
+- third-party files reside only in the ignored verified cache, not in Git or a submodule
+
+The exact case selection for the checkpoint batch remains pending the versioned evaluation profile.
 
 ## Results
 

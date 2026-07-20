@@ -50,7 +50,23 @@ corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test
 corepack pnpm core-loop:fixtures:check
 ```
 
-The first two commands use only temporary synthetic mechanics inputs. Until an operator configures a reviewed Provider, `core-loop:fixtures:check` must exit non-zero with `DATASET_NOT_CONFIGURED`; that diagnostic is the expected result, not a failed fallback. R01 filesystem contract tests should run on Windows and Linux because case sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing command/evidence and do not claim Linux readiness.
+The first two commands use only temporary synthetic mechanics inputs. Prepare the selected pinned VerilogEval dataset once with:
+
+```powershell
+corepack pnpm core-loop:dataset:prepare
+corepack pnpm core-loop:fixtures:check
+```
+
+The preparation command downloads the fixed commit archive, checks its transport SHA-256, extracts only `LICENSE` and `dataset_spec-to-rtl/**`, validates the 472-file content manifest, and atomically publishes it below ignored `.rtl-agent/datasets/`. `fixtures-check` must then report the locked descriptor and 156 cases. Set `RTL_AGENT_VERILOG_EVAL_CACHE_ROOT` to an operator-owned absolute cache root when the repository-local ignored cache is unsuitable. If no cache/Provider is configured, the library/CLI injection boundary still fails closed with `DATASET_NOT_CONFIGURED`; an existing invalid cache fails with `DATASET_PROVENANCE_INVALID` and is never overwritten. R01 filesystem contract tests should run on Windows and Linux because case sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing command/evidence and do not claim Linux readiness.
+
+Prepare and validate the pinned ChipBench dataset with:
+
+```powershell
+corepack pnpm core-loop:dataset:prepare:chipbench
+corepack pnpm core-loop:fixtures:check:chipbench
+```
+
+The command extracts only `LICENSE`, `Verilog Gen/**`, and `Verilog Debugging/**`, validates the 683-file manifest, and must report 45 generation cases plus 178 debugging cases across 11 splits. Set `RTL_AGENT_CHIPBENCH_CACHE_ROOT` for an external cache. Debugging cases are `PROMPTED_FUNCTIONAL_REPAIR`: their buggy RTL is contained in the prompt, and the current result remains non-authoritative `COMPILE_ONLY` evidence rather than functional-repair proof. Reference-model, toolbox, script, Docker, Make, and Python paths are excluded and never executed.
 
 R02-specific static and live checks are:
 

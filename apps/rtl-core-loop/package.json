@@ -9,7 +9,10 @@
   "scripts": {
     "agent:probe": "node dist/index.js agent-probe",
     "compile:smoke": "node dist/index.js compile-smoke",
+    "dataset:prepare": "node dist/index.js dataset-prepare",
+    "dataset:prepare:chipbench": "node dist/index.js dataset-prepare --dataset chipbench",
     "fixtures:check": "node dist/index.js fixtures-check",
+    "fixtures:check:chipbench": "node dist/index.js fixtures-check --dataset chipbench",
     "test": "vitest run apps/rtl-core-loop/test --config vitest.config.ts --root ../.."
   },
   "dependencies": {

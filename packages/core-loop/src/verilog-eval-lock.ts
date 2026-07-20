@@ -1,0 +1,79 @@
+import path from "node:path";
+
+import { Sha256DigestSchema } from "@rtl-agent/contracts";
+import type { Sha256Digest } from "@rtl-agent/contracts";
+
+export interface VerilogEvalDatasetLock {
+  readonly schemaVersion: 1;
+  readonly datasetId: "nvlabs-verilog-eval";
+  readonly datasetVersion: string;
+  readonly split: "spec-to-rtl";
+  readonly sourceRepository: string;
+  readonly sourceCommit: string;
+  readonly archiveUrl: string;
+  readonly archiveRoot: string;
+  readonly archiveDigest: Sha256Digest;
+  readonly contentManifestDigest: Sha256Digest;
+  readonly expectedFileCount: number;
+  readonly expectedCaseCount: number;
+  readonly providerImplementationDigest: Sha256Digest;
+  readonly datasetDirectory: "dataset_spec-to-rtl";
+  readonly problemsFile: "dataset_spec-to-rtl/problems.txt";
+  readonly license: {
+    readonly name: string;
+    readonly spdxId: "MIT";
+    readonly reference: string;
+  };
+  readonly adapter: {
+    readonly adapterId: "verilog-eval-v2";
+    readonly adapterVersion: string;
+    readonly normalizationVersion: string;
+  };
+}
+
+export const VERILOG_EVAL_DATASET_LOCK = Object.freeze({
+  schemaVersion: 1,
+  datasetId: "nvlabs-verilog-eval",
+  datasetVersion: "v2-c498220d",
+  split: "spec-to-rtl",
+  sourceRepository: "https://github.com/NVlabs/verilog-eval.git",
+  sourceCommit: "c498220d0a52248f8e3fdffe279075215bde2da6",
+  archiveUrl:
+    "https://codeload.github.com/NVlabs/verilog-eval/tar.gz/c498220d0a52248f8e3fdffe279075215bde2da6",
+  archiveRoot: "verilog-eval-c498220d0a52248f8e3fdffe279075215bde2da6",
+  archiveDigest: Sha256DigestSchema.parse(
+    "sha256:179e0fa36027e93e78adeca687d27d9020f6655bde829ade9baf88aeb20d3fbd",
+  ),
+  contentManifestDigest: Sha256DigestSchema.parse(
+    "sha256:bbd36573053121fc61e81f38a69b0b9a0f3e4075e18b663e3e4f720aebc10e42",
+  ),
+  expectedFileCount: 472,
+  expectedCaseCount: 156,
+  providerImplementationDigest: Sha256DigestSchema.parse(
+    "sha256:7f5e3e3433aa69deb2479bae31fc12d002b91b5b6ee5349905dcf3262001e28b",
+  ),
+  datasetDirectory: "dataset_spec-to-rtl",
+  problemsFile: "dataset_spec-to-rtl/problems.txt",
+  license: Object.freeze({
+    name: "MIT License",
+    spdxId: "MIT",
+    reference:
+      "https://github.com/NVlabs/verilog-eval/blob/c498220d0a52248f8e3fdffe279075215bde2da6/LICENSE",
+  }),
+  adapter: Object.freeze({
+    adapterId: "verilog-eval-v2",
+    adapterVersion: "v1.0.0",
+    normalizationVersion: "spec-prompt-only-v1",
+  }),
+} satisfies VerilogEvalDatasetLock);
+
+export function verilogEvalCacheRoot(repositoryRoot: string): string {
+  return path.join(repositoryRoot, ".rtl-agent", "datasets", "verilog-eval");
+}
+
+export function verilogEvalDatasetDirectory(
+  cacheRoot: string,
+  lock: VerilogEvalDatasetLock = VERILOG_EVAL_DATASET_LOCK,
+): string {
+  return path.join(cacheRoot, lock.datasetVersion);
+}

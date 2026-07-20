@@ -18,7 +18,7 @@ import type {
 } from "./evaluation-contracts.js";
 import { sha256Jcs } from "./filesystem.js";
 
-type FixtureCategory = "BLANK_GENERATION" | "SEEDED_COMPILE_REPAIR";
+type FixtureCategory = "BLANK_GENERATION" | "PROMPTED_FUNCTIONAL_REPAIR" | "SEEDED_COMPILE_REPAIR";
 
 function ratio(numerator: number, denominator: number): RatioMetric {
   return {
@@ -120,6 +120,7 @@ function sliceMetrics(
   const preflightInvalidCount = selectedValidations.filter((validation) =>
     [
       "INVALID_BLANK_BASELINE",
+      "INVALID_PROMPT_ONLY_BASELINE",
       "INVALID_SEEDED_BASELINE_PASSED",
       "INVALID_FIXTURE_PREPARATION",
     ].includes(validation.status),
@@ -196,6 +197,13 @@ export function calculateBatchMetrics(
     maxAttempts: profile.runProfile.maxAttempts,
     overall: sliceMetrics(profile, validations, runs, reviews),
     blankGeneration: sliceMetrics(profile, validations, runs, reviews, "BLANK_GENERATION"),
+    promptedFunctionalRepair: sliceMetrics(
+      profile,
+      validations,
+      runs,
+      reviews,
+      "PROMPTED_FUNCTIONAL_REPAIR",
+    ),
     seededCompileRepair: sliceMetrics(profile, validations, runs, reviews, "SEEDED_COMPILE_REPAIR"),
   });
 }

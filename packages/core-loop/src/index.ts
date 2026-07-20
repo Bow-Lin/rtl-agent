@@ -2,6 +2,9 @@ export * from "./agent-contracts.js";
 export * from "./agent-adapter.js";
 export * from "./batch-evaluator.js";
 export * from "./catalog.js";
+export * from "./chipbench-lock.js";
+export * from "./chipbench-prepare.js";
+export * from "./chipbench-provider.js";
 export * from "./compile-preparation.js";
 export * from "./compiler-adapter.js";
 export * from "./compiler-contracts.js";
@@ -20,5 +23,8 @@ export * from "./manifest.js";
 export * from "./materialize.js";
 export * from "./output.js";
 export * from "./run-orchestrator.js";
+export * from "./verilog-eval-lock.js";
+export * from "./verilog-eval-prepare.js";
+export * from "./verilog-eval-provider.js";
 
 export const packageVersion = "0.0.0" as const;

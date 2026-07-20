@@ -82,7 +82,7 @@ export const TEST_COMPILER_CAPABILITY: IcarusCapability = IcarusCapabilitySchema
 export interface TestCaseDefinition {
   readonly caseId: string;
   readonly fixtureId: string;
-  readonly category: "BLANK_GENERATION" | "SEEDED_COMPILE_REPAIR";
+  readonly category: "BLANK_GENERATION" | "PROMPTED_FUNCTIONAL_REPAIR" | "SEEDED_COMPILE_REPAIR";
 }
 
 export class EvaluationTestProvider implements FixtureProvider {

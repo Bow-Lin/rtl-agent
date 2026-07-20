@@ -2,16 +2,16 @@
   "task_id": "r04-bounded-repair-loop-and-evaluation",
   "status": "in_progress",
   "current_phase": "implementation_complete_awaiting_real_batch",
-  "last_updated": "2026-07-17T17:26:51+08:00",
+  "last_updated": "2026-07-20T10:35:00+08:00",
   "active_plan": [
-    "Operator selects and license-reviews a real dataset and repository-owned FixtureProvider",
-    "Register a versioned evaluation profile with locked cases, capabilities, thresholds, and review rule",
+    "Record the final operator license-review disposition for the pinned dataset sources",
+    "Register a versioned evaluation profile with locked case selection, capabilities, thresholds, and review rule",
     "Execute the real batch and predeclared human review",
     "Complete the report and record one checkpoint recommendation"
   ],
   "next_3_steps": [
-    "Select the real R04 dataset/provider and confirm its license and implementation digest",
-    "Register the locked evaluation profile and run rtl-core-loop evaluate",
+    "Confirm the MIT/license-review disposition and choose the predeclared dataset case selection",
+    "Register the locked evaluation profile using the selected pinned Provider implementation digest",
     "Complete human review, report metrics, and choose the checkpoint recommendation"
   ],
   "changed_files": [
@@ -21,7 +21,11 @@
     "apps/rtl-core-loop/package.json",
     "apps/rtl-core-loop/src/index.ts",
     "apps/rtl-core-loop/test/cli.test.ts",
+    "core-loop/fixtures/chipbench.lock.json",
+    "core-loop/fixtures/README.md",
+    "core-loop/fixtures/verilog-eval-v2.lock.json",
     "current-task.md",
+    "docs/architecture.md",
     "docs/decisions.md",
     "docs/error-journal.md",
     "docs/experiments/spec-to-rtl-core-loop-report.md",
@@ -34,6 +38,9 @@
     "packages/core-loop/package.json",
     "packages/core-loop/src/agent-adapter.ts",
     "packages/core-loop/src/batch-evaluator.ts",
+    "packages/core-loop/src/chipbench-lock.ts",
+    "packages/core-loop/src/chipbench-prepare.ts",
+    "packages/core-loop/src/chipbench-provider.ts",
     "packages/core-loop/src/compile-preparation.ts",
     "packages/core-loop/src/compiler-adapter.ts",
     "packages/core-loop/src/compiler-contracts.ts",
@@ -49,8 +56,12 @@
     "packages/core-loop/src/index.ts",
     "packages/core-loop/src/output.ts",
     "packages/core-loop/src/run-orchestrator.ts",
+    "packages/core-loop/src/verilog-eval-lock.ts",
+    "packages/core-loop/src/verilog-eval-prepare.ts",
+    "packages/core-loop/src/verilog-eval-provider.ts",
     "packages/core-loop/test/agent-adapter.test.ts",
     "packages/core-loop/test/batch-evaluator.test.ts",
+    "packages/core-loop/test/chipbench-provider.test.ts",
     "packages/core-loop/test/compile-preparation.test.ts",
     "packages/core-loop/test/compiler-adapter.test.ts",
     "packages/core-loop/test/compiler-diagnostics.test.ts",
@@ -61,6 +72,9 @@
     "packages/core-loop/test/iverilog.integration.test.ts",
     "packages/core-loop/test/r04-iverilog.integration.test.ts",
     "packages/core-loop/test/run-orchestrator.test.ts",
+    "packages/core-loop/test/verilog-eval-provider.test.ts",
+    "package.json",
+    "pnpm-lock.yaml",
     "vitest.config.ts",
     "vitest.iverilog.config.ts"
   ],
@@ -79,19 +93,22 @@
       "corepack pnpm --filter @rtl-agent/rtl-core-loop compile:smoke",
       "corepack pnpm core-loop:agent:probe",
       "CORE_LOOP_REAL_AGENT_TEST=1 corepack pnpm core-loop:agent:smoke",
+      "corepack pnpm core-loop:dataset:prepare",
       "corepack pnpm core-loop:fixtures:check",
+      "corepack pnpm core-loop:dataset:prepare:chipbench",
+      "corepack pnpm core-loop:fixtures:check:chipbench",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "R04 mechanics, real Icarus composition, CLI compile smoke, real OpenCode probe/live smoke, build and quality validation passed on Windows; the full 194-test repository suite passed three consecutive isolated runs and MJS checkout is now fixed to LF for Windows Actions",
+    "last_result": "Pinned ChipBench generation/debugging Provider/cache passed lint, typecheck, build, format, peers, 205 full-repository tests, real archive preparation/reuse, 223-case discovery across 11 splits, and the existing 156-case VerilogEval regression check on Windows",
     "known_failures": [
-      "fixtures-check exits 2 with DATASET_NOT_CONFIGURED until an operator registers the real Provider; this is the required fail-closed result",
+      "Final operator license-review disposition and versioned dataset evaluation profile are not yet recorded",
       "No real R04 dataset batch or human-review checkpoint has run",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
     ]
   },
   "cognitive_state": {
-    "failure_count": 4,
+    "failure_count": 5,
     "current_mode": "handoff",
     "tried_approaches": [
       "Composed existing strict R02/R03 outcomes instead of duplicating their policy",
@@ -100,12 +117,13 @@
       "Published evidence atomically and wrote final-result.json only as the last completion marker",
       "Diagnosed parallel validation timeouts with an isolated single-worker run before rerunning supported full commands",
       "Raised only the shared finite Vitest case timeout to 15 seconds after an isolated aggregate run reproduced host-scheduling contention",
-      "Traced the Windows-only Prettier failure to missing MJS LF classification and fixed the checkout boundary in .gitattributes"
+      "Traced the Windows-only Prettier failure to missing MJS LF classification and fixed the checkout boundary in .gitattributes",
+      "Derived the new package-scoped lock-parity test root from import.meta.url after pnpm cwd exposed the relative-path assumption"
     ],
-    "blocked_on": "Operator selection and license review of a real dataset/provider plus registration of its versioned evaluation profile"
+    "blocked_on": "Final license-review disposition, dataset selection, and registration of a pinned evaluation profile"
   },
   "handoff": {
-    "last_summary": "R04 mechanics are implemented and validated without weakening R01-R03; R04 remains IN_PROGRESS because no real reviewed dataset batch or checkpoint review has run.",
-    "resume_from": "Register the operator-selected FixtureProvider and EvaluationProfile, then run the real batch; do not use synthetic mechanics evidence as checkpoint data."
+    "last_summary": "VerilogEval v2 and 223 ChipBench generation/debugging cases are pinned and prepared through verified external caches and repository Providers without submodules; the 178 debugging cases are a separate prompted-functional-repair compile-only category. R04 remains IN_PROGRESS because no locked profile batch or checkpoint review has run.",
+    "resume_from": "Choose the locked VerilogEval or ChipBench selection, record final license disposition, register its versioned EvaluationProfile, and only then run the real batch; do not use Provider/cache mechanics as checkpoint data."
   }
 }

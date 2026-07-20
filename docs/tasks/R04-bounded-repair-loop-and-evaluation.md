@@ -106,7 +106,7 @@ COMPLETED
 4. 每个 fixture 使用 `attempt: 0` 调用 R03 request-builder并保存 `compile-preparation.json`；只有 `CompilePreparationResult.status === "READY"` 才取出严格 `CompileRequest` 并调用 compiler、保存 `compile-result.json`。blank fixture 没有 source file，预期得到 `NO_RTL_SOURCE`，不构造空请求也不启动 compiler。
 5. baseline 只用于描述起点，不占用 Agent attempt。`compile-result.json` 是 compiler 实际启动后的条件必需证据，不能用伪造结果占位。
 
-对于 `BLANK_GENERATION`，`NO_RTL_SOURCE` preparation result 是预期起点，不是 `CompileResult`，也不算工具故障。对于 `SEEDED_COMPILE_REPAIR`，任何 preparation failure 都说明 case normalization 或 batch 输入无效；若 compiler 返回 `COMPILE_PASSED`，同样说明 case normalization 无效，而不是 Agent 成功。有效 seeded baseline 必须为 `COMPILE_ERROR`；baseline 的 `TIMEOUT`/`TOOL_ERROR` 使 batch/run 基础设施无效。
+对于 `BLANK_GENERATION` 和 `PROMPTED_FUNCTIONAL_REPAIR`，`NO_RTL_SOURCE` preparation result 是预期起点，不是 `CompileResult`，也不算工具故障；后者的 buggy RTL 位于 prompt 中，当前 compile pass 不证明功能修复。对于 `SEEDED_COMPILE_REPAIR`，任何 preparation failure 都说明 case normalization 或 batch 输入无效；若 compiler 返回 `COMPILE_PASSED`，同样说明 case normalization 无效，而不是 Agent 成功。有效 seeded baseline 必须为 `COMPILE_ERROR`；baseline 的 `TIMEOUT`/`TOOL_ERROR` 使 batch/run 基础设施无效。
 
 ### 2. Agent/compile attempts
 
@@ -227,7 +227,7 @@ preflight 实际 probe/materialization 后另记录每个 normalized fixture con
 
 通过 preflight 并开始正式 Agent evaluation 的 case 都进入能力指标分母，除非之后有独立于 Agent 输出的基础设施无效证据。`POLICY_VIOLATION`、`NO_RTL_CHANGE`、`AGENT_FAILED`、Agent timeout 和 post-Agent compile timeout 都是 evaluation failure，不能从分母移除。baseline tool failure、capability/provider/dataset drift、evidence failure和 orchestrator crash 是 infrastructure-invalid，不进入能力分母；全局终止后尚未运行的 case 记为 not-executed。
 
-所有比例同时报告分子/分母，不能只给百分比。指标分别报告 `BLANK_GENERATION`、`SEEDED_COMPILE_REPAIR` 和 overall；若 `maxAttempts` 不是 3，不得把指标命名为 within-3。人工拒绝不改写原始 R03 result，只影响对应 first-attempt、within-max-attempts、repair-recovery 的 review-accepted/checkpoint numerator。人工复核样本未完成时不能发布最终 review artifact。对样本量小和非确定性作显式说明。
+所有比例同时报告分子/分母，不能只给百分比。指标分别报告 `BLANK_GENERATION`、`PROMPTED_FUNCTIONAL_REPAIR`、`SEEDED_COMPILE_REPAIR` 和 overall；若 `maxAttempts` 不是 3，不得把指标命名为 within-3。`PROMPTED_FUNCTIONAL_REPAIR` 的 pass 仍然只是 compile pass，不能解释为功能修复。人工拒绝不改写原始 R03 result，只影响对应 first-attempt、within-max-attempts、repair-recovery 的 review-accepted/checkpoint numerator。人工复核样本未完成时不能发布最终 review artifact。对样本量小和非确定性作显式说明。
 
 ## Checkpoint 判定
 
@@ -325,3 +325,7 @@ corepack pnpm --filter @rtl-agent/rtl-core-loop exec rtl-core-loop evaluate --pr
 ## 实现交接内容
 
 Session Log 记录 dataset/provider/version/implementation digest/license reference、selection/evaluation profile digest、case 分子分母、first/within-max-attempts/recovery指标、attempt/time统计、policy/no-change/tool failure、OpenCode/model/Icarus版本、人工审查拒绝项、报告路径和下一步建议。不得仅记录一个总成功率。
+
+2026-07-20 已选择并接入 NVlabs VerilogEval v2 `spec-to-rtl`：固定 commit、archive/content/Provider digests、156-case catalog 与 MIT reference 均记录在 `core-loop/fixtures/verilog-eval-v2.lock.json`。数据通过 TypeScript preparation 写入 ignored cache，不使用 submodule；Provider 只物化 prompt，隐藏 reference/testbench。该接入已通过真实 archive prepare、156-case discovery、全仓测试和真实 Icarus 回归，但仍不构成真实 batch 指标。下一步必须先登记最终 license-review disposition 和 versioned EvaluationProfile。
+
+2026-07-20 以相同的固定 archive/cache/Provider 边界接入 ChipBench commit `74fe7d283225ae030ef59326a06111c9d372b48e`。三个 `Verilog Gen` split 提供 45 个 `BLANK_GENERATION` case；八个 `Verilog Debugging` split 提供 178 个 `PROMPTED_FUNCTIONAL_REPAIR` case。调试 case 的 buggy RTL 位于 prompt 内，没有独立 starter baseline；其 timing/assignment/arithmetic/state-machine 功能是否修复不能由 R03 compile pass 证明。Ref Model Gen、Tool_Box 和上游执行脚本仍不提取、不执行。锁元数据位于 `core-loop/fixtures/chipbench.lock.json`。

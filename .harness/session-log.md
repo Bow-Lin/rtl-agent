@@ -1,5 +1,48 @@
 # Session Log
 
+## Entry: Pin VerilogEval v2 Through a Verified External Cache
+
+### Summary
+
+Selected NVlabs VerilogEval v2 `spec-to-rtl` as the real R04 dataset source without adding a submodule. Added a repository-owned Provider and TypeScript cache preparation boundary that pin the upstream commit, archive digest, extracted content manifest, 156-case catalog, MIT metadata, normalization identity, and Provider source digest. The real dataset prepared and validated successfully, but R04 remains `IN_PROGRESS`: no versioned evaluation profile, model batch, human review, or checkpoint recommendation was produced.
+
+### Implementation
+
+- Added `VerilogEvalFixtureProvider` for the pinned 156-case `spec-to-rtl` catalog.
+- Normalized each public prompt to a blank-generation `spec.md` with top `TopModule`.
+- Kept `*_ref.sv` and `*_test.sv` in the hidden cache; neither can enter an Agent run workspace.
+- Added an exclusive atomic dataset preparation path under ignored `.rtl-agent/datasets/`, with optional `RTL_AGENT_VERILOG_EVAL_CACHE_ROOT`.
+- Downloaded only the fixed codeload archive and extracted only `LICENSE` plus `dataset_spec-to-rtl/**`.
+- Locked archive SHA-256 `sha256:179e0fa36027e93e78adeca687d27d9020f6655bde829ade9baf88aeb20d3fbd`.
+- Locked the 472-file content manifest `sha256:bbd36573053121fc61e81f38a69b0b9a0f3e4075e18b663e3e4f720aebc10e42`.
+- Locked Provider source digest `sha256:7f5e3e3433aa69deb2479bae31fc12d002b91b5b6ee5349905dcf3262001e28b`.
+- Added `dataset-prepare`, root `core-loop:dataset:prepare`, cache-aware standalone Provider registration, and catalog-counting `fixtures-check`.
+- Added deterministic synthetic archive, atomic reuse, tamper, selection, answer-leak, drift, lock-parity, and CLI tests.
+
+### Validation
+
+- `corepack pnpm typecheck`: passed.
+- focused Provider/CLI tests: 2 files and 10 tests passed.
+- Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
+- thin CLI tests: 1 file and 6 tests passed.
+- full repository tests: 27 files passed / 1 skipped; 199 tests passed / 2 skipped.
+- `corepack pnpm build`: passed.
+- lint, format, frozen install, and peer checks: passed.
+- real Icarus integration: 2 files and 6 tests passed.
+- real `dataset-prepare`: passed and published the ignored cache.
+- repeat `dataset-prepare`: reused the verified cache without downloading.
+- real `fixtures-check`: passed and reported 156 `spec-to-rtl` cases.
+
+### Validation Failure Repaired
+
+The first package-scoped Core Loop run found that the new lock-parity test derived repository files from `process.cwd()`. pnpm changes cwd to `packages/core-loop`, so the test could not find the committed lock. The test now derives the repository root from `import.meta.url`, matching the established CLI/test path rule; the supported package and full-suite commands then passed.
+
+### Evidence Limits and Next Step
+
+- Cache preparation and Provider validation are dataset mechanics evidence, not product capability metrics.
+- MIT metadata is recorded, but the final operator license-review disposition must still be explicit.
+- Register a versioned evaluation profile with a predeclared selection, thresholds, locked Agent/compiler capabilities, and human-review rule before any real model batch.
+
 ## Entry: R04 Bounded Repair Loop Mechanics and Evaluation Boundary
 
 ### Summary
@@ -1120,3 +1163,90 @@ Resolved the two P2 findings from the second guarded commit review. Different no
 
 - The explicit network/model smoke was not rerun; the prior allowed/denied evidence is unchanged because production config has no executable prefix.
 - Linux execution remains unavailable on this Windows host; no Linux-readiness claim is made.
+
+## Entry: Add Pinned ChipBench Verilog-Generation Dataset
+
+### Summary
+
+Added ChipBench through the same no-submodule, fixed-archive, ignored-cache, repository-Provider
+boundary used for VerilogEval. The current catalog exposes 45 generation cases across three
+splits and intentionally excludes functional debugging data that does not satisfy the existing
+compile-repair contract.
+
+### Changes
+
+- pinned ChipBench commit `74fe7d283225ae030ef59326a06111c9d372b48e`
+- locked archive digest `sha256:03dc173f64ee2e7f0860222850a6c71db9714a3f529038cbb7cdb75807ae6d68`
+- locked 140-file extracted manifest
+  `sha256:c26eef34412cf4817d4b851049418825e7e31af900f77a2949488d1e1a5f294e`
+- added a Provider for 9 `cpu-ip`, 6 `not-self-contained`, and 30 `self-contained`
+  `BLANK_GENERATION` cases
+- derived the catalog from complete filename triplets because upstream `problems.txt` is
+  incomplete in two generation directories
+- added allowlisted atomic preparation that extracts only `LICENSE` and `Verilog Gen/**`
+- added explicit CLI/root commands using `--dataset chipbench`, while preserving VerilogEval as
+  the no-flag default
+- excluded Verilog Debugging, Ref Model Gen, Tool_Box, scripts, and all upstream execution
+  harnesses
+
+### Validation
+
+- `corepack pnpm lint`, `typecheck`, `build`, `format:check`, and `peers check`: passed.
+- `corepack pnpm test`: 28 files passed / 1 skipped; 204 tests passed / 2 skipped.
+- initial real ChipBench preparation: passed with `reused: false`.
+- second real ChipBench preparation: passed with `reused: true`.
+- ChipBench fixture check: 9 + 6 + 30 = 45 cases and the locked descriptor passed.
+- existing VerilogEval fixture check: 156 cases passed without regression.
+- no real model batch, simulation, functional-correctness, formal-Gate, or Linux-readiness claim
+  was made.
+
+### Next Steps
+
+1. Choose the pinned dataset selection for the real R04 profile.
+2. Record the final license-review disposition and predeclare the profile thresholds/review rule.
+3. Run the batch only after the profile is registered; Provider/cache checks are not capability
+   metrics.
+
+## Entry: Extend ChipBench with Prompted Functional Debugging
+
+### Summary
+
+Extended the pinned ChipBench Provider from 45 generation cases to 223 total cases by adding all
+178 zero-shot and one-shot debugging prompts. Added a distinct
+`PROMPTED_FUNCTIONAL_REPAIR` category so functional bugs are not mislabeled as seeded compile
+errors or ordinary blank generation.
+
+### Changes
+
+- advanced the ChipBench cache version to `c74fe7d28-r2` and adapter to `v2.0.0`
+- locked the 683-file generation/debugging manifest
+  `sha256:e30a2947718f958f25ef63b1bad981c24e8837563d4dcbddeb0bf116547aa5c9`
+- added 8 debugging splits: arithmetic 24, assignment 30, state-machine 6, and timing 29 for
+  each of zero-shot and one-shot
+- retained 45 generation cases across the existing 3 splits
+- added prompt-only materialization, baseline validation, Agent input, run evidence, and a
+  separate metrics slice for `PROMPTED_FUNCTIONAL_REPAIR`
+- continued to keep reference RTL and testbenches outside Agent workspaces
+- continued to exclude Ref Model Gen, Tool_Box, scripts, Docker, Make, and Python execution
+- renamed the committed metadata to `core-loop/fixtures/chipbench.lock.json`
+
+### Evidence Boundary
+
+Prompted functional-repair cases have no independent starter RTL; the buggy module is embedded in
+the prompt. Their expected baseline is therefore `NO_RTL_SOURCE`. R03 can prove only that an Agent
+output compiles. A compile pass is not evidence that the timing, assignment, arithmetic, or
+state-machine bug was functionally repaired.
+
+### Validation
+
+- `corepack pnpm lint`, `typecheck`, `build`, `format:check`, and `peers check`: passed.
+- Core Loop: 14 files passed / 1 skipped; 97 tests passed / 2 skipped.
+- CLI: 1 file and 7 tests passed.
+- full repository: 28 files passed / 1 skipped; 205 tests passed / 2 skipped.
+- real ChipBench preparation: initial `reused: false`, repeat `reused: true`.
+- real ChipBench fixture discovery: 223 cases across 11 locked splits.
+- existing VerilogEval fixture discovery: 156 cases passed without regression.
+- commit-guard aggregate test initially hit the documented fake process-tree scheduling race;
+  the affected 18-test file passed with one worker and the independent aggregate rerun then passed
+  all 205 tests.
+- no model batch, functional simulation, formal Gate, or Linux-readiness claim was made.

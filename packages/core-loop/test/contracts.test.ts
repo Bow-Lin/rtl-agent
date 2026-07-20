@@ -42,6 +42,12 @@ describe("Core Loop contracts", () => {
     expect(
       NormalizedFixtureSchema.safeParse({
         ...common,
+        category: "PROMPTED_FUNCTIONAL_REPAIR",
+      }).success,
+    ).toBe(true);
+    expect(
+      NormalizedFixtureSchema.safeParse({
+        ...common,
         category: "SEEDED_COMPILE_REPAIR",
       }).success,
     ).toBe(false);

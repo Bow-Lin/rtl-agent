@@ -20,6 +20,7 @@
   ],
   "dependencies": {
     "@rtl-agent/contracts": "workspace:*",
+    "tar": "7.5.20",
     "zod": "4.4.3"
   }
 }

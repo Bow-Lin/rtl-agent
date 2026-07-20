@@ -139,6 +139,10 @@ export const FixtureMaterializationSchema = z.discriminatedUnion("category", [
   }),
   z.strictObject({
     ...materializationCommon,
+    category: z.literal("PROMPTED_FUNCTIONAL_REPAIR"),
+  }),
+  z.strictObject({
+    ...materializationCommon,
     category: z.literal("SEEDED_COMPILE_REPAIR"),
     starterRtlRoot: LogicalPathSchema,
   }),
@@ -167,6 +171,10 @@ export const NormalizedFixtureSchema = z.discriminatedUnion("category", [
   z.strictObject({
     ...normalizedFixtureCommon,
     category: z.literal("BLANK_GENERATION"),
+  }),
+  z.strictObject({
+    ...normalizedFixtureCommon,
+    category: z.literal("PROMPTED_FUNCTIONAL_REPAIR"),
   }),
   z.strictObject({
     ...normalizedFixtureCommon,
@@ -232,7 +240,7 @@ export const AgentAttemptInputSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
   attempt: z.int().positive().max(3),
-  category: z.enum(["BLANK_GENERATION", "SEEDED_COMPILE_REPAIR"]),
+  category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
   specPath: z.literal("spec.md"),
   workspaceRtlRoot: z.literal("rtl"),
   rtlSourceFiles: z

@@ -129,8 +129,8 @@ R01 把数据集来源、规范化 fixture、运行 profile 和创建 run 请求
 
 - `fixtureId`：小写 kebab-case，必须等于 provider 返回的稳定 case ID 映射，最长 64 字符。
 - `provenance`：不可缺省；`datasetSourceDigest` 在数据集没有可验证的整体制品时可缺省，`caseSourceDigest`、adapter/version、normalization version 和 license metadata 必须存在。
-- `category`：首版只有 `BLANK_GENERATION | SEEDED_COMPILE_REPAIR`。
-- `BLANK_GENERATION` 不含 starter RTL；`SEEDED_COMPILE_REPAIR` 必须含 `starterRtlRoot: "rtl"` 和 `starterRtlDigest`。
+- `category`：`BLANK_GENERATION | PROMPTED_FUNCTIONAL_REPAIR | SEEDED_COMPILE_REPAIR`。
+- `BLANK_GENERATION` 与 prompt 内嵌 buggy RTL 的 `PROMPTED_FUNCTIONAL_REPAIR` 不含 starter RTL；`SEEDED_COMPILE_REPAIR` 必须含 `starterRtlRoot: "rtl"` 和 `starterRtlDigest`。Prompted functional repair 在当前阶段仍只有 compile-only 证据。
 - `specPath`、`starterRtlRoot`、`workspaceRtlRoot`：复用 A02 `LogicalPath`，规范化后固定为 `spec.md` 与 `rtl`；不得绝对、遍历或包含宿主盘符。
 - `topModule`：SystemVerilog identifier 的保守 ASCII 子集 `[A-Za-z_][A-Za-z0-9_$]*`，最长 128 字符。
 - `tags`：稳定、去重、排序后的短字符串，只用于结果分组，不改变执行。

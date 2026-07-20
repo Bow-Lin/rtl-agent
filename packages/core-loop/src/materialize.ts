@@ -255,7 +255,7 @@ async function prepareFixture(
       adapter: descriptor.adapter,
     };
     const fixture = NormalizedFixtureSchema.parse(
-      materialization.category === "BLANK_GENERATION"
+      materialization.category !== "SEEDED_COMPILE_REPAIR"
         ? {
             schemaVersion: 1,
             fixtureId: materialization.fixtureId,

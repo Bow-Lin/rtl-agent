@@ -13,11 +13,11 @@ RTL engineering workflow service under ordered implementation. A01 established t
 - `packages/contracts`: implemented Zod schema version 1, JCS, logical paths, and stable boundary parsers/errors.
 - `packages/domain`: pure Phase A `decide`/`evolveBatch`/`replay`, executable transition policy, aggregate invariants, and internal integrity errors.
 - `packages/storage`: buildable package shell awaiting A04 logic.
-- `packages/core-loop` and `apps/rtl-core-loop`: R01 Core Loop contract, dataset Provider/staging boundary, run materialization, manifests/write policy, and thin CLI. No concrete dataset, Agent, compiler, or repair loop is included.
+- `packages/core-loop` and `apps/rtl-core-loop`: implemented R01–R04 Core Loop contracts, restricted Agent/compile adapters, bounded repair evaluation, pinned VerilogEval and ChipBench generation/debugging Provider/cache preparation, manifests/write policy, metrics, evidence, and thin CLI. The real evaluation profile and batch remain pending.
 
 ## Entry Points
 
-Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, and format checks. `@rtl-agent/contracts` exports its public API only through `packages/contracts/src/index.ts`; command and event inputs use `parseCommandEnvelope` and `parseEventEnvelope`. `@rtl-agent/domain` exports its public pure API only through `packages/domain/src/index.ts`. `@rtl-agent/core-loop` exports the R01 API through its package index; `apps/rtl-core-loop` currently provides only the dataset-configuration diagnostic CLI. Workflow application entry files remain stubs.
+Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, and format checks. `@rtl-agent/contracts` exports its public API only through `packages/contracts/src/index.ts`; command and event inputs use `parseCommandEnvelope` and `parseEventEnvelope`. `@rtl-agent/domain` exports its public pure API only through `packages/domain/src/index.ts`. `@rtl-agent/core-loop` exports the R01–R04 API through its package index. `apps/rtl-core-loop` provides dataset preparation/checking, Agent probe, compiler smoke, and injected-profile run/evaluate commands. Workflow application entry files remain stubs.
 
 ## Data / Control Flow
 
@@ -29,7 +29,7 @@ The Spec-to-RTL Core Loop is a continuing capability layer with a deliberately s
 
 - Use `docs/rtl-agent-high-level-design.md` as the implementation baseline.
 - Use `docs/task-breakdown.md` for the ordered implementation sequence and task acceptance criteria.
-- R01 is complete. Execute R02 and R03 independently against `@rtl-agent/core-loop`; do not begin R04 until both are complete, and do not begin A04 until the R04 checkpoint plus explicit user choice.
+- R01–R03 are complete and R04 mechanics plus the VerilogEval and ChipBench Providers are implemented. ChipBench prompted functional-repair results remain compile-only and cannot establish bug repair without a future functional Gate. Do not begin A04 until the locked R04 batch, human review, checkpoint recommendation, and explicit user choice are complete.
 - Do not reintroduce LangGraph without a new decision record showing a requirement for dynamic graph execution that the transactional state machine cannot meet.
 - Preserve the separation between authoritative database state, immutable artifacts, and non-authoritative Langfuse telemetry.
 - Inspect relevant files before editing.

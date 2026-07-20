@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CHIPBENCH_DATASET_LOCK,
   CompileRequestSchema,
+  ChipBenchFixtureProvider,
   CoreLoopException,
   DatasetCaseIdSchema,
   DatasetDescriptorSchema,
@@ -15,14 +17,23 @@ import {
   FIXED_ICARUS_PROFILE_ID,
   IcarusCompileAdapter,
   OpenCodeRtlAgentAdapter,
+  VERILOG_EVAL_DATASET_LOCK,
+  VerilogEvalFixtureProvider,
+  chipBenchCacheRoot,
+  chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
   evaluateCoreLoopBatch,
   createRunId,
   icarusExecutableFromEnvironment,
+  listFixtureCases,
   openCodeExperimentConfigFromEnvironment,
+  prepareChipBenchDataset,
+  prepareVerilogEvalDataset,
   requireFixtureProvider,
   scanRegularFiles,
   sha256Jcs,
+  verilogEvalCacheRoot,
+  verilogEvalDatasetDirectory,
 } from "@rtl-agent/core-loop";
 import type * as CoreLoop from "@rtl-agent/core-loop";
 import type {
@@ -41,6 +52,49 @@ export interface RtlCoreLoopEvaluationDependencies {
   readonly agentAdapter?: RtlAgentAdapter;
   readonly compilerAdapter?: CoreLoopCompilerAdapter;
   readonly batchesRoot?: string;
+}
+
+export interface RtlCoreLoopDatasetDependencies {
+  readonly cacheRoot?: string;
+  readonly prepareDataset?: typeof prepareVerilogEvalDataset;
+  readonly chipBenchCacheRoot?: string;
+  readonly prepareChipBenchDataset?: typeof prepareChipBenchDataset;
+}
+
+type DatasetName = "verilog-eval" | "chipbench";
+
+function configuredVerilogEvalCacheRoot(
+  environment: NodeJS.ProcessEnv,
+  repositoryRoot: string,
+  override?: string,
+): string {
+  const configured = override ?? environment.RTL_AGENT_VERILOG_EVAL_CACHE_ROOT;
+  return configured === undefined || configured.trim().length === 0
+    ? verilogEvalCacheRoot(repositoryRoot)
+    : path.resolve(configured);
+}
+
+function configuredChipBenchCacheRoot(
+  environment: NodeJS.ProcessEnv,
+  repositoryRoot: string,
+  override?: string,
+): string {
+  const configured = override ?? environment.RTL_AGENT_CHIPBENCH_CACHE_ROOT;
+  return configured === undefined || configured.trim().length === 0
+    ? chipBenchCacheRoot(repositoryRoot)
+    : path.resolve(configured);
+}
+
+function selectedDataset(arguments_: readonly string[]): DatasetName | undefined {
+  if (arguments_.length === 1) return "verilog-eval";
+  if (
+    arguments_.length === 3 &&
+    arguments_[1] === "--dataset" &&
+    (arguments_[2] === "verilog-eval" || arguments_[2] === "chipbench")
+  ) {
+    return arguments_[2];
+  }
+  return undefined;
 }
 
 async function runCompileSmoke(
@@ -110,14 +164,45 @@ export async function runRtlCoreLoopCli(
   environment: NodeJS.ProcessEnv = process.env,
   repositoryRoot: string = DEFAULT_REPOSITORY_ROOT,
   evaluationDependencies?: RtlCoreLoopEvaluationDependencies,
+  datasetDependencies?: RtlCoreLoopDatasetDependencies,
 ): Promise<number> {
+  const dataset =
+    arguments_[0] === "fixtures-check" || arguments_[0] === "dataset-prepare"
+      ? selectedDataset(arguments_)
+      : undefined;
   if (
-    arguments_.length === 1 &&
-    (arguments_[0] === "fixtures-check" ||
-      arguments_[0] === "agent-probe" ||
-      arguments_[0] === "compile-smoke")
+    (dataset !== undefined &&
+      (arguments_[0] === "fixtures-check" || arguments_[0] === "dataset-prepare")) ||
+    (arguments_.length === 1 &&
+      (arguments_[0] === "agent-probe" || arguments_[0] === "compile-smoke"))
   ) {
     try {
+      if (arguments_[0] === "dataset-prepare") {
+        if (dataset === "chipbench") {
+          const cacheRoot = configuredChipBenchCacheRoot(
+            environment,
+            repositoryRoot,
+            datasetDependencies?.chipBenchCacheRoot,
+          );
+          const result = await (
+            datasetDependencies?.prepareChipBenchDataset ?? prepareChipBenchDataset
+          )({
+            destinationDirectory: chipBenchDatasetDirectory(cacheRoot),
+          });
+          writeOutput(JSON.stringify({ ok: true, result }));
+          return 0;
+        }
+        const cacheRoot = configuredVerilogEvalCacheRoot(
+          environment,
+          repositoryRoot,
+          datasetDependencies?.cacheRoot,
+        );
+        const result = await (datasetDependencies?.prepareDataset ?? prepareVerilogEvalDataset)({
+          destinationDirectory: verilogEvalDatasetDirectory(cacheRoot),
+        });
+        writeOutput(JSON.stringify({ ok: true, result }));
+        return 0;
+      }
       if (arguments_[0] === "compile-smoke") {
         const result = await runCompileSmoke(environment, repositoryRoot);
         writeOutput(JSON.stringify({ ok: true, result }));
@@ -133,7 +218,20 @@ export async function runRtlCoreLoopCli(
       }
       const configured = requireFixtureProvider(provider);
       const descriptor = DatasetDescriptorSchema.parse(await configured.describe());
-      writeOutput(JSON.stringify({ ok: true, descriptor }));
+      const caseCounts = Object.fromEntries(
+        await Promise.all(
+          descriptor.splits.map(async (split) => [
+            split,
+            (
+              await listFixtureCases(configured, {
+                schemaVersion: 1,
+                split,
+              })
+            ).length,
+          ]),
+        ),
+      );
+      writeOutput(JSON.stringify({ ok: true, descriptor, caseCounts }));
       return 0;
     } catch (error) {
       const safeError =
@@ -234,7 +332,7 @@ export async function runRtlCoreLoopCli(
     }
   }
   writeError(
-    "Usage: rtl-core-loop <fixtures-check|agent-probe|compile-smoke|run --profile <id> --case <id>|evaluate --profile <id>>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|compile-smoke|run --profile <id> --case <id>|evaluate --profile <id>>",
   );
   return 2;
 }
@@ -243,5 +341,23 @@ export const packageVersion = "0.0.0" as const;
 
 const invokedPath = process.argv[1];
 if (invokedPath !== undefined && fileURLToPath(import.meta.url) === invokedPath) {
-  process.exitCode = await runRtlCoreLoopCli(process.argv.slice(2), undefined);
+  const requestedDataset = selectedDataset(process.argv.slice(2)) ?? "verilog-eval";
+  const datasetDirectory =
+    requestedDataset === "chipbench"
+      ? chipBenchDatasetDirectory(
+          configuredChipBenchCacheRoot(process.env, DEFAULT_REPOSITORY_ROOT),
+          CHIPBENCH_DATASET_LOCK,
+        )
+      : verilogEvalDatasetDirectory(
+          configuredVerilogEvalCacheRoot(process.env, DEFAULT_REPOSITORY_ROOT),
+          VERILOG_EVAL_DATASET_LOCK,
+        );
+  const datasetStat = await lstat(datasetDirectory).catch(() => undefined);
+  const provider =
+    datasetStat === undefined
+      ? undefined
+      : requestedDataset === "chipbench"
+        ? new ChipBenchFixtureProvider(datasetDirectory, CHIPBENCH_DATASET_LOCK)
+        : new VerilogEvalFixtureProvider(datasetDirectory, VERILOG_EVAL_DATASET_LOCK);
+  process.exitCode = await runRtlCoreLoopCli(process.argv.slice(2), provider);
 }

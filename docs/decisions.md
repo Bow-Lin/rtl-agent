@@ -389,3 +389,57 @@ Harden the existing R02 effective-config probe narrowly by explicitly disabling 
 ### Consequences
 
 R04 adds batch-owned local evidence and metrics but remains non-durable, mutable-workspace, compile-only, and non-authoritative. Mechanics implementation and synthetic tests can complete before a real dataset exists, but R04 cannot be marked `DONE` or emit a checkpoint recommendation until an operator-selected, license-reviewed Provider and versioned evaluation profile run a real locked batch plus human review.
+
+## 2026-07-20 - Use VerilogEval Through a Pinned External Cache and Repository Provider
+
+### Context
+
+R04 required an operator-selected real dataset and repository-owned `FixtureProvider`. NVlabs VerilogEval v2 contains a suitable 156-case `spec-to-rtl` split, but its repository also contains its own Make/Python generation and simulation harness. Adding the complete repository as a submodule would couple ordinary checkout and CI behavior to nested Git state, while invoking its harness would bypass the established R02 Agent and R03 fixed compile boundaries.
+
+### Decision
+
+Use NVlabs VerilogEval v2 commit `c498220d0a52248f8e3fdffe279075215bde2da6` without a submodule. Pin the codeload archive SHA-256, extracted 472-file manifest digest, ordered case count, MIT license reference, adapter normalization identity, and Provider source digest in repository metadata.
+
+A TypeScript preparation command downloads the fixed archive, extracts only `LICENSE` and `dataset_spec-to-rtl/**`, validates the locked content, and atomically publishes it below ignored `.rtl-agent/datasets/` or an operator-configured cache root. `VerilogEvalFixtureProvider` reads only that verified cache and materializes only each public prompt as `spec.md`; reference implementations and testbenches remain outside Agent workspaces. The upstream Makefile, model scripts, Python dependencies, compiler flags, and VVP simulation are not executed.
+
+### Alternatives Considered
+
+- Git submodule: rejected as the default because nested Git initialization and submodule state would become an unnecessary operational dependency. It also does not provide the normalized Provider boundary needed by R04.
+- Vendor the dataset files into the repository: rejected because it duplicates third-party content and makes upstream provenance/update review less explicit.
+- Run the upstream VerilogEval harness directly: rejected because its shell/Make/Python/model and simulation semantics conflict with the locked R02/R03 execution contracts.
+
+### Consequences
+
+Ordinary repository clones remain small and contain no third-party benchmark payload. Dataset preparation is explicit, content-addressed, reusable offline after download, and fails closed on archive/cache drift without overwriting invalid content. The selected split supplies only `BLANK_GENERATION` cases; it does not by itself provide a `SEEDED_COMPILE_REPAIR` denominator. R04 remains incomplete until the final license-review disposition, versioned evaluation profile, real batch, and human review are recorded.
+
+## 2026-07-20 - Admit Only ChipBench Verilog Generation into the Current Core Loop
+
+### Context
+
+ChipBench combines Verilog generation, debugging, reference-model generation, tools, and its own Docker/Make/Python execution harness. Its eight debugging splits describe timing, assignment, arithmetic, and state-machine bugs; these are generally functional defects that may still compile. The checked-in `problems.txt` files are also incomplete for two generation directories even though complete prompt/reference/testbench triplets are present.
+
+### Decision
+
+Pin commit `74fe7d283225ae030ef59326a06111c9d372b48e` and its codeload archive. Extract only `LICENSE` and `Verilog Gen/**` into an ignored cache, validate the complete 140-file manifest, and derive the deterministic catalog from complete filename triplets rather than the incomplete upstream `problems.txt` subsets. Expose 9 `cpu-ip`, 6 `not-self-contained`, and 30 `self-contained` cases as `BLANK_GENERATION`; materialize only the prompt and keep reference RTL and testbenches outside Agent workspaces.
+
+Do not extract or execute Verilog Debugging, Ref Model Gen, Tool_Box, scripts, Docker, Make, or Python content. Do not classify functional debugging data as `SEEDED_COMPILE_REPAIR`; a future functional-simulation category and Gate would require a separate decision and profile.
+
+### Consequences
+
+ChipBench adds 45 generation cases without a submodule or upstream runtime dependency. CLI selection is explicit through `--dataset chipbench`, while existing no-flag commands remain compatible with VerilogEval. This is Provider/cache mechanics evidence only and does not complete R04 or establish functional correctness.
+
+## 2026-07-20 - Add ChipBench Debugging as Prompted Functional Repair
+
+### Context
+
+The operator subsequently selected ChipBench Debugging as part of the dataset. Its eight splits contain 178 complete prompt/reference/testbench triplets: zero-shot and one-shot variants for arithmetic, assignment, state-machine, and timing bugs. Each prompt embeds the buggy `TopModule`; there is no separate starter-RTL workspace. These bugs commonly compile before and after editing, so neither the blank-generation nor seeded compile-error category describes them accurately.
+
+### Decision
+
+Supersede the earlier generation-only scope. Extend the same pinned ChipBench archive/cache to extract `Verilog Debugging/**` alongside `Verilog Gen/**`, lock the resulting 683-file manifest, and expose 223 total cases. Introduce `PROMPTED_FUNCTIONAL_REPAIR` as a prompt-only fixture category with a `NO_RTL_SOURCE` baseline and a separate metrics slice. Materialize only the prompt; keep references and testbenches private.
+
+R04 may report only non-authoritative `COMPILE_ONLY` outcomes for this category. A compile pass must never be described as a functional repair or testbench pass. Upstream simulation, Docker, Make, Python, Ref Model Gen, Tool_Box, and scripts remain outside the execution boundary.
+
+### Consequences
+
+ChipBench now supplies 45 generation and 178 prompted-debugging cases without a submodule. The adapter identity advances to `v2.0.0`, dataset cache version to `c74fe7d28-r2`, and the committed lock becomes `core-loop/fixtures/chipbench.lock.json`. Functional correctness still requires a future Linux simulation Gate or another explicitly designed functional-validation profile.

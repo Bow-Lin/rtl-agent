@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "zhongkaiyu-chipbench",
+  "datasetVersion": "c74fe7d28-r2",
+  "sourceRepository": "https://github.com/zhongkaiyu/ChipBench.git",
+  "sourceCommit": "74fe7d283225ae030ef59326a06111c9d372b48e",
+  "archiveUrl": "https://codeload.github.com/zhongkaiyu/ChipBench/tar.gz/74fe7d283225ae030ef59326a06111c9d372b48e",
+  "archiveRoot": "ChipBench-74fe7d283225ae030ef59326a06111c9d372b48e",
+  "archiveDigest": "sha256:03dc173f64ee2e7f0860222850a6c71db9714a3f529038cbb7cdb75807ae6d68",
+  "contentManifestDigest": "sha256:e30a2947718f958f25ef63b1bad981c24e8837563d4dcbddeb0bf116547aa5c9",
+  "expectedFileCount": 683,
+  "expectedCaseCount": 223,
+  "providerImplementationDigest": "sha256:a00cea795fc1388ad76c135250924364665ca6ac9533d19f5f4d54b8a571a15c",
+  "splits": [
+    {
+      "split": "cpu-ip",
+      "datasetDirectory": "Verilog Gen/dataset_cpu_ip",
+      "expectedCaseCount": 9,
+      "fixturePrefix": "cb-cpu",
+      "category": "BLANK_GENERATION"
+    },
+    {
+      "split": "debug-one-shot-arithmetic",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_one_shot_arithmetic",
+      "expectedCaseCount": 24,
+      "fixturePrefix": "cb-d1a",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-one-shot-assignment",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_one_shot_assignment",
+      "expectedCaseCount": 30,
+      "fixturePrefix": "cb-d1n",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-one-shot-state-machine",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_one_shot_state_machine",
+      "expectedCaseCount": 6,
+      "fixturePrefix": "cb-d1s",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-one-shot-timing",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_one_shot_timing",
+      "expectedCaseCount": 29,
+      "fixturePrefix": "cb-d1t",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-zero-shot-arithmetic",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_zero_shot_arithmetic",
+      "expectedCaseCount": 24,
+      "fixturePrefix": "cb-d0a",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-zero-shot-assignment",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_zero_shot_assignment",
+      "expectedCaseCount": 30,
+      "fixturePrefix": "cb-d0n",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-zero-shot-state-machine",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_zero_shot_state_machine",
+      "expectedCaseCount": 6,
+      "fixturePrefix": "cb-d0s",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "debug-zero-shot-timing",
+      "datasetDirectory": "Verilog Debugging/dataset_debug_zero_shot_timing",
+      "expectedCaseCount": 29,
+      "fixturePrefix": "cb-d0t",
+      "category": "PROMPTED_FUNCTIONAL_REPAIR"
+    },
+    {
+      "split": "not-self-contained",
+      "datasetDirectory": "Verilog Gen/dataset_not_self_contain",
+      "expectedCaseCount": 6,
+      "fixturePrefix": "cb-nsc",
+      "category": "BLANK_GENERATION"
+    },
+    {
+      "split": "self-contained",
+      "datasetDirectory": "Verilog Gen/dataset_self_contain",
+      "expectedCaseCount": 30,
+      "fixturePrefix": "cb-sc",
+      "category": "BLANK_GENERATION"
+    }
+  ],
+  "license": {
+    "name": "MIT License",
+    "spdxId": "MIT",
+    "reference": "https://github.com/zhongkaiyu/ChipBench/blob/74fe7d283225ae030ef59326a06111c9d372b48e/LICENSE"
+  },
+  "adapter": {
+    "adapterId": "chipbench",
+    "adapterVersion": "v2.0.0",
+    "normalizationVersion": "prompt-only-v2"
+  }
+}

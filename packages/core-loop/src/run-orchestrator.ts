@@ -198,17 +198,20 @@ export async function validateCoreLoopRunBaseline(
     preparation,
   );
 
-  if (run.fixture.category === "BLANK_GENERATION") {
+  if (run.fixture.category !== "SEEDED_COMPILE_REPAIR") {
     const valid = preparation.status === "NO_RTL_SOURCE";
+    const prompted = run.fixture.category === "PROMPTED_FUNCTIONAL_REPAIR";
     return {
       run,
       validation: caseValidation(
         run,
         options.caseIndex,
-        valid ? "VALID" : "INVALID_BLANK_BASELINE",
+        valid ? "VALID" : prompted ? "INVALID_PROMPT_ONLY_BASELINE" : "INVALID_BLANK_BASELINE",
         valid
-          ? "Blank fixture has the expected compiler-not-invoked baseline"
-          : "Blank fixture baseline did not produce NO_RTL_SOURCE",
+          ? prompted
+            ? "Prompted functional-repair fixture has the expected compiler-not-invoked baseline"
+            : "Blank fixture has the expected compiler-not-invoked baseline"
+          : "Prompt-only fixture baseline did not produce NO_RTL_SOURCE",
         preparation.status,
         null,
       ),

@@ -18,7 +18,10 @@
     "format": "prettier --write . --ignore-unknown",
     "core-loop:agent:probe": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop agent:probe",
     "core-loop:agent:smoke": "vitest run packages/core-loop/test/agent-smoke.test.ts",
-    "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check"
+    "core-loop:dataset:prepare": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop dataset:prepare",
+    "core-loop:dataset:prepare:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop dataset:prepare:chipbench",
+    "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check",
+    "core-loop:fixtures:check:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check:chipbench"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

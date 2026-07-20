@@ -137,6 +137,7 @@ export const CoreLoopRunStateSchema = z.strictObject({
 export const CaseValidationStatusSchema = z.enum([
   "VALID",
   "INVALID_BLANK_BASELINE",
+  "INVALID_PROMPT_ONLY_BASELINE",
   "INVALID_SEEDED_BASELINE_PASSED",
   "INVALID_FIXTURE_PREPARATION",
   "INFRASTRUCTURE_INVALID",
@@ -150,7 +151,9 @@ export const CaseValidationResultSchema = z
     caseRef: FixtureCaseRefSchema,
     status: CaseValidationStatusSchema,
     runId: RunIdSchema.nullable(),
-    category: z.enum(["BLANK_GENERATION", "SEEDED_COMPILE_REPAIR"]).nullable(),
+    category: z
+      .enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"])
+      .nullable(),
     normalizedFixtureDigest: Sha256DigestSchema.nullable(),
     baselinePreparationStatus: z
       .enum(["READY", "NO_RTL_SOURCE", "UNSUPPORTED_INCLUDE_DIRECTIVE", "SOURCE_POLICY_VIOLATION"])
@@ -179,7 +182,8 @@ export const CaseValidationResultSchema = z
           message: "A valid case must have a materialized run identity",
         });
       } else if (
-        value.category === "BLANK_GENERATION" &&
+        (value.category === "BLANK_GENERATION" ||
+          value.category === "PROMPTED_FUNCTIONAL_REPAIR") &&
         (value.baselinePreparationStatus !== "NO_RTL_SOURCE" ||
           value.baselineCompileStatus !== null)
       ) {
@@ -212,6 +216,19 @@ export const CaseValidationResultSchema = z
         code: "custom",
         path: ["status"],
         message: "Invalid blank baseline fields are inconsistent",
+      });
+    }
+    if (
+      value.status === "INVALID_PROMPT_ONLY_BASELINE" &&
+      (!materialized ||
+        value.category !== "PROMPTED_FUNCTIONAL_REPAIR" ||
+        value.baselinePreparationStatus === "NO_RTL_SOURCE" ||
+        value.baselineCompileStatus !== null)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["status"],
+        message: "Invalid prompted functional-repair baseline fields are inconsistent",
       });
     }
     if (
@@ -276,7 +293,7 @@ const runExecutionCommon = {
   runId: RunIdSchema,
   fixtureId: FixtureIdSchema,
   fixtureIdentity: FixtureIdentitySchema,
-  category: z.enum(["BLANK_GENERATION", "SEEDED_COMPILE_REPAIR"]),
+  category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
   attemptCount: z.int().nonnegative().max(3),
   startedAt: IsoTimestampSchema,
   completedAt: IsoTimestampSchema,
@@ -478,6 +495,7 @@ export const BatchMetricsSchema = z.strictObject({
   maxAttempts: z.int().min(1).max(3),
   overall: MetricSliceSchema,
   blankGeneration: MetricSliceSchema,
+  promptedFunctionalRepair: MetricSliceSchema,
   seededCompileRepair: MetricSliceSchema,
 });
 
