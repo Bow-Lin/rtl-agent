@@ -53,6 +53,14 @@ stays under `_internal/mismatch-analysis/`; `observed-issues.md` retains only on
 root-cause conclusion per mismatched case. `common-guidance.md` is never updated by this workflow and
 changes only after an explicit operator request to promote observations into guidance.
 
+The journal now expands every `functionalNotRun` total into a `Not Run Details` list. Each selected
+case records its stable run outcome or validation status. `MAX_ATTEMPTS` includes the latest
+structured compile error when available, while later timeout or tool failures retain their own
+final stage reason instead of inheriting an earlier attempt's compiler message. Missing compile
+units and cases never reached by the batch are distinguished as `NO_COMPILE_UNIT` and
+`NOT_EXECUTED`. A valid baseline is not treated as the reason for a later not-executed outcome;
+stopped batches receive an explicit stopped-before-functional-simulation reason.
+
 The first complete local Prob001–Prob156 Kimi run is summarized in
 `exp_result/verilog-eval/07.21-baseline.md`. After replacing the interrupted Prob071–Prob100 segment with its
 successful rerun, 119 of 156 unique cases functionally passed. Two cases are separated from ordinary
@@ -83,7 +91,7 @@ sandbox claim is made.
 - lint, typecheck, build, format, peer dependency, frozen-install, package, and full-repository checks pass.
 - Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
 - thin CLI/profile-selection tests: 3 files and 18 tests passed.
-- full repository: 33 files passed / 1 skipped; 230 tests passed / 2 skipped.
+- full repository: 33 files passed / 1 skipped; 233 tests passed / 2 skipped.
 - real Icarus integration: 2 files and 6 tests passed, including synthetic R04 baseline/repair/final-recompile composition.
 - real OpenCode 1.18.2 static probe and two live restricted-Agent smoke tests pass.
 - Kimi Code `kimi-for-coding` static probe and one live restricted-Agent blank-generation turn pass
@@ -114,4 +122,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-22T15:10:00+08:00
+2026-07-22T15:50:00+08:00

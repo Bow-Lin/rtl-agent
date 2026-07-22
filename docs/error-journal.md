@@ -293,3 +293,61 @@ or verification-invalid and test both the aggregate counts and final status.
 - `packages/core-loop/src/verilog-eval-simulation.ts`
 - `apps/rtl-core-loop/src/index.ts`
 - `packages/core-loop/test/verilog-eval-simulation.test.ts`
+
+## 2026-07-22 - Successful baseline text was reused as a not-executed reason
+
+### Symptom
+
+A selected case with a valid baseline but no run result could be journaled as `NOT_EXECUTED` while
+its explanation said that the blank fixture had the expected compiler-not-invoked baseline.
+
+### Root Cause
+
+The not-run renderer correctly mapped validation status `VALID` to `NOT_EXECUTED`, but still reused
+the validation message. That message explains successful preflight and does not explain why the
+case never ran.
+
+### Fix
+
+When a valid case has no run result, emit the bounded reason that functional simulation was not
+reached before the batch stopped. Preserve validation messages only for genuinely invalid
+preflight statuses and add an exact regression for the valid-but-no-run branch.
+
+### Prevention
+
+Keep status and reason derivation coupled. A status remap must not retain explanatory text from the
+source status unless that text still describes the mapped outcome.
+
+### Related Files
+
+- `packages/core-loop/src/observed-issues.ts`
+- `packages/core-loop/test/observed-issues.test.ts`
+
+## 2026-07-22 - Historical compile error masked a later tool failure
+
+### Symptom
+
+A multi-attempt case could finish with `TOOL_ERROR` during final recompile but explain that outcome
+with a compiler message from an earlier candidate that had already been superseded.
+
+### Root Cause
+
+The not-run reason renderer searched all compile observations for the latest `COMPILE_ERROR` before
+switching on the final run outcome. That historical message therefore took precedence over every
+later failure category.
+
+### Fix
+
+Consult structured compile errors only for the final `MAX_ATTEMPTS` outcome. Timeout, policy,
+Agent, and tool failures now derive their reason from the final outcome and failure stage. Add a
+regression covering compile error, later compile pass, and final-recompile tool failure.
+
+### Prevention
+
+Derive diagnostic text from the final outcome first. Use attempt history only as supporting detail
+for outcomes whose meaning explicitly depends on that history.
+
+### Related Files
+
+- `packages/core-loop/src/observed-issues.ts`
+- `packages/core-loop/test/observed-issues.test.ts`

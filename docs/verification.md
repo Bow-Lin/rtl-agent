@@ -129,6 +129,15 @@ category/confidence/root-cause conclusion per mismatched case. A missing, generi
 `MISMATCH_ANALYSIS_FAILED` instead of recording an unknown cause. These diagnosis turns consume
 additional model quota. The journal workflow never writes `common-guidance.md`; promotion into
 prompt guidance requires an explicit operator request and applies only to later batches.
+Every `functionalNotRun` case is also listed under `Not Run Details` in selected-case order. The
+entry uses the stable run outcome or preflight status, maps a missing compile unit to
+`NO_COMPILE_UNIT`, and includes the latest structured compile-error message for `MAX_ATTEMPTS` when
+available. Historical compile errors do not replace the final reason for a later timeout, policy,
+Agent, or tool outcome; those entries retain their own failure stage. Cases that never produced a
+run result are recorded as `NOT_EXECUTED` or with their concrete validation status instead of being
+represented only by the aggregate count. A successful `VALID` baseline message is never reused as
+a not-run cause; if the batch stops before a run result exists, the journal states that functional
+simulation was not reached before the batch stopped.
 The same `evaluate` invocation then completes the VerilogEval functional path after a candidate
 passes the fixed compile check: it materializes the locked reference and testbench into a private
 verification directory, compiles candidate + reference + testbench with `iverilog -g2012 -s tb`,

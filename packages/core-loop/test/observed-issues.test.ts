@@ -99,6 +99,114 @@ function functionalResult(): VerilogEvalFunctionalResult {
   });
 }
 
+function notRunExecution(root: string): CoreLoopBatchExecution {
+  const base = execution(root);
+  return {
+    ...base,
+    result: {
+      ...base.result,
+      caseValidations: [
+        {
+          caseRef,
+          status: "VALID",
+          message: "Blank fixture has the expected compiler-not-invoked baseline",
+        },
+      ],
+      runs: [
+        {
+          runId: "run_123e4567-e89b-42d3-a456-426614174000",
+          status: "COMPLETE",
+          fixtureIdentity: caseRef.identity,
+          finalResult: { outcome: "MAX_ATTEMPTS" },
+          failureStage: "ATTEMPT_COMPILE",
+          compileObservations: [
+            {
+              phase: "ATTEMPT",
+              attempt: 1,
+              status: "COMPILE_ERROR",
+              durationMs: 1,
+              issues: [{ message: "This assignment requires an explicit cast." }],
+            },
+          ],
+        },
+      ],
+    },
+  } as unknown as CoreLoopBatchExecution;
+}
+
+function notRunFunctionalResult(): VerilogEvalFunctionalResult {
+  const value = functionalResult();
+  return VerilogEvalFunctionalResultSchema.parse({
+    ...value,
+    status: "COMPLETED",
+    compilePassed: 0,
+    functionalFailed: 0,
+    functionalNotRun: 1,
+    cases: value.cases.map((item) => ({
+      ...item,
+      status: "CANDIDATE_NOT_COMPILE_PASSED",
+      mismatches: null,
+      samples: null,
+      outputMismatches: [],
+      compileExitCode: null,
+      simulationExitCode: null,
+      compileDurationMs: 0,
+      simulationDurationMs: 0,
+      stdout: null,
+      stderr: null,
+    })),
+  });
+}
+
+function notExecutedExecution(root: string): CoreLoopBatchExecution {
+  const value = notRunExecution(root);
+  return {
+    ...value,
+    result: { ...value.result, runs: [] },
+  } as CoreLoopBatchExecution;
+}
+
+function toolErrorAfterCompileErrorExecution(root: string): CoreLoopBatchExecution {
+  const value = notRunExecution(root);
+  const run = value.result.runs[0];
+  return {
+    ...value,
+    result: {
+      ...value.result,
+      runs: [
+        {
+          ...run,
+          finalResult: { outcome: "TOOL_ERROR" },
+          failureStage: "FINAL_RECOMPILE",
+          compileObservations: [
+            {
+              phase: "ATTEMPT",
+              attempt: 1,
+              status: "COMPILE_ERROR",
+              durationMs: 1,
+              issues: [{ message: "Old candidate syntax error." }],
+            },
+            {
+              phase: "ATTEMPT",
+              attempt: 2,
+              status: "COMPILE_PASSED",
+              durationMs: 1,
+              issues: [],
+            },
+            {
+              phase: "FINAL_RECOMPILE",
+              attempt: 2,
+              status: "TOOL_ERROR",
+              durationMs: 1,
+              issues: [],
+            },
+          ],
+        },
+      ],
+    },
+  } as unknown as CoreLoopBatchExecution;
+}
+
 describe("observed dataset issues", () => {
   it("records compile evidence and a concrete mismatch diagnosis once per batch", async () => {
     const root = await temporaryRoot();
@@ -163,6 +271,54 @@ describe("observed dataset issues", () => {
         functionalResult: functionalResult(),
       }),
     ).rejects.toMatchObject({ error: { code: "MISMATCH_ANALYSIS_FAILED" } });
+  });
+
+  it("records every functional not-run case with its stable outcome and compile reason", async () => {
+    const root = await temporaryRoot();
+    const journalPath = await updateObservedIssues({
+      knowledgeRoot: path.join(root, "knowledge"),
+      execution: notRunExecution(root),
+      functionalResult: notRunFunctionalResult(),
+      completedAt: new Date("2026-07-22T03:00:00.000Z"),
+    });
+    const journal = await readFile(journalPath, "utf8");
+
+    expect(journal).toContain("### Not Run Details");
+    expect(journal).toContain(
+      "`Prob101_fsm`: `MAX_ATTEMPTS` — This assignment requires an explicit cast.",
+    );
+  });
+
+  it("does not use a successful baseline-validation message as the not-executed reason", async () => {
+    const root = await temporaryRoot();
+    const journalPath = await updateObservedIssues({
+      knowledgeRoot: path.join(root, "knowledge"),
+      execution: notExecutedExecution(root),
+      functionalResult: notRunFunctionalResult(),
+      completedAt: new Date("2026-07-22T03:00:00.000Z"),
+    });
+    const journal = await readFile(journalPath, "utf8");
+
+    expect(journal).toContain(
+      "`Prob101_fsm`: `NOT_EXECUTED` — Functional simulation was not reached before the batch stopped.",
+    );
+    expect(journal).not.toContain("`NOT_EXECUTED` — Blank fixture has the expected");
+  });
+
+  it("does not let an earlier compile error mask a later tool failure", async () => {
+    const root = await temporaryRoot();
+    const journalPath = await updateObservedIssues({
+      knowledgeRoot: path.join(root, "knowledge"),
+      execution: toolErrorAfterCompileErrorExecution(root),
+      functionalResult: notRunFunctionalResult(),
+      completedAt: new Date("2026-07-22T03:00:00.000Z"),
+    });
+    const journal = await readFile(journalPath, "utf8");
+
+    expect(journal).toContain(
+      "`Prob101_fsm`: `TOOL_ERROR` — Infrastructure failed during FINAL_RECOMPILE.",
+    );
+    expect(journal).not.toContain("`TOOL_ERROR` — Old candidate syntax error.");
   });
 
   it("rejects generic diagnoses and analyses without candidate evidence", () => {

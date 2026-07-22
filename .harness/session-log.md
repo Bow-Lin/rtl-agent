@@ -1466,6 +1466,31 @@ risk remains excluded from production and formal-Gate claims. Targeted functiona
 passed, including the verification-compile-error and historical-evidence regressions. No model
 request was made.
 
+## Entry: Expand Functional Not-Run Outcomes Per Case
+
+The automatic observed-issue journal now retains the aggregate `functionalNotRun` count and adds a
+`Not Run Details` entry for every affected selected case. Entries use the stable final outcome or
+case-validation status, map Agent output without a compile-ready source to `NO_COMPILE_UNIT`, and
+include the latest structured compiler error when available. Selected cases with no run result are
+recorded as `NOT_EXECUTED` unless preflight provides a more specific status. This changes runtime
+reporting only; evaluation counts, prompt guidance, and hidden verification boundaries are
+unchanged.
+
+The guarded review found and corrected two misleading edge cases. A valid baseline with no run
+result now says the batch stopped before functional simulation instead of reusing the successful
+baseline-validation message. Historical compiler errors are now used only for `MAX_ATTEMPTS`, so a
+later timeout or tool failure retains its actual final stage reason. Six focused observed-issues
+tests, typecheck, ESLint, and the full ordinary suite (33 files passed / 1 skipped; 233 tests passed
+/ 2 skipped) passed. The first full-suite attempt encountered two unrelated Windows scheduling and
+cleanup races; both affected files passed in isolation and the complete suite then passed. No model
+or dataset evaluation request was made. Prettier, diff check, and Harness check also passed after
+the final documentation update.
+
+The guarded commit review found no P1/P2 and confirmed that all eight modified files belong to the
+same per-case not-run reporting change. Typecheck, ESLint, the full ordinary suite (33 files passed
+/ 1 skipped; 233 tests passed / 2 skipped), build, Prettier, diff check, and Harness check passed
+before staging. No live model or dataset request was made.
+
 The follow-up guarded commit review found no remaining P1/P2. Typecheck, ESLint, the full ordinary
 suite (33 files passed / 1 skipped; 230 tests passed / 2 skipped), build, Prettier, diff check, and
 Harness check all passed before landing the reviewed work on `master`.

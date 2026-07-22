@@ -601,6 +601,15 @@ materialized nor readable in its workspace. Require a concrete category, root-ca
 candidate RTL citation, confidence, and limitations. Reject generic or malformed diagnoses with
 `MISMATCH_ANALYSIS_FAILED`; do not write `LOGIC_MISMATCH_UNKNOWN`.
 
+For every functional not-run case, publish a concise per-case detail using the stable run outcome
+or case-validation status. Use the latest structured compiler message only when the final outcome
+is `MAX_ATTEMPTS`; a later timeout or infrastructure failure must retain its own final stage reason
+even if an earlier candidate failed to compile. Represent an Agent result with no compile-ready
+source as `NO_COMPILE_UNIT`; represent selected cases with no run result as `NOT_EXECUTED` unless a
+more specific validation status exists. Keep the aggregate `functionalNotRun` count for
+machine-readable summaries. Do not reuse a successful `VALID` baseline-validation message as the
+cause of a later not-executed outcome.
+
 Parse the existing bounded testbench hints into public output-port mismatch counts and first
 mismatch times and include those structured observations in the private diagnosis input. Retain the
 complete analysis only below `_internal/mismatch-analysis/<run-id>/`. Publish exactly one concise
