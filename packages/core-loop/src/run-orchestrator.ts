@@ -120,6 +120,7 @@ function agentTurnMatchesLock(result: AgentTurnResult, locked: OpenCodeCapabilit
     result.resolvedAgentPermissionDigest === locked.resolvedAgentPermissionDigest &&
     result.agentFileDigest === locked.agentFileDigest &&
     result.skillFileDigest === locked.skillFileDigest &&
+    result.guidanceFileDigest === locked.guidanceFileDigest &&
     result.experimentConfigDigest === locked.experimentConfigDigest
   );
 }

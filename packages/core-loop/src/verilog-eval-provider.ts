@@ -24,6 +24,18 @@ interface VerilogEvalCase {
   readonly caseRef: FixtureCaseRef;
   readonly promptPath: string;
   readonly promptDigest: ScannedFile["contentDigest"];
+  readonly referencePath: string;
+  readonly referenceDigest: ScannedFile["contentDigest"];
+  readonly testbenchPath: string;
+  readonly testbenchDigest: ScannedFile["contentDigest"];
+}
+
+export interface VerilogEvalVerificationMaterialization {
+  readonly referenceLogicalPath: "reference.sv";
+  readonly referenceDigest: ScannedFile["contentDigest"];
+  readonly testbenchLogicalPath: "testbench.sv";
+  readonly testbenchDigest: ScannedFile["contentDigest"];
+  readonly testbenchTopModule: "tb";
 }
 
 interface VerilogEvalMetadata {
@@ -183,6 +195,10 @@ export class VerilogEvalFixtureProvider implements FixtureProvider {
         caseRef,
         promptPath: prompt.hostPath,
         promptDigest: prompt.contentDigest,
+        referencePath: reference.hostPath,
+        referenceDigest: reference.contentDigest,
+        testbenchPath: testbench.hostPath,
+        testbenchDigest: testbench.contentDigest,
       };
     });
     return {
@@ -247,5 +263,45 @@ export class VerilogEvalFixtureProvider implements FixtureProvider {
       topModule: "TopModule",
       tags: ["spec-to-rtl", "verilog-eval-v2"],
     });
+  }
+
+  public async materializeVerification(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<VerilogEvalVerificationMaterialization> {
+    const parsedCaseRef = FixtureCaseRefSchema.parse(caseRef);
+    const metadata = await this.loadMetadata();
+    const entry = metadata.byCaseId.get(parsedCaseRef.identity.caseId);
+    if (entry === undefined || sha256Jcs(entry.caseRef) !== sha256Jcs(parsedCaseRef)) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "Requested VerilogEval verification case does not match the locked catalog",
+      );
+    }
+    await requireRegularDirectory(destination, "Verification staging destination");
+    const [reference, testbench] = await Promise.all([
+      readFile(entry.referencePath),
+      readFile(entry.testbenchPath),
+    ]);
+    if (
+      sha256Bytes(reference) !== entry.referenceDigest ||
+      sha256Bytes(testbench) !== entry.testbenchDigest
+    ) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "VerilogEval verification assets changed after dataset validation",
+      );
+    }
+    await Promise.all([
+      writeFile(path.join(destination, "reference.sv"), reference, { flag: "wx" }),
+      writeFile(path.join(destination, "testbench.sv"), testbench, { flag: "wx" }),
+    ]);
+    return {
+      referenceLogicalPath: "reference.sv",
+      referenceDigest: entry.referenceDigest,
+      testbenchLogicalPath: "testbench.sv",
+      testbenchDigest: entry.testbenchDigest,
+      testbenchTopModule: "tb",
+    };
   }
 }

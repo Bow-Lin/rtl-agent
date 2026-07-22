@@ -27,6 +27,8 @@ import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.
 const AGENT_NAME = "rtl-core-loop" as const;
 const FIXED_PROMPT =
   "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one RTL editing attempt.";
+const GUIDANCE_FILE_NAME = "common-guidance.md" as const;
+const MAXIMUM_GUIDANCE_BYTES = 16_384;
 const REQUIRED_RUN_FLAGS = [
   "--agent",
   "--dir",
@@ -37,6 +39,11 @@ const REQUIRED_RUN_FLAGS = [
 ] as const;
 const ALLOWED_RTL_EXTENSION = /\.(?:sv|svh|v|vh)$/i;
 const COMPILE_UNIT_EXTENSION = /\.(?:sv|v)$/i;
+
+interface LoadedGuidance {
+  readonly content: string;
+  readonly digest: ReturnType<typeof sha256Bytes>;
+}
 
 export interface RtlWorkspaceLimits {
   readonly maximumFiles: number;
@@ -103,6 +110,52 @@ function validateConfig(config: OpenCodeExperimentConfig): void {
   }
 }
 
+function guidanceFilePath(repositoryRoot: string): string {
+  return path.join(repositoryRoot, ".opencode", "skills", AGENT_NAME, GUIDANCE_FILE_NAME);
+}
+
+async function loadGuidance(repositoryRoot: string): Promise<LoadedGuidance> {
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(guidanceFilePath(repositoryRoot));
+  } catch {
+    throw new CoreLoopException(
+      "OPENCODE_CAPABILITY_MISMATCH",
+      "RTL common guidance is unavailable",
+    );
+  }
+  if (bytes.byteLength === 0 || bytes.byteLength > MAXIMUM_GUIDANCE_BYTES) {
+    throw new CoreLoopException(
+      "OPENCODE_CAPABILITY_MISMATCH",
+      "RTL common guidance exceeds its bounded size",
+    );
+  }
+  let content: string;
+  try {
+    content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new CoreLoopException(
+      "OPENCODE_CAPABILITY_MISMATCH",
+      "RTL common guidance is not valid UTF-8",
+    );
+  }
+  const normalized = content.trim();
+  // Intentional rejection of unsafe control bytes while retaining tabs and line endings.
+  // eslint-disable-next-line no-control-regex
+  const unsafeControl = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+  if (normalized.length === 0 || unsafeControl.test(content)) {
+    throw new CoreLoopException(
+      "OPENCODE_CAPABILITY_MISMATCH",
+      "RTL common guidance is empty or contains unsafe control bytes",
+    );
+  }
+  return { content: normalized, digest: sha256Bytes(bytes) };
+}
+
+function turnPrompt(guidance: string): string {
+  return `${FIXED_PROMPT}\n\nApply the following repository guidance to this attempt. The case specification remains authoritative.\n\n${guidance}`;
+}
+
 const INLINE_CONFIG = {
   autoupdate: false,
   share: "disabled",
@@ -115,6 +168,31 @@ const INLINE_CONFIG = {
   permission: { "*": "deny" },
 } as const;
 
+const KIMI_CODE_PROVIDER_ID = "kimi-code";
+const KIMI_CODE_API_KEY_ENVIRONMENT_NAME = "KIMI_CODE_API_KEY";
+
+function inlineConfig(config: OpenCodeExperimentConfig): Record<string, unknown> {
+  if (!config.providerModel.startsWith(`${KIMI_CODE_PROVIDER_ID}/`)) return INLINE_CONFIG;
+  return {
+    ...INLINE_CONFIG,
+    provider: {
+      [KIMI_CODE_PROVIDER_ID]: {
+        npm: "@ai-sdk/openai-compatible",
+        name: "Kimi Code",
+        options: {
+          baseURL: "https://api.kimi.com/coding/v1",
+          apiKey: `{env:${KIMI_CODE_API_KEY_ENVIRONMENT_NAME}}`,
+        },
+        models: {
+          "kimi-for-coding": { name: "Kimi for Coding" },
+          "kimi-for-coding-highspeed": { name: "Kimi for Coding Highspeed" },
+          k3: { name: "Kimi K3" },
+        },
+      },
+    },
+  };
+}
+
 export function buildIsolatedOpenCodeEnvironment(
   config: OpenCodeExperimentConfig,
 ): NodeJS.ProcessEnv {
@@ -123,7 +201,7 @@ export function buildIsolatedOpenCodeEnvironment(
   delete environment.OPENCODE_CONFIG_DIR;
   delete environment.OPENCODE_PERMISSION;
   environment.OPENCODE_CONFIG_DIR = path.join(config.repositoryRoot, ".opencode");
-  environment.OPENCODE_CONFIG_CONTENT = JSON.stringify(INLINE_CONFIG);
+  environment.OPENCODE_CONFIG_CONTENT = JSON.stringify(inlineConfig(config));
   environment.OPENCODE_DISABLE_AUTOUPDATE = "1";
   environment.OPENCODE_AUTO_SHARE = "false";
   environment.OPENCODE_DISABLE_DEFAULT_PLUGINS = "1";
@@ -156,7 +234,7 @@ function experimentConfigDigest(config: OpenCodeExperimentConfig): ReturnType<ty
     maximumEvents: config.maximumEvents,
     maximumEventLineBytes: config.maximumEventLineBytes,
     workspaceLimits: config.workspaceLimits,
-    isolation: INLINE_CONFIG,
+    isolation: inlineConfig(config),
   });
 }
 
@@ -630,7 +708,11 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       AGENT_NAME,
       "SKILL.md",
     );
-    const [agentBytes, skillBytes] = await Promise.all([readFile(agentFile), readFile(skillFile)]);
+    const [agentBytes, skillBytes, guidance] = await Promise.all([
+      readFile(agentFile),
+      readFile(skillFile),
+      loadGuidance(this.config.repositoryRoot),
+    ]);
     return OpenCodeCapabilitySchema.parse({
       schemaVersion: 1,
       openCodeVersion: ToolVersionSchema.parse(version),
@@ -643,6 +725,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       resolvedAgentPermissionDigest,
       agentFileDigest: sha256Bytes(agentBytes),
       skillFileDigest: sha256Bytes(skillBytes),
+      guidanceFileDigest: guidance.digest,
       experimentConfigDigest: this.configDigest,
     });
   }
@@ -668,6 +751,13 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       );
     }
     const capability = await this.probe();
+    const guidance = await loadGuidance(this.config.repositoryRoot);
+    if (guidance.digest !== capability.guidanceFileDigest) {
+      throw new CoreLoopException(
+        "OPENCODE_CAPABILITY_MISMATCH",
+        "RTL common guidance changed during Agent preparation",
+      );
+    }
     await writeAgentInput(run.workspaceDirectory, input);
     const before = await createAttemptRunManifest(run.runDirectory);
     const arguments_ = [
@@ -685,7 +775,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       run.workspaceDirectory,
       "--title",
       `core-loop-${run.runId}-attempt-${String(input.attempt)}`,
-      FIXED_PROMPT,
+      turnPrompt(guidance.content),
     ];
     const processResult = await executeOpenCodeProcess({
       executable: this.config.executable,
@@ -749,6 +839,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       resolvedAgentPermissionDigest: capability.resolvedAgentPermissionDigest,
       agentFileDigest: capability.agentFileDigest,
       skillFileDigest: capability.skillFileDigest,
+      guidanceFileDigest: capability.guidanceFileDigest,
       experimentConfigDigest: capability.experimentConfigDigest,
       violations,
       eventStream: processResult.eventStream,
@@ -791,11 +882,26 @@ export function openCodeExperimentConfigFromEnvironment(
       "Set RTL_AGENT_OPENCODE_EXECUTABLE, RTL_AGENT_OPENCODE_VERSION, and RTL_AGENT_OPENCODE_MODEL",
     );
   }
+  const kimiCodeApiKey = providerModel.startsWith(`${KIMI_CODE_PROVIDER_ID}/`)
+    ? environment[KIMI_CODE_API_KEY_ENVIRONMENT_NAME]
+    : undefined;
+  if (
+    providerModel.startsWith(`${KIMI_CODE_PROVIDER_ID}/`) &&
+    (kimiCodeApiKey === undefined || kimiCodeApiKey.trim().length === 0)
+  ) {
+    throw new CoreLoopException(
+      "OPENCODE_NOT_CONFIGURED",
+      `Set ${KIMI_CODE_API_KEY_ENVIRONMENT_NAME} for the Kimi Code provider`,
+    );
+  }
   return {
     executable: path.resolve(executable),
     expectedOpenCodeVersion,
     repositoryRoot: path.resolve(repositoryRoot),
     providerModel,
+    ...(kimiCodeApiKey === undefined
+      ? {}
+      : { environment: { [KIMI_CODE_API_KEY_ENVIRONMENT_NAME]: kimiCodeApiKey } }),
     ...(environment.RTL_AGENT_OPENCODE_VARIANT === undefined
       ? {}
       : { variant: environment.RTL_AGENT_OPENCODE_VARIANT }),

@@ -30,6 +30,44 @@ How should future agents avoid repeating it?
 
 ## Known Failure Modes
 
+## 2026-07-21 - Source-bound Icarus design errors were misclassified as tool failures
+
+### Symptom
+
+A 60-case VerilogEval batch stopped at `Prob071_always_casez`. Icarus reported that an output wire
+was not a valid procedural assignment target, but the adapter returned
+`IVERILOG_UNCLASSIFIED_FAILURE`. The batch correctly failed closed on that apparent infrastructure
+error, leaving the failing case and all 29 later cases as functional not-run.
+
+### Root Cause
+
+The diagnostic parser recognized generic `error:` lines as error issues, but set `hasDesignError`
+only for a short phrase allowlist such as `syntax error` and `unable to bind`. The valid Icarus
+phrase `not a valid l-value` therefore had an error issue attached to the candidate source while
+still failing the adapter's design-error classification check.
+
+### Fix
+
+Treat an error as a design error when it either matches the explicit design-error patterns or is
+safely resolved to one of the current workspace's `.sv`/`.v` source files. Preserve fail-closed
+behavior for unbound configuration/tool errors and for all detected internal compiler failures.
+Add parser, adapter, real-Icarus, and multi-case batch continuation regressions.
+
+### Prevention
+
+Do not require an exhaustive English phrase list for compiler diagnostics that already carry a
+validated candidate-source location. Every newly observed nonzero Icarus result should be tested at
+the parser, adapter, and real executable boundaries, with a batch test for stop/continue semantics.
+
+### Related Files
+
+- `packages/core-loop/src/compiler-diagnostics.ts`
+- `packages/core-loop/src/compiler-adapter.ts`
+- `packages/core-loop/test/compiler-diagnostics.test.ts`
+- `packages/core-loop/test/compiler-adapter.test.ts`
+- `packages/core-loop/test/iverilog.integration.test.ts`
+- `packages/core-loop/test/batch-evaluator.test.ts`
+
 ## 2026-07-15 - Package-scoped Vitest command resolved paths from the package directory
 
 ### Symptom
@@ -225,3 +263,33 @@ Every portable source/config extension added to the repository must have an expl
 - `eslint.config.mjs`
 - `prettier.config.mjs`
 - `.github/workflows/ci.yml`
+
+## 2026-07-22 - Verification infrastructure failures were counted as logic mismatches
+
+### Symptom
+
+The Prob099 combined verification compile failed because of a testbench/interface mismatch, but
+the batch summary incremented `functionalFailed` and still reported `COMPLETED` and `ok: true`.
+
+### Root Cause
+
+The aggregate used `compilePassed - functionalPassed` for `functionalFailed`, which folded every
+post-candidate-compile outcome into one bucket. The functional status was also copied from the
+earlier candidate-only batch instead of considering verification-stage validity.
+
+### Fix
+
+Count only `MISMATCH` as `functionalFailed`, add `verificationInvalid` for verification compile,
+process, timeout, and output failures, and derive the final CLI status from the functional result.
+Keep historical schema-version-1 evidence readable when per-output mismatch details are absent.
+
+### Prevention
+
+Whenever a new verification outcome is introduced, map it explicitly to pass, mismatch, not-run,
+or verification-invalid and test both the aggregate counts and final status.
+
+### Related Files
+
+- `packages/core-loop/src/verilog-eval-simulation.ts`
+- `apps/rtl-core-loop/src/index.ts`
+- `packages/core-loop/test/verilog-eval-simulation.test.ts`

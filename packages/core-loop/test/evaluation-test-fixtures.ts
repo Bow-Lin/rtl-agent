@@ -64,6 +64,7 @@ export const TEST_AGENT_CAPABILITY: OpenCodeCapability = OpenCodeCapabilitySchem
   resolvedAgentPermissionDigest: DIGEST_B,
   agentFileDigest: DIGEST_C,
   skillFileDigest: sha256Bytes(Buffer.from("skill")),
+  guidanceFileDigest: sha256Bytes(Buffer.from("guidance")),
   experimentConfigDigest: sha256Bytes(Buffer.from("experiment")),
 });
 
@@ -317,6 +318,7 @@ export class ScriptedAgentAdapter implements RtlAgentAdapter {
       resolvedAgentPermissionDigest: TEST_AGENT_CAPABILITY.resolvedAgentPermissionDigest,
       agentFileDigest: TEST_AGENT_CAPABILITY.agentFileDigest,
       skillFileDigest: TEST_AGENT_CAPABILITY.skillFileDigest,
+      guidanceFileDigest: TEST_AGENT_CAPABILITY.guidanceFileDigest,
       experimentConfigDigest: TEST_AGENT_CAPABILITY.experimentConfigDigest,
       violations: policyViolation
         ? [

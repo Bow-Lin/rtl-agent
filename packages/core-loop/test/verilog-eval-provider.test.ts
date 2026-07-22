@@ -100,6 +100,19 @@ describe("VerilogEval pinned dataset Provider", () => {
     await expect(createFileManifest(staging)).resolves.toMatchObject({
       entries: [{ path: "prompt.txt" }],
     });
+
+    const verification = path.join(root, "verification");
+    await mkdir(verification);
+    await expect(
+      provider.materializeVerification(cases[0]!, asHostDirectoryForProvider(verification)),
+    ).resolves.toMatchObject({
+      referenceLogicalPath: "reference.sv",
+      testbenchLogicalPath: "testbench.sv",
+      testbenchTopModule: "tb",
+    });
+    await expect(createFileManifest(verification)).resolves.toMatchObject({
+      entries: [{ path: "reference.sv" }, { path: "testbench.sv" }],
+    });
   });
 
   it("honors explicit selection and detects source drift", async () => {

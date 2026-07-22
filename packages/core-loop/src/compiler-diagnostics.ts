@@ -79,10 +79,12 @@ export function parseCompilerDiagnostics(
       if (INTERNAL_ERROR.test(line)) hasInternalError = true;
       const kind = diagnosticKind(line);
       if (kind === undefined) continue;
-      if (kind === "ERROR" && DESIGN_ERROR.test(line)) hasDesignError = true;
-      if (issues.length >= maximumIssues) continue;
       const location = /^(.*?\.(?:sv|v)):(\d+)(?::(\d+))?:\s*(.*)$/i.exec(line);
       const pathValue = sourcePathFromPrefix(location?.[1], workspaceDirectory, sources);
+      if (kind === "ERROR" && (DESIGN_ERROR.test(line) || pathValue !== undefined)) {
+        hasDesignError = true;
+      }
+      if (issues.length >= maximumIssues) continue;
       const body = location?.[4] ?? location?.[3] ?? line;
       const sanitized = captureOutput(body, {
         limitBytes: messageLimitBytes,

@@ -1,4 +1,4 @@
-import { access, appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,8 @@ import {
   OpenCodeRtlAgentAdapter,
   buildIsolatedOpenCodeEnvironment,
   createCoreLoopRun,
+  openCodeExperimentConfigFromEnvironment,
+  sha256Bytes,
 } from "../src/index.js";
 import type { AgentAttemptInput, CoreLoopRun, OpenCodeExperimentConfig } from "../src/index.js";
 import { RUN_REQUEST, TestFixtureProvider } from "./fixtures.js";
@@ -158,6 +160,18 @@ async function createFakeOpenCode(root: string): Promise<{ script: string; log: 
   return { script, log };
 }
 
+async function createAgentFiles(root: string, guidance: string): Promise<void> {
+  const agentDirectory = path.join(root, ".opencode", "agents");
+  const skillDirectory = path.join(root, ".opencode", "skills", "rtl-core-loop");
+  await mkdir(agentDirectory, { recursive: true });
+  await mkdir(skillDirectory, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(agentDirectory, "rtl-core-loop.md"), "synthetic agent\n", "utf8"),
+    writeFile(path.join(skillDirectory, "SKILL.md"), "synthetic skill\n", "utf8"),
+    writeFile(path.join(skillDirectory, "common-guidance.md"), guidance, "utf8"),
+  ]);
+}
+
 function config(
   fake: { script: string; log: string },
   mode: string,
@@ -242,6 +256,56 @@ describe("OpenCode RTL Agent adapter", () => {
     });
   });
 
+  it("configures Kimi Code through an environment reference without serializing its key", async () => {
+    const root = await temporaryRoot();
+    const fake = await createFakeOpenCode(root);
+    const configured = openCodeExperimentConfigFromEnvironment(
+      {
+        RTL_AGENT_OPENCODE_EXECUTABLE: fake.script,
+        RTL_AGENT_OPENCODE_VERSION: "1.2.3",
+        RTL_AGENT_OPENCODE_MODEL: "kimi-code/kimi-for-coding",
+        KIMI_CODE_API_KEY: "test-only-key",
+      },
+      REPOSITORY_ROOT,
+    );
+    const isolated = buildIsolatedOpenCodeEnvironment(configured);
+    const serializedConfig = isolated.OPENCODE_CONFIG_CONTENT!;
+
+    expect(isolated.KIMI_CODE_API_KEY).toBe("test-only-key");
+    expect(serializedConfig).not.toContain("test-only-key");
+    expect(JSON.parse(serializedConfig) as unknown).toMatchObject({
+      provider: {
+        "kimi-code": {
+          npm: "@ai-sdk/openai-compatible",
+          options: {
+            baseURL: "https://api.kimi.com/coding/v1",
+            apiKey: "{env:KIMI_CODE_API_KEY}",
+          },
+          models: {
+            "kimi-for-coding": { name: "Kimi for Coding" },
+          },
+        },
+      },
+    });
+  });
+
+  it("requires a Kimi Code key when that provider is selected", () => {
+    expect(() =>
+      openCodeExperimentConfigFromEnvironment(
+        {
+          RTL_AGENT_OPENCODE_EXECUTABLE: "C:\\tools\\opencode.exe",
+          RTL_AGENT_OPENCODE_VERSION: "1.18.2",
+          RTL_AGENT_OPENCODE_MODEL: "kimi-code/kimi-for-coding",
+        },
+        REPOSITORY_ROOT,
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "OPENCODE_NOT_CONFIGURED" }),
+      }),
+    );
+  });
+
   it("probes locked capabilities and records only projected events for a valid RTL change", async () => {
     const root = await temporaryRoot();
     const fake = await createFakeOpenCode(root);
@@ -255,6 +319,10 @@ describe("OpenCode RTL Agent adapter", () => {
       pureMode: true,
       agentName: "rtl-core-loop",
     });
+    const guidanceBytes = await readFile(
+      path.join(REPOSITORY_ROOT, ".opencode", "skills", "rtl-core-loop", "common-guidance.md"),
+    );
+    expect(capability.guidanceFileDigest).toBe(sha256Bytes(guidanceBytes));
 
     const result = await adapter.runTurn(inputFor(run, ["rtl/dut.sv"]), run);
     expect(result).toMatchObject({
@@ -263,6 +331,7 @@ describe("OpenCode RTL Agent adapter", () => {
       rtlChanged: true,
       exitCode: 0,
       timedOut: false,
+      guidanceFileDigest: capability.guidanceFileDigest,
       eventStream: {
         events: [{ category: "TOOL_RESULT", toolName: "edit", status: "completed" }],
       },
@@ -288,6 +357,11 @@ describe("OpenCode RTL Agent adapter", () => {
     expect(turn).not.toContain("--session");
     expect(turn).not.toContain("--fork");
     expect(turn).not.toContain("--attach");
+    const prompt = turn.at(-1)!;
+    expect(prompt).toContain("# RTL Generation Common Guidance");
+    expect(prompt).toContain("## Compile");
+    expect(prompt).toContain("## Logic");
+    expect(prompt).toContain("Avoid ternary expressions that assign directly to an enum variable");
   });
 
   it("changes the experiment digest when executable prefix arguments change", async () => {
@@ -306,6 +380,26 @@ describe("OpenCode RTL Agent adapter", () => {
     const second = await new OpenCodeRtlAgentAdapter(config(secondFake, "no-change")).probe();
 
     expect(first.experimentConfigDigest).not.toBe(second.experimentConfigDigest);
+  });
+
+  it("changes the locked capability when common guidance changes", async () => {
+    const root = await temporaryRoot();
+    const fake = await createFakeOpenCode(root);
+    await createAgentFiles(root, "# Guidance v1\n");
+    const adapter = new OpenCodeRtlAgentAdapter(
+      config(fake, "no-change", { repositoryRoot: root }),
+    );
+    const first = await adapter.probe();
+    await writeFile(
+      path.join(root, ".opencode", "skills", "rtl-core-loop", "common-guidance.md"),
+      "# Guidance v2\n",
+      "utf8",
+    );
+    const second = await adapter.probe();
+
+    expect(first.guidanceFileDigest).not.toBe(second.guidanceFileDigest);
+    expect(first.agentFileDigest).toBe(second.agentFileDigest);
+    expect(first.skillFileDigest).toBe(second.skillFileDigest);
   });
 
   it.each([

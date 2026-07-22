@@ -117,7 +117,10 @@ describe("Core Loop batch preflight and evaluation", () => {
     ).toBe(false);
     expect(agent.inputs).toHaveLength(2);
     await expect(
-      readFile(path.join(execution.batchDirectory, "evidence", "batch-result.json"), "utf8"),
+      readFile(
+        path.join(execution.batchDirectory, "_internal", "evidence", "batch-result.json"),
+        "utf8",
+      ),
     ).resolves.toContain('"claim": "COMPILE_ONLY"');
   });
 
@@ -164,6 +167,7 @@ describe("Core Loop batch preflight and evaluation", () => {
       access(
         path.join(
           execution.batchDirectory,
+          "_internal",
           "runs",
           invalidRun.runId,
           "evidence",
@@ -312,6 +316,50 @@ describe("Core Loop batch preflight and evaluation", () => {
     });
   });
 
+  it("continues with later cases after a bounded candidate compile error", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      {
+        caseId: "case/001",
+        fixtureId: "case-001",
+        category: "BLANK_GENERATION",
+      },
+      {
+        caseId: "case/002",
+        fixtureId: "case-002",
+        category: "BLANK_GENERATION",
+      },
+    ]);
+    const profile = await testEvaluationProfile(provider, 1);
+    const execution = await evaluateCoreLoopBatch({
+      provider,
+      providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      profile,
+      agentAdapter: new ScriptedAgentAdapter([
+        { outcome: "RTL_CHANGED", source: "module dut; BROKEN endmodule\n" },
+        { outcome: "RTL_CHANGED", source: "module dut; endmodule\n" },
+      ]),
+      compilerAdapter: new ScriptedCompilerAdapter([
+        "COMPILE_ERROR",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+      ]),
+      batchesRoot: path.join(root, "batches"),
+    });
+
+    expect(execution.result.status).toBe("COMPLETED");
+    expect(execution.result.runs).toHaveLength(2);
+    expect(
+      execution.result.runs.map((run) =>
+        run.status === "COMPLETE" ? run.finalResult.outcome : run.status,
+      ),
+    ).toEqual(["MAX_ATTEMPTS", "COMPILE_PASSED"]);
+    expect(execution.result.metrics.overall).toMatchObject({
+      infrastructureInvalidCount: 0,
+      notExecutedCount: 0,
+    });
+  });
+
   it("reports repair recovery and diagnostic path/line coverage from Agent attempts", async () => {
     const root = await temporaryRoot();
     const provider = new EvaluationTestProvider();
@@ -433,7 +481,10 @@ describe("Core Loop batch preflight and evaluation", () => {
     });
     expect(reviewResult.checkpoint.status).toBe("STOP_OR_RETHINK");
     await expect(
-      readFile(path.join(execution.batchDirectory, "evidence", "batch-review-result.json"), "utf8"),
+      readFile(
+        path.join(execution.batchDirectory, "_internal", "evidence", "batch-review-result.json"),
+        "utf8",
+      ),
     ).resolves.toContain("COMPILE_PASS_BUT_REVIEW_REJECTED");
   });
 

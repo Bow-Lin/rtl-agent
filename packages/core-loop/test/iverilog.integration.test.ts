@@ -71,6 +71,13 @@ describe("real fixed Icarus profile", () => {
       { "rtl/dut.sv": "module dut; missing_module instance(); endmodule\n" },
       "dut",
     ],
+    [
+      "procedural assignment to an implicit wire",
+      {
+        "rtl/dut.sv": "module dut(input logic in, output out); always_comb out = in; endmodule\n",
+      },
+      "dut",
+    ],
   ] as const)("classifies %s as a repairable compile error", async (_label, sources, top) => {
     const { result } = await compile(sources, top);
     expect(result.status).toBe("COMPILE_ERROR");

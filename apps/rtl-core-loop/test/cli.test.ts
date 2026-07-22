@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -174,13 +174,129 @@ describe("rtl-core-loop CLI boundary", () => {
         ok: true,
         result: {
           status: "COMPLETED",
-          metrics: { overall: { evaluationDenominator: 1 } },
+          caseCount: 1,
+          claim: "COMPILE_ONLY",
         },
       });
       expect(output[0]).not.toContain(root);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    {
+      arguments: [
+        "evaluate",
+        "--profile",
+        "evaluation-test-v1",
+        "--begin",
+        "Prob001",
+        "--end",
+        "Prob002",
+      ],
+      expectedCaseIds: ["Prob001_zero", "Prob002_one"],
+    },
+    {
+      arguments: ["evaluate", "--profile", "evaluation-test-v1", "--cases", "Prob010,Prob001"],
+      expectedCaseIds: ["Prob001_zero", "Prob010_ten"],
+    },
+  ])("runs a derived profile for selectable evaluation cases", async (example) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-core-loop-cli-selection-"));
+    try {
+      const provider = new EvaluationTestProvider([
+        {
+          caseId: "Prob001_zero",
+          fixtureId: "prob-001",
+          category: "BLANK_GENERATION",
+        },
+        {
+          caseId: "Prob002_one",
+          fixtureId: "prob-002",
+          category: "BLANK_GENERATION",
+        },
+        {
+          caseId: "Prob010_ten",
+          fixtureId: "prob-010",
+          category: "BLANK_GENERATION",
+        },
+      ]);
+      const profile = await testEvaluationProfile(provider);
+      const agent = new ScriptedAgentAdapter([
+        { outcome: "NO_RTL_CHANGE" },
+        { outcome: "NO_RTL_CHANGE" },
+      ]);
+      const output: string[] = [];
+      const errors: string[] = [];
+      const exitCode = await runRtlCoreLoopCli(
+        example.arguments,
+        provider,
+        (line) => output.push(line),
+        (line) => errors.push(line),
+        {},
+        process.cwd(),
+        {
+          profiles: [profile],
+          providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+          agentAdapter: agent,
+          compilerAdapter: new ScriptedCompilerAdapter([]),
+          batchesRoot: path.join(root, "batches"),
+        },
+      );
+
+      expect(exitCode).toBe(0);
+      expect(errors).toEqual([]);
+      expect(agent.inputs.map((input) => input.runId)).toHaveLength(2);
+      const result = JSON.parse(output[0]!) as {
+        result: { batchId: string; caseCount: number; batchDirectory: string };
+      };
+      expect(result.result.batchId).toMatch(/^b-[0-9]{8}-[0-9]{3}$/);
+      expect(result.result.caseCount).toBe(2);
+      expect(result.result.batchDirectory).toContain(result.result.batchId);
+      expect(agent.inputs).toHaveLength(example.expectedCaseIds.length);
+      await expect(
+        readFile(path.join(root, "knowledge", "observed-issues.md"), "utf8"),
+      ).resolves.toContain(`<!-- batch:${result.result.batchId} -->`);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects mixed range and explicit-list selection before any Agent turn", async () => {
+    const provider = new EvaluationTestProvider();
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter([]);
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      [
+        "evaluate",
+        "--profile",
+        profile.evaluationProfileId,
+        "--begin",
+        "case/001",
+        "--end",
+        "case/001",
+        "--cases",
+        "case/001",
+      ],
+      provider,
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [profile],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+        agentAdapter: agent,
+        compilerAdapter: new ScriptedCompilerAdapter([]),
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(agent.inputs).toHaveLength(0);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: { code: "EVALUATION_PROFILE_INVALID" },
+    });
   });
 
   it("fails closed when evaluate has no registered profile", async () => {

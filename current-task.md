@@ -14,7 +14,57 @@ The operator selected NVlabs VerilogEval v2 and ChipBench without submodules. Re
 
 ChipBench exposes 45 generation cases as `BLANK_GENERATION` and 178 prompt-embedded debugging cases as `PROMPTED_FUNCTIONAL_REPAIR`. The latter remains a separate compile-only metric category: compile success does not prove the timing, assignment, arithmetic, or state-machine bug was functionally repaired.
 
-A real checkpoint batch cannot run until the operator records the final license-review disposition and registers a versioned evaluation profile with its case selection, capabilities, thresholds, and human-review rule.
+The restricted OpenCode `1.18.2` Agent is now locally configured for
+`kimi-code/kimi-for-coding`. The direct CLI safely loads an allowlisted root `.env`/`.env.local`
+configuration and keeps the credential out of inline configuration and capability evidence. Only
+the standard `KIMI_CODE_API_KEY` credential name is accepted. A static probe and one live Kimi
+blank-generation turn passed on Windows. Root `test_connection.ts` provides a minimal direct
+subscription check with sufficient output budget for model reasoning and reports the returned
+answer plus bounded finish/token metadata. It reports HTTP acceptance and non-empty-answer validity
+separately, and exits unsuccessfully when a 2xx response contains no usable answer.
+
+The direct CLI now registers the generic `verilog-eval-kimi-v1` template. Each invocation must
+select either an inclusive `--begin/--end` range or a `--cases` list. Both forms resolve
+case-insensitive unambiguous prefixes to complete IDs, canonicalize them in the pinned Provider
+order, and derive a concrete profile identity/digest before any model turn. The v1 template uses
+one Agent attempt per case.
+
+A real local generation and functional-simulation batch can now run from an explicit VerilogEval
+range/list. The same `evaluate` command performs generation, candidate compilation, hidden
+reference/testbench compilation, `vvp` simulation, and mismatch classification. New batches use
+short daily IDs, publish generated modules under `rtl/<case-id>/`, and keep detailed evidence/runs
+under `_internal/`. A checkpoint claim remains blocked until the operator records the final
+license-review disposition, executes the resolved profile, and completes its predeclared human
+review.
+
+Stable RTL generation advice now lives in the versioned
+`.opencode/skills/rtl-core-loop/common-guidance.md` checklist. The adapter injects the full
+Compile/Logic/Safety guidance into every generation or repair prompt and locks its digest into the
+Agent capability and per-turn evidence. The guide is methodology-only and contains no case-specific
+reference or hidden testbench information.
+
+Every dataset evaluation now appends its observed compile, functional, infrastructure, and not-run
+outcomes to ignored runtime knowledge at `.rtl-agent/knowledge/observed-issues.md`. A functional
+mismatch triggers an additional restricted Kimi diagnosis turn using only the public specification,
+candidate RTL, total mismatch count, and parsed public-output mismatch counts/first times. The
+diagnosis must select a concrete root-cause category, cite candidate/specification lines, and state
+confidence and limitations; hidden reference/testbench assets remain unavailable. Complete analysis
+stays under `_internal/mismatch-analysis/`; `observed-issues.md` retains only one category/confidence/
+root-cause conclusion per mismatched case. `common-guidance.md` is never updated by this workflow and
+changes only after an explicit operator request to promote observations into guidance.
+
+The first complete local Prob001–Prob156 Kimi run is summarized in
+`exp_result/verilog-eval/07.21-baseline.md`. After replacing the interrupted Prob071–Prob100 segment with its
+successful rerun, 119 of 156 unique cases functionally passed. Two cases are separated from ordinary
+model outcomes: Prob040 was not executed after the historical classifier stop, and Prob099 has a
+testbench port mismatch against both the public/reference interface and candidate.
+
+Functional summaries now reserve `functionalFailed` for genuine nonzero simulated mismatches and
+report verification compile/process/timeout/output failures separately as `verificationInvalid`.
+Any verification-invalid result makes the CLI return `INVALID`/`ok: false`. Historical evidence
+without `outputMismatches` or `verificationInvalid` remains readable. The operator accepts direct
+host `vvp` execution for this local non-authoritative benchmark; no production or formal-Gate
+sandbox claim is made.
 
 ## Locked Implementation Boundaries
 
@@ -25,26 +75,37 @@ A real checkpoint batch cannot run until the operator records the final license-
 - every compile preparation is evidence; compile results exist only when the compiler was invoked.
 - strict `FinalResult` is written last only for evidence-complete runs with a trustworthy final RTL manifest.
 - invalid fixtures and incomplete runs remain batch-level records rather than new R01 final outcomes.
-- all results remain `authoritative: false` and `claim: "COMPILE_ONLY"`.
+- strict per-run results remain `authoritative: false` / `COMPILE_ONLY`; VerilogEval adds a separate
+  non-authoritative `FUNCTIONAL_SIMULATION` batch result without claiming a formal Gate.
 
 ## Validation Baseline
 
 - lint, typecheck, build, format, peer dependency, frozen-install, package, and full-repository checks pass.
 - Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
-- thin CLI tests: 1 file and 6 tests passed.
-- full repository: 27 files passed / 1 skipped; 199 tests passed / 2 skipped.
+- thin CLI/profile-selection tests: 3 files and 18 tests passed.
+- full repository: 33 files passed / 1 skipped; 230 tests passed / 2 skipped.
 - real Icarus integration: 2 files and 6 tests passed, including synthetic R04 baseline/repair/final-recompile composition.
 - real OpenCode 1.18.2 static probe and two live restricted-Agent smoke tests pass.
+- Kimi Code `kimi-for-coding` static probe and one live restricted-Agent blank-generation turn pass
+  with the key loaded only from ignored local environment files.
 - the pinned VerilogEval archive prepared successfully; `fixtures-check` validates the locked manifest and reports 156 `spec-to-rtl` cases.
+- real Icarus/vvp checks against existing Kimi-generated Prob001 and Prob002 candidates passed with
+  `0/20` and `0/100` mismatched samples respectively; no model request was made.
+- source-bound Icarus errors such as Prob071's invalid procedural assignment now classify as
+  `COMPILE_ERROR`; real-Icarus and batch-continuation regressions prove they no longer stop later
+  cases as infrastructure-invalid.
+- deterministic Agent tests prove the complete common-guidance guide is present in every turn prompt
+  and that guide changes alter the locked capability digest.
 - the pinned ChipBench archive prepared successfully; its check validates the 683-file manifest and reports 45 generation plus 178 debugging cases across 11 splits.
 - Windows checkout now keeps `.mjs` configuration files at LF, so the same Prettier check is stable on `windows-latest`.
 
-These are mechanics checks only. Real Linux execution remains unavailable and no formal Gate, functional-correctness, dataset capability, or checkpoint claim is permitted.
+These are non-authoritative benchmark mechanics checks. Real Linux execution remains unavailable
+and no formal Gate, production-readiness, full-dataset capability, or checkpoint claim is permitted.
 
 ## Current Plan
 
-1. Choose the locked VerilogEval or ChipBench selection and record the operator's final MIT/license-review disposition.
-2. Register a versioned evaluation profile locking the selected Provider digest, ordered case selection, Agent/compiler capabilities, thresholds, and review rule.
+1. Choose a VerilogEval range/list and record the operator's final MIT/license-review disposition.
+2. Resolve the operator's requested `verilog-eval-kimi-v1` range/list and inspect the derived profile evidence.
 3. Execute the real batch, complete the predeclared human review, fill the report, and record exactly one checkpoint recommendation.
 
 ## External Completion Requirement
@@ -53,4 +114,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-20T10:35:00+08:00
+2026-07-22T15:10:00+08:00

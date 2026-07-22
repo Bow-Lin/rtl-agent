@@ -443,3 +443,202 @@ R04 may report only non-authoritative `COMPILE_ONLY` outcomes for this category.
 ### Consequences
 
 ChipBench now supplies 45 generation and 178 prompted-debugging cases without a submodule. The adapter identity advances to `v2.0.0`, dataset cache version to `c74fe7d28-r2`, and the committed lock becomes `core-loop/fixtures/chipbench.lock.json`. Functional correctness still requires a future Linux simulation Gate or another explicitly designed functional-validation profile.
+## 2026-07-20 - Connect the Restricted OpenCode Agent to Kimi Code
+
+### Context
+
+The operator provided a Kimi Code subscription API key in the repository-root `.env` file. R02
+previously accepted only an externally configured OpenCode provider/model and had no repository CLI
+boundary for loading local credentials. Provider credentials must not enter the inline OpenCode
+configuration, capability digests, shared evidence, or version control.
+
+### Decision
+
+Configure a custom OpenCode provider named `kimi-code` with the official OpenAI-compatible base URL
+`https://api.kimi.com/coding/v1`, the `@ai-sdk/openai-compatible` adapter, and the model IDs
+`kimi-for-coding`, `kimi-for-coding-highspeed`, and `k3`. The locked local model is
+`kimi-code/kimi-for-coding`.
+
+The direct `rtl-core-loop` CLI loads only an explicit allowlist of Agent settings from root `.env`
+and `.env.local`; inherited process variables retain precedence. The only accepted credential name
+is `KIMI_CODE_API_KEY`. OpenCode receives the key only through its child environment, while inline
+configuration contains the literal `{env:KIMI_CODE_API_KEY}` reference. The provider declaration,
+but never the key value, participates in the experiment digest.
+
+Keep the native OpenCode executable/version/model in ignored `.env.local`. The local Windows
+installation remains OpenCode `1.18.2`, matching the existing R02 lock. Other hosts must supply
+their own native executable path; no Windows path is committed to manifests or shared evidence.
+
+### Consequences
+
+The repository CLI can probe and run the existing restricted Agent with Kimi Code without changing
+its deny-by-default tool boundary or retaining raw model content. Missing Kimi credentials fail
+closed with `OPENCODE_NOT_CONFIGURED`. The local credential and host executable settings remain
+untracked. Kimi live smoke remains mechanics evidence only and does not supply R04 dataset,
+functional-correctness, formal-Gate, or Linux-readiness evidence.
+## 2026-07-20 - Derive VerilogEval Kimi Profiles from Explicit Case Selectors
+
+### Context
+
+A profile named for a fixed first-ten selection would make routine generation unnecessarily rigid.
+Allowing arbitrary CLI ranges without resolving them into the profile, however, would weaken R04:
+the denominator and ordered case identity must be fixed before the first model turn.
+
+### Decision
+
+Register `verilog-eval-kimi-v1` as a generic local profile template. Require direct invocations to
+provide exactly one selection form:
+
+- inclusive range: `--begin <case> --end <case>`
+- explicit list: `--cases <case,...>`
+
+Selectors accept full case IDs or case-insensitive unambiguous prefixes such as `prob001`. Range
+order follows the pinned Provider catalog, not numeric or ad hoc string sorting. Explicit lists are
+deduplicated and canonicalized into the same Provider order. Missing, ambiguous, duplicate,
+reversed, partially specified, and mixed selections fail before any model turn.
+
+Resolve the selection into full case IDs, count, and ordered selection digest. Derive a concrete
+profile ID from the base profile plus resolved case IDs, so capability or profile drift also changes
+the derived identity. The complete resolved `EvaluationProfile` is written as batch evidence before
+execution.
+
+The v1 template probes and locks the current restricted
+`kimi-code/kimi-for-coding` Agent and fixed Icarus capability, uses one Agent attempt per case, and
+retains non-authoritative `COMPILE_ONLY` semantics with review required for confirmed passes.
+Invoking the generic direct profile without an explicit selector is rejected to prevent an
+accidental 156-case batch.
+
+### Consequences
+
+Operators can choose repeatable continuous or sparse subsets without creating a new source-level
+profile for each range. The base CLI name remains stable while every resolved batch has a distinct
+profile identity and digest. Selection flexibility does not imply functional verification or a
+checkpoint result; no real dataset batch is executed merely by resolving the profile.
+
+## 2026-07-21 - Complete VerilogEval Functional Simulation Inside `evaluate`
+
+### Context
+
+The initial Core Loop stopped after candidate elaboration and stored user-facing RTL inside UUID
+run directories alongside several evidence trees. That did not exercise VerilogEval's locked
+reference/testbench or provide a convenient output directory for generated modules.
+
+### Decision
+
+Keep `evaluate` as the complete operator workflow. After an independently confirmed candidate
+compile pass, copy the candidate into a private verification sandbox, materialize the pinned
+VerilogEval reference/testbench there, compile all three with Icarus, run `vvp`, and parse the
+dataset's final mismatch summary. Require normal compile/simulation exits, exactly one summary, a
+positive sample count, and zero mismatches for `PASSED`.
+
+Do not expose reference/testbench files to the Agent. Preserve each run's strict
+`authoritative: false` / `COMPILE_ONLY` evidence, and add a separate non-authoritative
+`FUNCTIONAL_SIMULATION` batch result. This benchmark result is not a formal RTL Gate and does not
+establish Linux production readiness.
+
+Allocate new batches as atomic daily sequences (`b-YYYYMMDD-NNN`), while accepting legacy UUID
+identities for historical evidence. Publish only `summary.json` and generated sources under
+`rtl/<case-id>/`; place evidence, runs, staging, and verification inputs below `_internal/`. Print
+the concise summary at the CLI and retain full details internally.
+
+### Consequences
+
+One `evaluate` invocation now performs generation, candidate compile, hidden verification compile,
+simulation, and mismatch classification. Operators can inspect generated modules without navigating
+run UUIDs, while forensic evidence remains available but visually separated. A standalone
+`verify` command remains intentionally deferred.
+
+## 2026-07-22 - Inject Versioned Common Guidance Into Every RTL Turn
+
+### Context
+
+Completed VerilogEval batches exposed repeated, generalizable failure patterns: procedural
+assignment to nets, enum-valued ternary expressions rejected by Icarus, incomplete FSM discipline,
+cycle-boundary mistakes, priority errors, and missing compile units. Keeping these observations
+only in batch evidence does not help later model turns, while adding case-specific reference
+behavior would leak evaluation answers.
+
+### Decision
+
+Maintain a repository-owned `.opencode/skills/rtl-core-loop/common-guidance.md` organized into
+Compile, Logic, Safety, and final self-check sections. Include only reusable RTL methodology; do not
+include case IDs, reference implementations, hidden testbench behavior, or expected outputs.
+
+The OpenCode adapter reads the bounded UTF-8 file before every turn and appends its complete content
+to the fixed invocation prompt. Record `guidanceFileDigest` in the probed Agent capability and each
+turn result. Evaluation profiles therefore lock the exact guidance version, and capability drift
+fails before candidate compilation.
+
+### Consequences
+
+Every generation and repair turn receives the same explicit checklist even if the optional skill
+tool is not loaded. Updating the guide intentionally changes the Agent capability/profile identity.
+Prompt guidance reduces recurring errors but is not an enforcement or sandbox boundary; the
+separate untrusted-vvp execution finding remains unresolved.
+
+## 2026-07-22 - Separate Automatic Observations From Explicit Guidance Promotion
+
+### Context
+
+The prompt checklist mixed directly observed failures with general RTL advice. Automatically
+rewriting that prompt after every batch would make guidance noisy, mutate profile identity without
+human intent, and allow a single case-specific observation to affect later generation. Conversely,
+recording a nonzero mismatch as an unknown logic error provides no actionable knowledge.
+
+### Decision
+
+Rename the versioned prompt input to
+`.opencode/skills/rtl-core-loop/common-guidance.md`. It remains digest-locked and may change only
+after an operator explicitly asks the Agent to review `observed-issues.md` and update the guidance.
+No dataset evaluation path writes this file.
+
+After every dataset evaluation, atomically append one idempotent batch section to ignored runtime
+knowledge at `.rtl-agent/knowledge/observed-issues.md`. Record structured compiler observations,
+functional outcomes, infrastructure failures, and not-run counts. A VerilogEval mismatch requires
+a separate restricted diagnosis Agent turn. That turn receives only the public specification,
+candidate RTL, case identity, and mismatch totals; hidden reference/testbench assets are neither
+materialized nor readable in its workspace. Require a concrete category, root-cause hypothesis,
+candidate RTL citation, confidence, and limitations. Reject generic or malformed diagnoses with
+`MISMATCH_ANALYSIS_FAILED`; do not write `LOGIC_MISMATCH_UNKNOWN`.
+
+Parse the existing bounded testbench hints into public output-port mismatch counts and first
+mismatch times and include those structured observations in the private diagnosis input. Retain the
+complete analysis only below `_internal/mismatch-analysis/<run-id>/`. Publish exactly one concise
+category/confidence/root-cause conclusion for the case in `observed-issues.md`; do not copy detailed
+evidence, limitations, model output, reference signals, or testbench contents into the journal.
+
+### Consequences
+
+Observed evidence accumulates automatically without dirtying the Git worktree, while prompt changes
+remain deliberate and reproducible. Each mismatch consumes one additional model request and the
+diagnosis is an evidence-grounded hypothesis rather than formal proof. Guidance promotion affects
+only subsequent profiles/batches because the existing guidance digest remains locked for the
+entire active batch.
+
+## 2026-07-22 - Separate Functional Mismatches From Verification Invalidity
+
+### Context
+
+The first full VerilogEval run exposed a combined candidate/reference/testbench compile failure for
+Prob099. The evaluator counted that verification-interface failure as `functionalFailed` and kept
+the batch `COMPLETED`, making the concise result indistinguishable from a genuine simulated logic
+mismatch. Historical schema-version-1 evidence also predates per-output mismatch details.
+
+### Decision
+
+Reserve `functionalFailed` for cases whose simulation completed normally and reported a nonzero
+mismatch total. Count verification compile errors, simulation process failures, timeouts, and
+unparseable output in `verificationInvalid`. Any nonzero `verificationInvalid` makes the functional
+result and CLI status `INVALID`; candidate-only compile failures remain `functionalNotRun`.
+
+Keep schema version 1 readable by making per-case `outputMismatches` optional and defaulting a
+missing aggregate `verificationInvalid` to zero. New evidence always writes both fields. The
+operator explicitly accepts direct host execution of local `vvp` images for this
+non-authoritative benchmark workflow, so no sandbox change is made. This acceptance does not apply
+to a formal RTL Gate or establish production/Linux readiness.
+
+### Consequences
+
+Concise summaries no longer inflate model logic failures with broken verification infrastructure,
+and downstream readers can distinguish retry/fix-the-fixture work from RTL quality. Old evidence
+remains parseable, while local simulation retains the documented host-execution risk.

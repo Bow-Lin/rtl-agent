@@ -12,6 +12,9 @@ Start from the exact top-module name, ports, clock/reset semantics, and behavior
 in `spec.md`. Read every source path listed in `context/agent-input.json` before
 editing seeded RTL.
 
+The turn prompt includes the version-locked `common-guidance.md` checklist. Apply
+it before writing RTL, while keeping the task specification authoritative.
+
 For generation, create the smallest clear synthesizable implementation. For
 repair, use structured compiler issues to make a local correction and preserve
 unrelated behavior. Give combinational logic complete assignments. Make clock

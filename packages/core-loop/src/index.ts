@@ -21,10 +21,13 @@ export * from "./fixture-provider.js";
 export * from "./include-scanner.js";
 export * from "./manifest.js";
 export * from "./materialize.js";
+export * from "./mismatch-analyzer.js";
+export * from "./observed-issues.js";
 export * from "./output.js";
 export * from "./run-orchestrator.js";
 export * from "./verilog-eval-lock.js";
 export * from "./verilog-eval-prepare.js";
 export * from "./verilog-eval-provider.js";
+export * from "./verilog-eval-simulation.js";
 
 export const packageVersion = "0.0.0" as const;

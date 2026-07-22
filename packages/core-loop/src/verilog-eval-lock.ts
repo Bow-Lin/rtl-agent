@@ -50,7 +50,7 @@ export const VERILOG_EVAL_DATASET_LOCK = Object.freeze({
   expectedFileCount: 472,
   expectedCaseCount: 156,
   providerImplementationDigest: Sha256DigestSchema.parse(
-    "sha256:7f5e3e3433aa69deb2479bae31fc12d002b91b5b6ee5349905dcf3262001e28b",
+    "sha256:d25e8f96621cc1aa39ce740a45e42f3b13dcf5ef124e25c9ac3cc250b56ed682",
   ),
   datasetDirectory: "dataset_spec-to-rtl",
   problemsFile: "dataset_spec-to-rtl/problems.txt",

@@ -113,6 +113,7 @@ describe("fixed Icarus compile adapter", () => {
     const request = await workspace.request();
     for (const [stderr, expected] of [
       ["rtl/dut.sv:1: syntax error\n", "COMPILE_ERROR"],
+      ["rtl/dut.sv:1: error: pos is not a valid l-value in dut.\n", "COMPILE_ERROR"],
       ["compiler returned an unknown failure\n", "TOOL_ERROR"],
       ["error: compiler configuration is unavailable\n", "TOOL_ERROR"],
       ["ivl: internal error\n", "TOOL_ERROR"],

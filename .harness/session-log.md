@@ -1250,3 +1250,234 @@ state-machine bug was functionally repaired.
   the affected 18-test file passed with one worker and the independent aggregate rerun then passed
   all 205 tests.
 - no model batch, functional simulation, formal Gate, or Linux-readiness claim was made.
+## Entry: Configure the Restricted Agent for Kimi Code
+
+### Summary
+
+Connected the existing R02 OpenCode boundary to Kimi Code through its official OpenAI-compatible
+API. Root local environment files now supply the credential and host-specific OpenCode settings to
+the direct CLI without committing or serializing the key.
+
+### Changes
+
+- added the `kimi-code` custom provider at `https://api.kimi.com/coding/v1`
+- locked the local model to `kimi-code/kimi-for-coding`
+- retained the existing official native Windows OpenCode `1.18.2` capability lock
+- added allowlisted `.env` and `.env.local` loading at the direct CLI boundary
+- mapped the existing legacy `kimi` variable to `KIMI_CODE_API_KEY` in memory
+- passed the secret through the child environment while storing only
+  `{env:KIMI_CODE_API_KEY}` in inline configuration
+- added fail-closed missing-key and no-secret-serialization tests
+- ignored both local environment files; `.env.local` contains only host/model settings and `.env`
+  retains the operator-owned key
+
+### Validation
+
+- targeted typecheck and 21 environment/Agent adapter tests: passed
+- native OpenCode static probe: passed for version `1.18.2` and
+  `kimi-code/kimi-for-coding`
+- one explicit live Kimi blank-generation turn: passed with `RTL_CHANGED` and a compile-eligible
+  workspace in 58.61 seconds
+- the separate denied-write live smoke was intentionally skipped for this single-turn check
+- full regression: format, lint, typecheck, build, and Harness passed; 29 test files passed /
+  1 skipped and 208 tests passed / 2 skipped
+- no raw model output, key value, dataset metric, functional-correctness, formal-Gate, or
+  Linux-readiness claim was retained
+
+## Entry: Remove the Legacy Kimi Credential Alias
+
+Removed the lowercase `kimi` compatibility mapping after the operator renamed the local variable.
+Repository environment loading now accepts only `KIMI_CODE_API_KEY`; a regression test proves that
+a lowercase `kimi` value is ignored and does not enter the child environment. Format, lint,
+typecheck, build, 208 ordinary tests, static Kimi/OpenCode probe, diff check, and Harness check
+passed; no additional live model turn was executed.
+
+## Entry: Add a Direct Kimi Code Connection Test
+
+Added root `test_connection.ts`. The script reads only `KIMI_CODE_API_KEY` from ignored `.env`,
+sends a bounded request to the official Kimi Coding OpenAI-compatible chat-completions endpoint,
+sanitizes API errors, never prints the credential, and succeeds only when the HTTP request is
+accepted and the response contains a non-empty final answer.
+
+Validation passed with Prettier, ESLint, TypeScript, and one live request returning
+`model: kimi-for-coding`, `answer: KIMI_SUBSCRIPTION_OK`.
+
+### Follow-up
+
+An operator run returned HTTP 200 with an empty final `content`. The original 64-token completion
+cap was too small for a thinking-enabled coding model and could exhaust the final-answer budget.
+Raised the cap to 512 and added safe `finishReason`/`completionTokens` output. An attempted explicit
+temperature was rejected by the model and removed; the API default is used. The final live rerun
+passed with `finishReason: stop`, 36 completion tokens, and the exact expected marker.
+## Entry: Add Selectable VerilogEval Kimi Profiles
+
+### Summary
+
+Added the generic `verilog-eval-kimi-v1` direct profile with two mutually exclusive selection
+forms: inclusive `--begin/--end` ranges and comma-separated `--cases` lists. Every request resolves
+to complete case IDs and a concrete derived profile before any model turn.
+
+### Selection and Identity
+
+- full case IDs and case-insensitive unambiguous prefixes such as `prob001` are accepted
+- ranges follow pinned Provider order and include both endpoints
+- explicit lists are canonicalized to pinned Provider order
+- missing, ambiguous, duplicate, reversed, partial, and mixed selectors fail closed
+- the derived profile ID incorporates the base profile/capability content and resolved case IDs
+- the selection count, ordered case digest, Agent capability, compiler capability, and complete
+  resolved profile are locked before execution
+- direct use without an explicit selector is rejected to prevent an accidental 156-case batch
+- v1 uses one Agent attempt per case and remains non-authoritative `COMPILE_ONLY`
+
+### Validation
+
+- real static profile construction: 156-case base, `Prob001..Prob010` expanded to the expected 10
+  cases, and unordered `Prob010,Prob001,Prob005` canonicalized to `Prob001,Prob005,Prob010`
+- real OpenCode `1.18.2` / `kimi-code/kimi-for-coding` and Icarus 12.0 capabilities locked during
+  static construction
+- production CLI reversed-range check returned stable `EVALUATION_PROFILE_INVALID` with exit 2
+  before any model turn
+- CLI/profile-selection package: 3 files and 18 tests passed
+- full repository: 30 files passed / 1 skipped; 218 tests passed / 2 skipped
+- format, lint, typecheck, build, peer dependency, diff, and Harness checks passed
+- no real VerilogEval model batch was executed and no subscription quota was intentionally consumed
+  by a model turn
+
+## Entry: Add In-Command VerilogEval Functional Simulation and Clean Batch Layout
+
+Kept `evaluate` as the complete workflow and added the post-generation VerilogEval steps: only an
+independently compile-passed candidate is combined with the locked hidden reference/testbench,
+compiled with Icarus, run with `vvp`, and classified from one bounded mismatch summary. Reference
+and testbench files remain outside Agent workspaces and user-facing RTL output. Strict run results
+remain `COMPILE_ONLY`; the new aggregate is explicitly non-authoritative
+`FUNCTIONAL_SIMULATION`, not a formal Gate.
+
+New batches use atomically allocated `b-YYYYMMDD-NNN` IDs. Generated RTL is published under
+`rtl/<case-id>/`, a concise `summary.json` is stored at the root, and evidence/runs/staging/private
+verification inputs live under `_internal/`. Legacy UUID batch IDs remain schema-compatible.
+
+Validation passed with build, ESLint, and the complete ordinary suite (31 files passed / 1 skipped;
+220 tests passed / 2 skipped). A no-model real Icarus/vvp run reused the two existing Kimi-generated
+candidates: Prob001 reported 0 mismatches in 20 samples and Prob002 reported 0 in 100 samples.
+
+## Entry: Classify Source-Bound Icarus Errors as Repairable Compile Errors
+
+Diagnosed batch `b-20260721-004`: Prob071 produced a normal candidate RTL error (`pos is not a
+valid l-value`), but the narrow diagnostic phrase allowlist mislabeled it as
+`IVERILOG_UNCLASSIFIED_FAILURE`. Because `TOOL_ERROR` is infrastructure-invalid, the batch stopped
+and marked Prob071 plus Prob072–Prob100 as functional not-run.
+
+The parser now treats any error safely bound to a current workspace RTL source as a design error,
+while unbound tool/configuration messages and internal compiler failures remain fail-closed. Added
+parser and adapter coverage for the exact l-value form, a real-Icarus implicit-wire regression, and
+a two-case batch regression proving an exhausted ordinary compile error does not prevent the next
+case from running.
+
+Validation passed with build, lint, format, 22 targeted parser/adapter/batch tests, 7 real-Icarus
+integration tests, and the full ordinary suite (31 files passed / 1 skipped; 222 tests passed /
+2 skipped). The first aggregate run hit the already documented host-contention failure when an
+unrelated five-case batch test took 15.228 seconds against its 15-second limit; the isolated
+supported aggregate rerun passed all assertions.
+
+## Entry: Feed Common Compile and Logic Issues Into Every RTL Prompt
+
+Added `.opencode/skills/rtl-core-loop/common-issues.md` with reusable Compile, Logic, Safety, and
+self-check guidance derived from observed VerilogEval failure classes. It covers procedural-net
+assignments, Icarus enum ternary casts, combinational coverage, single-driver discipline, FSM/reset
+structure, priority, edges, counters, widths, and prohibited external side effects without
+including any case-specific reference answer or hidden testbench behavior.
+
+The OpenCode adapter now reads and bounds the UTF-8 guide before every turn and appends its full
+content directly to the fixed prompt, so loading the optional skill is not required. Added
+`guidanceFileDigest` to capability and turn evidence; profile locking and per-turn capability checks
+therefore detect guidance changes. Prompt guidance is not treated as a replacement for the still
+missing OS sandbox around untrusted `vvp` execution.
+
+Validation passed with `npm run build`, `npm run lint`, `npm run format:check`, and the full ordinary
+suite (31 files passed / 1 skipped; 223 tests passed / 2 skipped). Deterministic adapter tests verify
+the guide is present in the actual OpenCode prompt argv and that changing only the guide changes its
+locked digest. No live model request was made.
+
+## Entry: Separate Automatic Observations From Explicit Prompt Guidance
+
+Renamed the versioned prompt input to
+`.opencode/skills/rtl-core-loop/common-guidance.md`. Generation and repair turns still receive its
+complete digest-locked content, but no evaluation code writes it. Updating prompt guidance now
+requires an explicit operator request to review and promote items from observed evidence.
+
+Every completed dataset evaluation atomically and idempotently appends a batch section to ignored
+runtime knowledge at `.rtl-agent/knowledge/observed-issues.md`. It records structured compile
+diagnostics, functional outcomes, infrastructure failures, and not-run counts. Each nonzero
+VerilogEval mismatch starts an additional restricted `rtl-mismatch-analyzer` model turn with only
+the public specification, candidate RTL, and mismatch totals. The analyzer must return a concrete
+root-cause category, explanation, candidate/spec line citations, confidence, and limitations.
+Generic, malformed, missing, or protected-input-mutating diagnoses fail with
+`MISMATCH_ANALYSIS_FAILED`; `LOGIC_MISMATCH_UNKNOWN` is never recorded. Hidden reference and
+testbench assets are not copied into the diagnosis workspace. Each mismatch therefore consumes one
+additional model request, and its diagnosis remains a hypothesis rather than formal proof.
+
+Validation passed with build, ESLint, Prettier, 37 focused tests, and the full ordinary suite
+(33 files passed / 1 skipped; 229 tests passed / 2 skipped). Tests cover idempotent journaling,
+compile and logic sections, rejection without a concrete analyzer, rejection of generic diagnoses,
+protected spec mutation, CLI-created runtime journals, and unchanged generation-prompt injection.
+No live Kimi request was made.
+
+### Follow-up: Keep Detailed Diagnosis Private and Journal Only the Conclusion
+
+Extended functional parsing to extract the existing testbench's per-public-output mismatch counts
+and first-mismatch times. The restricted diagnosis Agent now receives these structured observations
+alongside the public specification, candidate RTL, and total mismatch count. Full diagnosis JSON,
+line citations, confidence, limitations, Agent digest, and resolved permission digest remain under
+`_internal/mismatch-analysis/<run-id>/`.
+
+The generated `observed-issues.md` now emits exactly one mismatch conclusion per affected case:
+category, confidence, and the concrete root-cause sentence. It no longer copies detailed line
+evidence, limitations, mismatch ratios, testbench hints, or model analysis into the journal. Build,
+ESLint, Prettier, focused simulation/analyzer/journal tests, and the full ordinary suite passed
+(33 files passed / 1 skipped; 229 tests passed / 2 skipped). No live model request was made.
+
+## Entry: Record the Complete VerilogEval Kimi Run
+
+Created `exp_result/verilog-eval/07.21-baseline.md` from the six local batch evidence trees. The report uses
+each Prob001–Prob156 case exactly once: Prob041–Prob070 comes from interrupted batch
+`b-20260721-004`, while its not-run Prob071–Prob100 segment is replaced by completed rerun
+`b-20260721-005`.
+
+The raw unique-case result is 119 functional passes, 21 compile-passed mismatches, 14 model-side
+generation/compile failures, one not-executed case, and one dataset verification-interface error.
+Prob040 was never executed after the historical Prob039 classifier stop. Prob099 is excluded from
+ordinary model outcomes because its testbench expects `Y2/Y4` while the public specification,
+reference, and candidate all expose `Y1/Y3`. The report also records adjusted rates, range-level
+performance, the 12 enum-cast failures, mismatch severity, case lists, runtime, and evidence limits.
+No model request or batch mutation was performed for the report.
+
+## Entry: Separate Logic Mismatches From Verification Invalidity
+
+Corrected the functional aggregate so `functionalFailed` counts only completed simulations with a
+nonzero mismatch total. Verification compile errors, simulation process errors, timeouts, and
+unparseable output now increment `verificationInvalid`; any such outcome makes the functional
+result and CLI `INVALID`/`ok: false`. Candidate generation or candidate-only compile failures remain
+`functionalNotRun`.
+
+Schema-version-1 evidence remains readable: `outputMismatches` is optional and a missing
+`verificationInvalid` defaults to zero, while all new evidence writes both values. The operator
+explicitly accepted direct host execution of local `vvp` images, so no sandbox change was made; the
+risk remains excluded from production and formal-Gate claims. Targeted functional simulation tests
+passed, including the verification-compile-error and historical-evidence regressions. No model
+request was made.
+
+The follow-up guarded commit review found no remaining P1/P2. Typecheck, ESLint, the full ordinary
+suite (33 files passed / 1 skipped; 230 tests passed / 2 skipped), build, Prettier, diff check, and
+Harness check all passed before landing the reviewed work on `master`.
+
+Validation passed with typecheck, ESLint, build, Prettier, diff check, Harness check, 19 focused
+simulation/journal/analyzer/CLI tests, and the full ordinary suite (33 files passed / 1 skipped;
+230 tests passed / 2 skipped).
+
+## Entry: Reject Empty Kimi Connection Answers
+
+Resolved the guarded commit review finding in `test_connection.ts`. HTTP acceptance and usable
+answer validation are now reported independently as `httpOk` and `answerOk`; aggregate `ok` is true
+only when both are true. A 2xx response with missing or empty final content now prints `ok: false`
+and exits nonzero. Typecheck, ESLint, Prettier, diff check, and Harness check passed. No live Kimi
+request was made.

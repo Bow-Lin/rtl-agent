@@ -5,3 +5,6 @@ node_modules/
 **/*.tsbuildinfo
 .rtl-workflow/
 .rtl-agent/
+.env
+.env.local
+exp_result/

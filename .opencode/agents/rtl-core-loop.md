@@ -54,6 +54,10 @@ First read `context/agent-input.json`, then read `spec.md`, every path in
 `rtl-core-loop` skill for RTL methodology, but this protocol applies even if the
 skill is unavailable.
 
+The invocation prompt contains a version-locked common-guidance checklist. Apply
+that checklist to the implementation without treating it as case-specific
+behavior or as a replacement for `spec.md`.
+
 Only create, modify, or delete ordinary `.sv`, `.v`, `.svh`, or `.vh` files
 below `rtl/`. Do not change spec, context, evidence, configuration, fixture, or
 compiler-profile data. Do not invoke shell, web, subagents, MCP, LSP, file

@@ -82,6 +82,7 @@ export const AgentTurnResultSchema = z
     resolvedAgentPermissionDigest: Sha256DigestSchema,
     agentFileDigest: Sha256DigestSchema,
     skillFileDigest: Sha256DigestSchema,
+    guidanceFileDigest: Sha256DigestSchema.optional(),
     experimentConfigDigest: Sha256DigestSchema,
     violations: z.array(AgentWorkspaceViolationSchema).max(512),
     eventStream: OpenCodeEventStreamSummarySchema,
@@ -128,6 +129,7 @@ export const OpenCodeCapabilitySchema = z.strictObject({
   resolvedAgentPermissionDigest: Sha256DigestSchema,
   agentFileDigest: Sha256DigestSchema,
   skillFileDigest: Sha256DigestSchema,
+  guidanceFileDigest: Sha256DigestSchema.optional(),
   experimentConfigDigest: Sha256DigestSchema,
 });
 

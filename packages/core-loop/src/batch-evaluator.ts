@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -52,6 +51,12 @@ const BATCH_CLOCK: RunClock = {
   monotonicNow: () => performance.now(),
 };
 
+export const BATCH_INTERNAL_DIRECTORY = "_internal" as const;
+
+function internalPath(logicalPath: string): string {
+  return `${BATCH_INTERNAL_DIRECTORY}/${logicalPath}`;
+}
+
 export interface EvaluateCoreLoopBatchOptions {
   readonly provider: FixtureProvider | undefined;
   readonly providerImplementationDigest: EvaluationProfile["providerImplementationDigest"];
@@ -80,7 +85,11 @@ export async function writeCoreLoopBatchReview(
   if (result.checkpoint.status === "PENDING_HUMAN_REVIEW") {
     throw new TypeError("Cannot publish an incomplete Core Loop human review sample");
   }
-  await writeJsonEvidenceExclusive(batchDirectory, "evidence/batch-review-result.json", result);
+  await writeJsonEvidenceExclusive(
+    batchDirectory,
+    internalPath("evidence/batch-review-result.json"),
+    result,
+  );
   return result;
 }
 
@@ -90,8 +99,9 @@ interface MaterializedCase {
   readonly run: CoreLoopRun;
 }
 
-export function createBatchId(): BatchId {
-  return BatchIdSchema.parse(`batch_${randomUUID()}`);
+export function createBatchId(now: Date = new Date(), sequence = 1): BatchId {
+  const date = now.toISOString().slice(0, 10).replaceAll("-", "");
+  return BatchIdSchema.parse(`b-${date}-${String(sequence).padStart(3, "0")}`);
 }
 
 function descriptorMatches(actual: DatasetDescriptor, profile: EvaluationProfile): boolean {
@@ -99,7 +109,9 @@ function descriptorMatches(actual: DatasetDescriptor, profile: EvaluationProfile
 }
 
 function caseEvidencePath(caseIndex: number): string {
-  return `evidence/cases/${String(caseIndex + 1).padStart(4, "0")}/case-validation-result.json`;
+  return internalPath(
+    `evidence/cases/${String(caseIndex + 1).padStart(4, "0")}/case-validation-result.json`,
+  );
 }
 
 function materializationFailure(
@@ -183,6 +195,31 @@ async function createBatchDirectory(batchesRoot: string, batchId: BatchId): Prom
   }
 }
 
+async function allocateBatchDirectory(
+  batchesRoot: string,
+  now: Date,
+): Promise<{ readonly batchId: BatchId; readonly batchDirectory: string }> {
+  await mkdir(path.resolve(batchesRoot), { recursive: true });
+  for (let sequence = 1; sequence <= 9_999; sequence += 1) {
+    const batchId = createBatchId(now, sequence);
+    const batchDirectory = path.join(path.resolve(batchesRoot), batchId);
+    try {
+      await mkdir(batchDirectory);
+      return { batchId, batchDirectory };
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { readonly code?: unknown }).code
+          : undefined;
+      if (code !== "EEXIST") throw error;
+    }
+  }
+  throw new CoreLoopException(
+    "BATCH_ALREADY_EXISTS",
+    "Core Loop daily batch sequence is exhausted",
+  );
+}
+
 export async function evaluateCoreLoopBatch(
   options: EvaluateCoreLoopBatchOptions,
 ): Promise<CoreLoopBatchExecution> {
@@ -204,9 +241,22 @@ export async function evaluateCoreLoopBatch(
   const clock = options.clock ?? BATCH_CLOCK;
   const startedAt = clock.now().toISOString();
   const startedMonotonic = clock.monotonicNow();
-  const batchId = options.batchIdFactory?.() ?? createBatchId();
-  const batchDirectory = await createBatchDirectory(options.batchesRoot, batchId);
-  await writeJsonEvidenceExclusive(batchDirectory, "evidence/evaluation-profile.json", profile);
+  const allocated =
+    options.batchIdFactory === undefined
+      ? await allocateBatchDirectory(options.batchesRoot, clock.now())
+      : await (async () => {
+          const batchId = options.batchIdFactory!();
+          return {
+            batchId,
+            batchDirectory: await createBatchDirectory(options.batchesRoot, batchId),
+          };
+        })();
+  const { batchId, batchDirectory } = allocated;
+  await writeJsonEvidenceExclusive(
+    batchDirectory,
+    internalPath("evidence/evaluation-profile.json"),
+    profile,
+  );
 
   let actualAgentCapability;
   let actualCompilerCapability;
@@ -233,12 +283,12 @@ export async function evaluateCoreLoopBatch(
   await Promise.all([
     writeJsonEvidenceExclusive(
       batchDirectory,
-      "evidence/agent-capability.json",
+      internalPath("evidence/agent-capability.json"),
       actualAgentCapability,
     ),
     writeJsonEvidenceExclusive(
       batchDirectory,
-      "evidence/compiler-capability.json",
+      internalPath("evidence/compiler-capability.json"),
       actualCompilerCapability,
     ),
   ]);
@@ -262,10 +312,14 @@ export async function evaluateCoreLoopBatch(
     );
   }
   await Promise.all([
-    writeJsonEvidenceExclusive(batchDirectory, "evidence/dataset-descriptor.json", descriptor),
     writeJsonEvidenceExclusive(
       batchDirectory,
-      "evidence/dataset-selection.json",
+      internalPath("evidence/dataset-descriptor.json"),
+      descriptor,
+    ),
+    writeJsonEvidenceExclusive(
+      batchDirectory,
+      internalPath("evidence/dataset-selection.json"),
       profile.selection,
     ),
   ]);
@@ -280,8 +334,8 @@ export async function evaluateCoreLoopBatch(
         profile: profile.runProfile,
       });
       const run = await createCoreLoopRun(provider, request, {
-        runsRoot: path.join(batchDirectory, "runs"),
-        stagingRoot: path.join(batchDirectory, "staging"),
+        runsRoot: path.join(batchDirectory, BATCH_INTERNAL_DIRECTORY, "runs"),
+        stagingRoot: path.join(batchDirectory, BATCH_INTERNAL_DIRECTORY, "staging"),
       });
       if (
         sha256Jcs(run.fixture.provenance) !== sha256Jcs(expectedProvenance(descriptor, caseRef))
@@ -327,7 +381,7 @@ export async function evaluateCoreLoopBatch(
   );
   await writeJsonEvidenceExclusive(
     batchDirectory,
-    "evidence/batch-input-manifest.json",
+    internalPath("evidence/batch-input-manifest.json"),
     inputManifest,
   );
 
@@ -419,6 +473,10 @@ export async function evaluateCoreLoopBatch(
     metrics,
     checkpoint,
   });
-  await writeJsonEvidenceExclusive(batchDirectory, "evidence/batch-result.json", result);
+  await writeJsonEvidenceExclusive(
+    batchDirectory,
+    internalPath("evidence/batch-result.json"),
+    result,
+  );
   return { batchDirectory, inputManifest, result };
 }

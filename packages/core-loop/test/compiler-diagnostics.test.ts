@@ -45,4 +45,28 @@ describe("Icarus diagnostic projection", () => {
       },
     ]);
   });
+
+  it("classifies an error attached to a workspace RTL source as a design error", () => {
+    const workspace = path.resolve("synthetic-workspace");
+    const hostPath = path.join(workspace, "rtl", "TopModule.sv");
+    const parsed = parseCompilerDiagnostics(
+      `${hostPath}:8: error: pos is not a valid l-value in TopModule.\n`,
+      "",
+      workspace,
+      [{ logicalPath: "rtl/TopModule.sv", hostPath }],
+      10,
+      256,
+    );
+
+    expect(parsed.hasDesignError).toBe(true);
+    expect(parsed.hasInternalError).toBe(false);
+    expect(parsed.issues).toEqual([
+      {
+        kind: "ERROR",
+        message: "error: pos is not a valid l-value in TopModule.",
+        path: "rtl/TopModule.sv",
+        line: 8,
+      },
+    ]);
+  });
 });

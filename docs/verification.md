@@ -80,7 +80,85 @@ $env:CORE_LOOP_REAL_AGENT_TEST = '1'
 corepack pnpm core-loop:agent:smoke
 ```
 
+For Kimi Code, set `KIMI_CODE_API_KEY` and use
+`RTL_AGENT_OPENCODE_MODEL=kimi-code/kimi-for-coding`. The direct `rtl-core-loop` CLI also reads
+these values from ignored root `.env` and `.env.local` files. A legacy root `kimi=<key>` entry is
+not accepted. Only the explicit Agent configuration allowlist is loaded, shell variables take
+precedence, and the key value is never serialized into the OpenCode inline configuration or
+capability digest. Vitest-based live smoke still requires the variables in the calling process
+environment.
+
 Windows requires a regular native `.exe`; `.cmd`/`.bat` launchers and shell mediation are rejected. `agent-probe` must verify exact version, required flags, effective `autoupdate: false`, disabled sharing/snapshot/formatter/LSP, empty MCP/plugin/instructions, deny-only resolved global config, bounded resolved Agent permissions, repository Agent/Skill digests, and the experiment config digest. The explicit smoke uses only generated test data: one allowed Blank Generation turn must return `RTL_CHANGED`, and one test-only Agent must actually receive a denied write result without creating the target. Neither smoke is evaluation evidence. Ordinary `pnpm test` skips both network/model calls. OpenCode may retain its own session DB; shared Core Loop evidence stores neither its host path nor raw JSONL.
+
+The generic VerilogEval/Kimi profile requires an explicit selection. Continuous ranges include both
+endpoints:
+
+```powershell
+corepack pnpm build
+node .\apps\rtl-core-loop\dist\index.js evaluate `
+  --profile verilog-eval-kimi-v1 `
+  --begin Prob001 `
+  --end Prob010
+```
+
+Sparse selection uses a quoted comma-separated value:
+
+```powershell
+node .\apps\rtl-core-loop\dist\index.js evaluate `
+  --profile verilog-eval-kimi-v1 `
+  --cases "Prob001,Prob005,Prob010"
+```
+
+Selectors are case-insensitive and may be full IDs or unambiguous prefixes. Range and list modes
+are mutually exclusive. The resolved case list is canonicalized to pinned Provider order and bound
+into the derived profile before any model turn. The v1 profile uses one Agent attempt per case.
+Every Agent turn also receives the complete versioned checklist from
+`.opencode/skills/rtl-core-loop/common-guidance.md`. Its SHA-256 is stored as
+`guidanceFileDigest` in the Agent capability and turn evidence, so changing the checklist changes
+the resolved profile identity and mid-run drift fails closed. The guide contains only general
+Compile/Logic/Safety advice and must not contain case-specific answers or hidden verification data.
+After the batch result is published, `evaluate` atomically updates the ignored runtime journal at
+`.rtl-agent/knowledge/observed-issues.md`. Compile diagnostics are taken from structured run
+observations. Each nonzero mismatch requires an additional restricted diagnosis turn supplied only
+with the public `spec.md`, candidate `rtl/`, and mismatch totals. The structured diagnosis must name
+a concrete root-cause category, cite at least one candidate RTL line, and state confidence and
+limitations. The input also includes per-public-output mismatch counts and first-mismatch times
+parsed from the bounded simulation stdout. Complete structured analysis and capability metadata stay
+under `_internal/mismatch-analysis/<run-id>/`; the runtime journal publishes only one concise
+category/confidence/root-cause conclusion per mismatched case. A missing, generic, malformed, or input-mutating diagnosis fails with
+`MISMATCH_ANALYSIS_FAILED` instead of recording an unknown cause. These diagnosis turns consume
+additional model quota. The journal workflow never writes `common-guidance.md`; promotion into
+prompt guidance requires an explicit operator request and applies only to later batches.
+The same `evaluate` invocation then completes the VerilogEval functional path after a candidate
+passes the fixed compile check: it materializes the locked reference and testbench into a private
+verification directory, compiles candidate + reference + testbench with `iverilog -g2012 -s tb`,
+runs the image with `vvp`, and requires one parseable
+`Mismatches: <n> in <samples> samples` line. A functional pass requires a normal process exit,
+positive sample count, and zero mismatches. `functionalFailed` counts only successfully executed
+simulations with a nonzero mismatch total. Verification compile errors, process errors, timeouts,
+and malformed simulation output are counted separately as `verificationInvalid`; any such outcome
+makes the functional batch `INVALID` and the CLI returns `ok: false`. Candidate generation or
+candidate-only compile failures remain `functionalNotRun`.
+
+New results use short daily IDs such as `b-20260721-001` and are written as:
+
+```text
+.rtl-agent/batches/<batch-id>/
+  summary.json
+  rtl/<case-id>/*.sv
+  _internal/evidence/
+  _internal/runs/
+  _internal/verification/
+```
+
+Only candidate RTL is published under `rtl/`. Reference/testbench sources stay under
+`_internal/verification/` and never enter the Agent workspace. The terminal prints a concise
+summary; full records remain in `_internal/evidence/`. Existing UUID batches remain readable.
+These commands make real Kimi calls and consume subscription quota; the post-generation
+Icarus/vvp phase does not call the model. Set `RTL_AGENT_VVP_EXECUTABLE` only when `vvp` is not
+next to the configured Icarus executable. For this local, non-authoritative benchmark workflow,
+the operator explicitly permits generated simulation images to run directly on the host. This is
+not an OS sandbox, formal Gate evidence, or a production Linux safety claim.
 
 R03 provides independent real-Icarus entry points. Set the absolute native executable when it is not at the repository profile's host default:
 
