@@ -17,8 +17,10 @@ import type {
 } from "@rtl-agent/core-loop";
 
 export const VERILOG_EVAL_KIMI_PROFILE_ID = "verilog-eval-kimi-v1" as const;
+export const VERILOG_EVAL_KIMI_PI_PROFILE_ID = "verilog-eval-kimi-pi-v1" as const;
 
-export async function createVerilogEvalKimiBaseProfile(
+async function createVerilogEvalKimiBaseProfileForAgent(
+  evaluationProfileId: typeof VERILOG_EVAL_KIMI_PROFILE_ID | typeof VERILOG_EVAL_KIMI_PI_PROFILE_ID,
   provider: FixtureProvider,
   agentAdapter: RtlAgentAdapter,
   compilerAdapter: CoreLoopCompilerAdapter,
@@ -28,15 +30,22 @@ export async function createVerilogEvalKimiBaseProfile(
     agentAdapter.probe(),
     compilerAdapter.probe(),
   ]);
+  const expectedAgent =
+    evaluationProfileId === VERILOG_EVAL_KIMI_PROFILE_ID
+      ? "openCodeVersion" in agentCapability &&
+        agentCapability.model === "kimi-code/kimi-for-coding"
+      : "piVersion" in agentCapability &&
+        agentCapability.provider === "kimi-coding" &&
+        agentCapability.model === "kimi-for-coding";
   if (
     descriptor.datasetId !== VERILOG_EVAL_DATASET_LOCK.datasetId ||
     descriptor.datasetVersion !== VERILOG_EVAL_DATASET_LOCK.datasetVersion ||
     descriptor.datasetSourceDigest !== VERILOG_EVAL_DATASET_LOCK.contentManifestDigest ||
-    agentCapability.model !== "kimi-code/kimi-for-coding"
+    !expectedAgent
   ) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
-      "verilog-eval-kimi-v1 requires the pinned VerilogEval dataset and Kimi coding model",
+      `${evaluationProfileId} requires the pinned VerilogEval dataset and matching Kimi Agent backend`,
     );
   }
   const allCases = await listFixtureCases(provider, {
@@ -52,7 +61,7 @@ export async function createVerilogEvalKimiBaseProfile(
   const caseIds = allCases.map((caseRef) => caseRef.identity.caseId);
   return EvaluationProfileSchema.parse({
     schemaVersion: 1,
-    evaluationProfileId: VERILOG_EVAL_KIMI_PROFILE_ID,
+    evaluationProfileId,
     dataset: descriptor,
     providerImplementationDigest: VERILOG_EVAL_DATASET_LOCK.providerImplementationDigest,
     selection: DatasetSelectionSchema.parse({
@@ -88,4 +97,30 @@ export async function createVerilogEvalKimiBaseProfile(
     },
     humanReview: { strategy: "ALL_CONFIRMED_PASSES" },
   });
+}
+
+export function createVerilogEvalKimiBaseProfile(
+  provider: FixtureProvider,
+  agentAdapter: RtlAgentAdapter,
+  compilerAdapter: CoreLoopCompilerAdapter,
+): Promise<EvaluationProfile> {
+  return createVerilogEvalKimiBaseProfileForAgent(
+    VERILOG_EVAL_KIMI_PROFILE_ID,
+    provider,
+    agentAdapter,
+    compilerAdapter,
+  );
+}
+
+export function createVerilogEvalKimiPiBaseProfile(
+  provider: FixtureProvider,
+  agentAdapter: RtlAgentAdapter,
+  compilerAdapter: CoreLoopCompilerAdapter,
+): Promise<EvaluationProfile> {
+  return createVerilogEvalKimiBaseProfileForAgent(
+    VERILOG_EVAL_KIMI_PI_PROFILE_ID,
+    provider,
+    agentAdapter,
+    compilerAdapter,
+  );
 }

@@ -33,13 +33,15 @@ permission:
   todowrite: deny
 ---
 
-Diagnose exactly one functional mismatch. Read `context/mismatch.json`, including its per-output
-mismatch counts and first-mismatch times, then read `spec.md`, every listed RTL
-source, and the schema-shaped placeholder in `analysis.json`. Do not edit the specification,
-context, or RTL.
+Diagnose exactly one functional mismatch. Read `context/analysis-schema.json` first, then read
+`context/mismatch.json`, including its per-output mismatch counts and first-mismatch times,
+`spec.md`, every listed RTL source, and the placeholder in `analysis.json`. Do not edit the
+specification, context, or RTL. If `context/analysis-validation-errors.json` exists, correct every
+reported issue.
 
-Replace `analysis.json` with one JSON object matching the placeholder's keys. Select the most
-specific supported category. Explain a concrete likely root cause grounded in the public
+Replace `analysis.json` with one JSON object matching the complete schema guide, including its
+exact category and confidence enums and structured evidence objects. Select the most specific
+supported category. Explain a concrete likely root cause grounded in the public
 specification and candidate RTL, cite relevant `spec.md` or `rtl/...` line ranges, and report honest
 confidence. Do not use `UNKNOWN`, generic statements such as "the implementation differs", or
 claims based only on the mismatch count.

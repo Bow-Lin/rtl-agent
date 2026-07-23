@@ -8,6 +8,7 @@
   },
   "scripts": {
     "agent:probe": "node dist/index.js agent-probe",
+    "agent:probe:pi": "node dist/index.js pi-agent-probe",
     "compile:smoke": "node dist/index.js compile-smoke",
     "dataset:prepare": "node dist/index.js dataset-prepare",
     "dataset:prepare:chipbench": "node dist/index.js dataset-prepare --dataset chipbench",

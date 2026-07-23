@@ -13,7 +13,7 @@ RTL engineering workflow service under ordered implementation. A01 established t
 - `packages/contracts`: implemented Zod schema version 1, JCS, logical paths, and stable boundary parsers/errors.
 - `packages/domain`: pure Phase A `decide`/`evolveBatch`/`replay`, executable transition policy, aggregate invariants, and internal integrity errors.
 - `packages/storage`: buildable package shell awaiting A04 logic.
-- `packages/core-loop` and `apps/rtl-core-loop`: implemented R01–R04 Core Loop contracts, restricted Agent/compile adapters, bounded repair evaluation, pinned VerilogEval and ChipBench generation/debugging Provider/cache preparation, manifests/write policy, metrics, evidence, and thin CLI. The real evaluation profile and batch remain pending.
+- `packages/core-loop` and `apps/rtl-core-loop`: implemented R01–R04 Core Loop contracts, restricted Agent/compile adapters, bounded repair evaluation, pinned VerilogEval and ChipBench generation/debugging Provider/cache preparation, manifests/write policy, metrics, evidence, recoverable mismatch reanalysis, and thin CLI. Exploratory real batches exist; the acceptance-qualified checkpoint profile, human review, and recommendation remain pending.
 
 ## Entry Points
 
@@ -23,7 +23,7 @@ Root pnpm scripts provide install, lint, source/test typecheck, Vitest, build, a
 
 OpenCode calls a loopback Remote MCP endpoint hosted by an independent TypeScript Workflow Daemon. Formal gate requests produce immutable snapshots and asynchronous jobs. Gate Workers run deterministic Checkers and controlled EDA adapters, then return structured results to the Daemon's single Command Executor. Langfuse receives metadata-only telemetry by default and never acts as a workflow state source.
 
-The Spec-to-RTL Core Loop is a continuing capability layer with a deliberately separate trust classification: an external evaluation dataset is normalized through a versioned `FixtureProvider` into ignored per-run workspaces, OpenCode may edit only `workspace/rtl/**`, and a fixed Icarus profile compiles the mutable copy. The repository reserves the fixture interface/location but does not ship concrete evaluation cases in R01. Core Loop evidence is initially `authoritative: false` / `COMPILE_ONLY`; it cannot update the formal domain state or support a functional-correctness claim.
+The Spec-to-RTL Core Loop is a continuing capability layer with a deliberately separate trust classification: an external evaluation dataset is normalized through a versioned `FixtureProvider` into ignored per-run workspaces, a profile-locked Agent backend may edit only `workspace/rtl/**`, and a fixed Icarus profile compiles the mutable copy. OpenCode remains the established backend; Pi is available only through a separate capability/evidence branch and profile identity. The repository reserves the fixture interface/location but does not ship concrete evaluation cases in R01. Core Loop evidence is initially `authoritative: false` / `COMPILE_ONLY`; it cannot update the formal domain state or support a functional-correctness claim.
 
 ## Notes for Future Agents
 

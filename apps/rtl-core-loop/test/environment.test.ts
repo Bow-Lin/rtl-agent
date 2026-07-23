@@ -16,7 +16,7 @@ describe("repository environment", () => {
     );
     await writeFile(
       path.join(root, ".env.local"),
-      "RTL_AGENT_OPENCODE_MODEL=kimi-code/kimi-for-coding\n",
+      "RTL_AGENT_OPENCODE_MODEL=kimi-code/kimi-for-coding\nRTL_AGENT_PI_PROVIDER=kimi-coding\nRTL_AGENT_PI_MODEL=kimi-for-coding\n",
       "utf8",
     );
 
@@ -28,6 +28,8 @@ describe("repository environment", () => {
       KIMI_CODE_API_KEY: "file-key",
       RTL_AGENT_OPENCODE_VERSION: "shell-version",
       RTL_AGENT_OPENCODE_MODEL: "kimi-code/kimi-for-coding",
+      RTL_AGENT_PI_PROVIDER: "kimi-coding",
+      RTL_AGENT_PI_MODEL: "kimi-for-coding",
     });
     expect(environment.UNRELATED_SECRET).toBeUndefined();
     expect(environment.kimi).toBeUndefined();

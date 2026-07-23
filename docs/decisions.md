@@ -651,3 +651,78 @@ to a formal RTL Gate or establish production/Linux readiness.
 Concise summaries no longer inflate model logic failures with broken verification infrastructure,
 and downstream readers can distinguish retry/fix-the-fixture work from RTL quality. Old evidence
 remains parseable, while local simulation retains the documented host-execution risk.
+
+## 2026-07-23 - Keep Mismatch Diagnosis Recoverable and Non-Authoritative
+
+### Context
+
+Batch `b-20260723-002` completed all 30 selected evaluations, but its only mismatch diagnosis used
+an unsupported category, string evidence entries, and lowercase confidence. The diagnosis content
+was concrete, while the Agent-visible placeholder did not expose the allowed enums or evidence
+object shape. The post-processing exception then made the CLI return `ok: false` even though the
+published batch summary was `COMPLETED`.
+
+### Decision
+
+Provide the diagnosis Agent with an exact machine-readable contract containing every allowed
+category, confidence value, evidence field, and length constraint. Add explicit
+`INITIALIZATION_SEMANTICS` and `SPEC_REFERENCE_AMBIGUITY` categories. If the first response is not
+valid JSON or fails the strict Schema, publish bounded validation issues inside the private
+diagnosis workspace and permit exactly one correction turn. Protected specification, mismatch
+context, and RTL manifests must remain unchanged across both turns.
+
+Treat diagnosis and observed-issue journaling as recoverable post-processing. A failure returns a
+`MISMATCH_ANALYSIS_FAILED` warning with `reanalyze --batch <batch-id>` while preserving the already
+published compile/functional status and normal completed exit code. The reanalysis command reads
+and validates existing batch evidence and never regenerates candidate RTL. Model-authored diagnosis
+categories remain hypotheses and never rewrite raw simulation outcomes.
+
+### Consequences
+
+Strict evidence remains fail-closed, but formatting variance no longer discards completed benchmark
+work or forces an expensive full-range rerun. A malformed response may consume one additional model
+turn. Initial-state and likely public-spec/reference ambiguity can be represented honestly without
+claiming access to hidden assets or automatically reclassifying the functional result.
+
+## 2026-07-23 - Add Pi as a Parallel, Explicitly Locked Agent Backend
+
+### Context
+
+An OpenCode-backed VerilogEval batch was already running when a Pi Coding Agent adapter was
+requested. Rebuilding `dist`, changing the active OpenCode Agent/Skill, or reusing the existing
+profile identity for a different harness could invalidate or confuse the in-flight experiment.
+Pi also exposes `bash` by default and does not provide a general built-in filesystem sandbox.
+
+### Decision
+
+Keep the existing `verilog-eval-kimi-v1` profile and legacy OpenCode capability/evidence schemas
+unchanged. Add Pi capability and turn-evidence variants to a backend-neutral union, and expose Pi
+only through `pi-agent-probe` and the separate `verilog-eval-kimi-pi-v1` profile.
+
+Run Pi in one-shot JSON mode with an ephemeral session, isolated configuration, no discovered
+extensions/skills/templates/context files, no project trust, and offline startup/update behavior.
+Allow only `read`, `write`, and `edit`. Load one digest-locked repository extension that blocks
+reads outside public attempt inputs and blocks writes outside supported RTL files. Retain the
+existing post-turn workspace manifest enforcement as defense in depth. Accept the existing
+`KIMI_CODE_API_KEY` by mapping it to Pi's official `KIMI_API_KEY` environment name without placing
+credentials on argv or in capability evidence.
+
+Use one operator-owned shared Pi configuration directory at `.rtl-agent/pi-config`, not a
+per-turn directory. At the first probe, lock a semantic digest of that directory into the Pi
+capability and retain a private full-state digest in the adapter instance. Every later probe and
+turn must observe the same state for that adapter/batch lifecycle. `auth.json` content is excluded
+from public capability evidence but included in the private drift check; model/provider/settings
+configuration participates in the public semantic digest. A later batch may deliberately start
+from a changed shared configuration and will receive a different resolved capability digest.
+
+Do not install Pi, rebuild `dist`, change the active OpenCode configuration, or switch a running
+batch. Source and deterministic test changes may be prepared concurrently; live Pi probe and
+evaluation begin only after the active dataset process exits.
+
+### Consequences
+
+Historical OpenCode evidence remains readable and the in-flight batch retains its original process,
+profile digest, prompts, and artifacts. Pi/OpenCode comparisons cannot accidentally share a profile
+ID. Pi integration adds a second schema branch and adapter-specific evidence, while its lack of a
+general sandbox remains explicit: enabling `bash`, arbitrary extensions, or unbounded paths requires
+a separate security decision.

@@ -23,6 +23,18 @@ subscription check with sufficient output budget for model reasoning and reports
 answer plus bounded finish/token metadata. It reports HTTP acceptance and non-empty-answer validity
 separately, and exits unsuccessfully when a 2xx response contains no usable answer.
 
+Pi Coding Agent `0.81.1` is now available as a parallel backend without replacing the established
+OpenCode path. Legacy OpenCode capability/profile/turn evidence remains readable, while Pi uses a
+separate capability branch, `pi-agent-probe`, and `verilog-eval-kimi-pi-v1` profile. Pi runs in
+one-shot JSON/ephemeral mode with discovered resources and project trust disabled, only
+`read,write,edit` enabled, and a digest-locked extension that restricts public reads and RTL writes.
+All turns use the same operator-owned `.rtl-agent/pi-config`; its semantic state is capability
+locked, while complete state including authentication is privately checked for drift within one
+adapter/batch without serializing credentials.
+The installed runtime is version-isolated under ignored `.rtl-agent/tools/pi-0.81.1`. Real batch
+`b-20260723-005` passed one Pi/Kimi case end to end: compile 1/1, functional simulation 1/1, and
+post-processing completed.
+
 The direct CLI now registers the generic `verilog-eval-kimi-v1` template. Each invocation must
 select either an inclusive `--begin/--end` range or a `--cases` list. Both forms resolve
 case-insensitive unambiguous prefixes to complete IDs, canonicalize them in the pinned Provider
@@ -52,6 +64,13 @@ confidence and limitations; hidden reference/testbench assets remain unavailable
 stays under `_internal/mismatch-analysis/`; `observed-issues.md` retains only one category/confidence/
 root-cause conclusion per mismatched case. `common-guidance.md` is never updated by this workflow and
 changes only after an explicit operator request to promote observations into guidance.
+
+Mismatch diagnosis now receives its complete machine-readable category/confidence/evidence
+contract. One invalid response may consume one bounded correction turn using private structured
+validation issues. Diagnosis and journal publication are recoverable post-processing: they cannot
+replace an already published batch result, and `reanalyze --batch <batch-id>` reuses validated
+existing evidence without regenerating candidates. Batch `b-20260723-002` was recovered through
+this path; its `Prob034_dff8` conclusion is `INITIALIZATION_SEMANTICS` with medium confidence.
 
 The journal now expands every `functionalNotRun` total into a `Not Run Details` list. Each selected
 case records its stable run outcome or validation status. `MAX_ATTEMPTS` includes the latest
@@ -91,11 +110,13 @@ sandbox claim is made.
 - lint, typecheck, build, format, peer dependency, frozen-install, package, and full-repository checks pass.
 - Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
 - thin CLI/profile-selection tests: 3 files and 18 tests passed.
-- full repository: 33 files passed / 1 skipped; 233 tests passed / 2 skipped.
+- full repository: 34 files passed / 1 skipped; 244 tests passed / 2 skipped.
 - real Icarus integration: 2 files and 6 tests passed, including synthetic R04 baseline/repair/final-recompile composition.
 - real OpenCode 1.18.2 static probe and two live restricted-Agent smoke tests pass.
 - Kimi Code `kimi-for-coding` static probe and one live restricted-Agent blank-generation turn pass
   with the key loaded only from ignored local environment files.
+- Pi Coding Agent `0.81.1` static probe and real `verilog-eval-kimi-pi-v1` batch
+  `b-20260723-005` pass with one compile/functional pass and no verification invalidity.
 - the pinned VerilogEval archive prepared successfully; `fixtures-check` validates the locked manifest and reports 156 `spec-to-rtl` cases.
 - real Icarus/vvp checks against existing Kimi-generated Prob001 and Prob002 candidates passed with
   `0/20` and `0/100` mismatched samples respectively; no model request was made.
@@ -122,4 +143,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-22T15:50:00+08:00
+2026-07-23T14:54:00+08:00

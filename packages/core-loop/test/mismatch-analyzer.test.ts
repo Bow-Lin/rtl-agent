@@ -13,7 +13,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function fixture(mode: "valid" | "tamper" | "broad") {
+async function fixture(mode: "valid" | "repair" | "invalid" | "tamper" | "broad") {
   const root = await mkdtemp(path.join(os.tmpdir(), "rtl-mismatch-analyzer-"));
   roots.push(root);
   const batchDirectory = path.join(root, "batches", "b-20260722-010");
@@ -39,7 +39,7 @@ async function fixture(mode: "valid" | "tamper" | "broad") {
   const script = path.join(root, "fake-analyzer.mjs");
   await writeFile(
     script,
-    `import { readFileSync, writeFileSync } from "node:fs";
+    `import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const args = process.argv.slice(2);
 if (args[0] === "--version") { process.stdout.write("1.0.0"); process.exit(0); }
@@ -62,6 +62,18 @@ if (args[0] === "agent" && args[1] === "list") {
 }
 const workspace = args[args.indexOf("--dir") + 1];
 ${mode === "tamper" ? 'writeFileSync(path.join(workspace, "spec.md"), "tampered\\n");' : ""}
+const needsRepair = existsSync(path.join(workspace, "context", "analysis-validation-errors.json"));
+if (${JSON.stringify(mode)} === "invalid" || (${JSON.stringify(mode)} === "repair" && !needsRepair)) {
+  writeFileSync(path.join(workspace, "analysis.json"), JSON.stringify({
+    schemaVersion: 1,
+    category: "INITIALIZATION",
+    rootCause: "The candidate register has no explicit initial state before the first active edge.",
+    evidence: ["rtl/TopModule.sv line 1"],
+    confidence: "medium",
+    limitations: "Hidden verification assets were unavailable."
+  }));
+  process.exit(0);
+}
 writeFileSync(path.join(workspace, "analysis.json"), JSON.stringify({
   schemaVersion: 1,
   category: "COUNTER_BOUNDARY",
@@ -128,6 +140,60 @@ describe("OpenCode mismatch analyzer", () => {
         "utf8",
       ),
     ).resolves.toContain('"outputPort": "done"');
+    await expect(
+      readFile(
+        path.join(
+          test.batchDirectory,
+          "_internal",
+          "mismatch-analysis",
+          test.runId,
+          "context",
+          "analysis-schema.json",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain('"INITIALIZATION_SEMANTICS"');
+  });
+
+  it("uses one bounded repair turn after returning schema validation errors", async () => {
+    const test = await fixture("repair");
+    const result = await new OpenCodeMismatchAnalyzer(test.config).analyze({
+      batchDirectory: test.batchDirectory,
+      runId: test.runId,
+      caseRef,
+      mismatches: 1,
+      samples: 41,
+      outputMismatches: [{ outputPort: "q", mismatches: 1, firstMismatchTime: 5 }],
+    });
+
+    expect(result.category).toBe("COUNTER_BOUNDARY");
+    const metadata = JSON.parse(
+      await readFile(
+        path.join(
+          test.batchDirectory,
+          "_internal",
+          "mismatch-analysis",
+          test.runId,
+          "analysis-metadata.json",
+        ),
+        "utf8",
+      ),
+    ) as { diagnosisTurns: number };
+    expect(metadata.diagnosisTurns).toBe(2);
+  });
+
+  it("fails closed after one bounded repair turn remains schema-invalid", async () => {
+    const test = await fixture("invalid");
+    await expect(
+      new OpenCodeMismatchAnalyzer(test.config).analyze({
+        batchDirectory: test.batchDirectory,
+        runId: test.runId,
+        caseRef,
+        mismatches: 1,
+        samples: 41,
+        outputMismatches: [{ outputPort: "q", mismatches: 1, firstMismatchTime: 5 }],
+      }),
+    ).rejects.toMatchObject({ error: { code: "MISMATCH_ANALYSIS_FAILED" } });
   });
 
   it("rejects a diagnosis turn that changes the public specification", async () => {

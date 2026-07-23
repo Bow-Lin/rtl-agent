@@ -132,8 +132,10 @@ function validateAnalyzerPermissions(output: string): ReturnType<typeof sha256Jc
   return sha256Jcs(rules);
 }
 
-export const MismatchRootCauseCategorySchema = z.enum([
+export const MISMATCH_ROOT_CAUSE_CATEGORIES = [
   "RESET_SEMANTICS",
+  "INITIALIZATION_SEMANTICS",
+  "SPEC_REFERENCE_AMBIGUITY",
   "FSM_TRANSITION",
   "PRIORITY_SELECTION",
   "EDGE_HISTORY",
@@ -144,7 +146,9 @@ export const MismatchRootCauseCategorySchema = z.enum([
   "SEQUENTIAL_TIMING",
   "INTERFACE_PROTOCOL",
   "OTHER_SPEC_VIOLATION",
-]);
+] as const;
+
+export const MismatchRootCauseCategorySchema = z.enum(MISMATCH_ROOT_CAUSE_CATEGORIES);
 
 const MismatchEvidenceSchema = z.strictObject({
   path: z.string().regex(/^(?:spec\.md|rtl\/[A-Za-z0-9._/-]+)$/u),
@@ -177,6 +181,17 @@ export const MismatchAnalysisSchema = z
         message: "Mismatch analysis must state a concrete cause",
       });
     }
+    if (
+      [value.rootCause, value.limitations, ...value.evidence.map((item) => item.observation)].some(
+        (item) => item.includes("REPLACE_ME"),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [],
+        message: "Mismatch analysis must replace every placeholder value",
+      });
+    }
   });
 
 export type MismatchAnalysis = z.infer<typeof MismatchAnalysisSchema>;
@@ -204,6 +219,48 @@ function analyzerWorkspace(request: MismatchAnalysisRequest): string {
 
 function immutableManifest(workspace: string) {
   return createFileManifest(workspace, (logicalPath) => logicalPath !== "analysis.json");
+}
+
+const ANALYSIS_SCHEMA_GUIDE = {
+  schemaVersion: 1,
+  requiredKeys: ["schemaVersion", "category", "rootCause", "evidence", "confidence", "limitations"],
+  allowedCategories: MISMATCH_ROOT_CAUSE_CATEGORIES,
+  allowedConfidence: ["LOW", "MEDIUM", "HIGH"],
+  evidenceItem: {
+    path: "spec.md or rtl/<logical-source-path>",
+    lineStart: "positive integer",
+    lineEnd: "positive integer",
+    observation: "10 to 500 characters",
+  },
+  constraints: {
+    rootCause: "30 to 1500 characters and a concrete hypothesis",
+    evidence: "1 to 12 objects, including at least one rtl/ citation",
+    limitations: "10 to 500 characters",
+  },
+} as const;
+
+async function ensureExactFile(hostPath: string, content: string): Promise<void> {
+  try {
+    await writeFile(hostPath, content, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { readonly code?: unknown }).code
+        : undefined;
+    if (code !== "EEXIST" || (await readFile(hostPath, "utf8")) !== content) {
+      throw new CoreLoopException(
+        "MISMATCH_ANALYSIS_FAILED",
+        "Existing mismatch diagnosis inputs do not match the requested run",
+      );
+    }
+  }
+}
+
+function validationIssues(error: z.ZodError): readonly { path: string; message: string }[] {
+  return error.issues.slice(0, 20).map((issue) => ({
+    path: issue.path.map(String).join(".") || "<root>",
+    message: issue.message.slice(0, 500),
+  }));
 }
 
 export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
@@ -270,46 +327,72 @@ export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
       mkdir(path.join(workspace, "context"), { recursive: true }),
       mkdir(path.join(workspace, "rtl"), { recursive: true }),
     ]);
-    const spec = await readFile(path.join(sourceWorkspace, "spec.md"));
+    const sourceRtlDirectory = path.join(sourceWorkspace, "rtl");
+    const sourceRtlManifest = await createFileManifest(sourceRtlDirectory);
+    const rtlSourceFiles = sourceRtlManifest.entries.map((entry) => `rtl/${entry.path}`);
+    const spec = await readFile(path.join(sourceWorkspace, "spec.md"), "utf8");
+    const mismatchInput = `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        caseId: caseRef.identity.caseId,
+        mismatches: request.mismatches,
+        samples: request.samples,
+        outputMismatches: request.outputMismatches,
+        rtlSourceFiles,
+      },
+      undefined,
+      2,
+    )}\n`;
     await Promise.all([
-      writeFile(path.join(workspace, "spec.md"), spec, { flag: "wx" }),
-      writeFile(
-        path.join(workspace, "context", "mismatch.json"),
-        `${JSON.stringify(
-          {
-            schemaVersion: 1,
-            caseId: caseRef.identity.caseId,
-            mismatches: request.mismatches,
-            samples: request.samples,
-            outputMismatches: request.outputMismatches,
-            rtlSourceFiles: (
-              await createFileManifest(path.join(sourceWorkspace, "rtl"))
-            ).entries.map((entry) => `rtl/${entry.path}`),
-          },
-          undefined,
-          2,
-        )}\n`,
-        { encoding: "utf8", flag: "wx" },
+      ensureExactFile(path.join(workspace, "spec.md"), spec),
+      ensureExactFile(path.join(workspace, "context", "mismatch.json"), mismatchInput),
+      ensureExactFile(
+        path.join(workspace, "context", "analysis-schema.json"),
+        `${JSON.stringify(ANALYSIS_SCHEMA_GUIDE, undefined, 2)}\n`,
       ),
-      writeFile(
+    ]);
+    let workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
+    if (workspaceRtlManifest.entries.length === 0) {
+      await copyRegularTreeToEvidence(sourceRtlDirectory, workspace, "rtl");
+      workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
+    }
+    if (workspaceRtlManifest.manifestDigest !== sourceRtlManifest.manifestDigest) {
+      throw new CoreLoopException(
+        "MISMATCH_ANALYSIS_FAILED",
+        "Existing mismatch diagnosis RTL does not match the evaluated candidate",
+      );
+    }
+    try {
+      await writeFile(
         path.join(workspace, "analysis.json"),
         `${JSON.stringify(
           {
             schemaVersion: 1,
             category: "REPLACE_ME",
-            rootCause: "Replace with a concrete root-cause hypothesis grounded in the files.",
-            evidence: [],
+            rootCause: "REPLACE_ME with a concrete root-cause hypothesis grounded in the files.",
+            evidence: [
+              {
+                path: rtlSourceFiles[0] ?? "rtl/REPLACE_ME.sv",
+                lineStart: 1,
+                lineEnd: 1,
+                observation: "REPLACE_ME with the relevant candidate RTL observation.",
+              },
+            ],
             confidence: "REPLACE_ME",
-            limitations: "State what cannot be proven without hidden verification assets.",
+            limitations: "REPLACE_ME with what cannot be proven without hidden assets.",
           },
           undefined,
           2,
         )}\n`,
         { encoding: "utf8", flag: "wx" },
-      ),
-    ]);
-    await copyRegularTreeToEvidence(path.join(sourceWorkspace, "rtl"), workspace, "rtl");
-    const before = await immutableManifest(workspace);
+      );
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { readonly code?: unknown }).code
+          : undefined;
+      if (code !== "EEXIST") throw error;
+    }
     const agentFile = await readFile(
       path.join(this.config.repositoryRoot, ".opencode", "agents", `${ANALYZER_AGENT_NAME}.md`),
     );
@@ -344,60 +427,87 @@ export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
       );
     }
     const analyzerPermissionDigest = validateAnalyzerPermissions(permissions.stdout);
-    const processResult = await executeOpenCodeProcess({
-      executable: this.config.executable,
-      arguments: [
-        ...(this.config.executableArgumentsPrefix ?? []),
-        "--pure",
-        "run",
-        "--agent",
-        ANALYZER_AGENT_NAME,
-        "--model",
-        this.config.providerModel,
-        ...(this.config.variant === undefined ? [] : ["--variant", this.config.variant]),
-        "--format",
-        "json",
-        "--dir",
-        workspace,
-        "--title",
-        `mismatch-${request.runId}`,
-        "Read the provided public specification, candidate RTL, and mismatch summary. Diagnose the most likely concrete root cause and replace analysis.json with the required structured result.",
-      ],
-      cwd: this.config.repositoryRoot,
-      environment: this.environment,
-      timeoutMs: this.config.timeoutMs,
-      terminationGraceMs: this.config.terminationGraceMs,
-      stderrLimitBytes: this.config.stderrLimitBytes,
-      maximumEvents: this.config.maximumEvents,
-      maximumEventLineBytes: this.config.maximumEventLineBytes,
-    });
-    const after = await immutableManifest(workspace);
-    if (
-      processResult.exitCode !== 0 ||
-      processResult.timedOut ||
-      processResult.terminationFailed ||
-      processResult.spawnError !== undefined ||
-      before.manifestDigest !== after.manifestDigest
-    ) {
-      throw new CoreLoopException(
-        "MISMATCH_ANALYSIS_FAILED",
-        "Mismatch diagnosis Agent failed or changed protected inputs",
+    const runTurn = async (instruction: string): Promise<number> => {
+      const before = await immutableManifest(workspace);
+      const processResult = await executeOpenCodeProcess({
+        executable: this.config.executable,
+        arguments: [
+          ...(this.config.executableArgumentsPrefix ?? []),
+          "--pure",
+          "run",
+          "--agent",
+          ANALYZER_AGENT_NAME,
+          "--model",
+          this.config.providerModel,
+          ...(this.config.variant === undefined ? [] : ["--variant", this.config.variant]),
+          "--format",
+          "json",
+          "--dir",
+          workspace,
+          "--title",
+          `mismatch-${request.runId}`,
+          instruction,
+        ],
+        cwd: this.config.repositoryRoot,
+        environment: this.environment,
+        timeoutMs: this.config.timeoutMs,
+        terminationGraceMs: this.config.terminationGraceMs,
+        stderrLimitBytes: this.config.stderrLimitBytes,
+        maximumEvents: this.config.maximumEvents,
+        maximumEventLineBytes: this.config.maximumEventLineBytes,
+      });
+      const after = await immutableManifest(workspace);
+      if (
+        processResult.exitCode !== 0 ||
+        processResult.timedOut ||
+        processResult.terminationFailed ||
+        processResult.spawnError !== undefined ||
+        before.manifestDigest !== after.manifestDigest
+      ) {
+        throw new CoreLoopException(
+          "MISMATCH_ANALYSIS_FAILED",
+          "Mismatch diagnosis Agent failed or changed protected inputs",
+        );
+      }
+      return processResult.durationMs;
+    };
+
+    let analysis: ReturnType<typeof MismatchAnalysisSchema.safeParse> | undefined;
+    let durationMs = 0;
+    let diagnosisTurns = 0;
+    for (let turn = 1; turn <= 2; turn += 1) {
+      diagnosisTurns = turn;
+      durationMs += await runTurn(
+        turn === 1
+          ? "Read context/analysis-schema.json, context/mismatch.json, spec.md, and every listed RTL source. Replace analysis.json with one concrete JSON result that exactly obeys the provided schema."
+          : "The previous analysis.json failed validation. Read context/analysis-validation-errors.json and context/analysis-schema.json, then replace only analysis.json with a corrected concrete result.",
       );
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(
+          await readFile(path.join(workspace, "analysis.json"), "utf8"),
+        ) as unknown;
+        analysis = MismatchAnalysisSchema.safeParse(parsed);
+      } catch {
+        analysis = undefined;
+      }
+      if (analysis?.success === true) break;
+      if (turn === 1) {
+        const issues =
+          analysis === undefined
+            ? [{ path: "<json>", message: "analysis.json is not valid JSON" }]
+            : validationIssues(analysis.error);
+        await writeFile(
+          path.join(workspace, "context", "analysis-validation-errors.json"),
+          `${JSON.stringify({ schemaVersion: 1, issues }, undefined, 2)}\n`,
+          "utf8",
+        );
+      }
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(path.join(workspace, "analysis.json"), "utf8")) as unknown;
-    } catch {
+    if (analysis?.success !== true) {
       throw new CoreLoopException(
         "MISMATCH_ANALYSIS_FAILED",
-        "Mismatch diagnosis did not produce valid JSON",
-      );
-    }
-    const analysis = MismatchAnalysisSchema.safeParse(parsed);
-    if (!analysis.success) {
-      throw new CoreLoopException(
-        "MISMATCH_ANALYSIS_FAILED",
-        "Mismatch diagnosis was not concrete or schema-valid",
+        "Mismatch diagnosis remained invalid after one bounded schema-repair turn",
       );
     }
     await writeFile(
@@ -408,7 +518,8 @@ export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
           model: this.config.providerModel,
           analyzerAgentDigest: sha256Bytes(agentFile),
           analyzerPermissionDigest,
-          durationMs: processResult.durationMs,
+          diagnosisTurns,
+          durationMs,
         },
         undefined,
         2,

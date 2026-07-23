@@ -1506,3 +1506,104 @@ answer validation are now reported independently as `httpOk` and `answerOk`; agg
 only when both are true. A 2xx response with missing or empty final content now prints `ok: false`
 and exits nonzero. Typecheck, ESLint, Prettier, diff check, and Harness check passed. No live Kimi
 request was made.
+
+## Entry: Recover Mismatch Diagnosis Without Repeating a Batch
+
+### Summary
+
+Diagnosed the `MISMATCH_ANALYSIS_FAILED` returned after the real Prob021–Prob050 run. Batch
+`b-20260723-002` had already completed 30 cases with 29 compile passes, 28 functional passes, one
+mismatch, and one functional not-run. Only the post-batch `Prob034_dff8` diagnosis was invalid: its
+content was concrete, but it used an undisclosed category, string evidence entries, and lowercase
+confidence because the Agent-visible placeholder did not expose the runtime Schema.
+
+### Changes
+
+- materialized the exact allowed category/confidence enums, evidence-object shape, and size
+  constraints into each private diagnosis workspace
+- added `INITIALIZATION_SEMANTICS` and `SPEC_REFERENCE_AMBIGUITY`
+- retained strict validation and allowed exactly one correction turn supplied with bounded Zod
+  issue paths/messages
+- allowed an incomplete diagnosis workspace to resume only when its public spec, mismatch context,
+  and candidate RTL still exactly match the evaluated run
+- made diagnosis/journal failure a warning that cannot replace an already published evaluation
+  status
+- added `reanalyze --batch <batch-id>` to validate and reuse existing batch evidence without
+  regenerating candidates or rerunning simulation
+- kept model-authored diagnoses non-authoritative; they never rewrite raw functional outcomes
+
+### Real Recovery Evidence
+
+After build, `node .\apps\rtl-core-loop\dist\index.js reanalyze --batch b-20260723-002` succeeded.
+It made one Kimi diagnosis turn for the existing `Prob034_dff8` mismatch, returned
+`INITIALIZATION_SEMANTICS` / `MEDIUM`, wrote strict analysis metadata, and appended the concise
+conclusion to the ignored observed-issues journal. No RTL generation, candidate compile, or
+functional simulation was repeated.
+
+### Validation
+
+- targeted analyzer/observed-issues/CLI regression: 3 files, 22 tests passed
+- real Kimi existing-batch reanalysis: passed with `ANALYSIS_COMPLETED`
+- full repository: 33 files passed / 1 skipped; 236 tests passed / 2 skipped
+- typecheck, ESLint, build, Prettier, diff check, and Harness check passed
+
+The first final typecheck found that the cross-evidence lookup Map inferred the branded batch
+`RunId` key while historical functional evidence exposes a compatible plain string. The Map now
+declares the filesystem evidence boundary as string-keyed; runtime identity comparisons remain
+unchanged, and the final typecheck passed.
+
+## Entry: Add a Parallel Pi Coding Agent Adapter Without Disturbing the Active Dataset
+
+### Safety Boundary
+
+Detected the active OpenCode evaluation process for `Prob071`–`Prob100` and treated its loaded
+`dist`, OpenCode Agent/Skill, environment, runtime tree, and profile digest as immutable. Prepared
+the Pi source, policy extension, deterministic tests, and documentation without building or
+installing Pi. Waited through all 30 Agent turns and mismatch-diagnosis post-processing; only after
+the dataset process exited was `dist` rebuilt.
+
+### Changes
+
+- retained the legacy OpenCode capability and turn-evidence shapes and introduced backend-neutral
+  unions with a distinct Pi branch
+- added `PiRtlAgentAdapter`, isolated environment construction, exact version/flag probing, and
+  operator-owned executable/entrypoint configuration
+- added one-shot JSON/ephemeral Pi execution with offline startup, no sessions, no project trust,
+  and no discovered extensions, skills, templates, themes, or context files
+- allowed only `read`, `write`, and `edit`; added a digest-locked extension that blocks reads
+  outside `spec.md`, `context/**`, and `rtl/**` and blocks writes outside supported RTL files
+- kept the existing post-turn manifest/write policy as a second boundary
+- added `pi-agent-probe` and the distinct `verilog-eval-kimi-pi-v1` profile while leaving
+  `verilog-eval-kimi-v1` fixed to OpenCode
+- accepted Pi's official `KIMI_API_KEY` and safely mapped the existing `KIMI_CODE_API_KEY`
+- installed pinned Pi `0.81.1` only in ignored `.rtl-agent/tools/pi-0.81.1`
+
+### Validation
+
+- source-level Pi adapter/policy tests: 1 file, 4 tests passed
+- OpenCode adapter/orchestrator/batch regressions: 3 files, 45 tests passed
+- build, typecheck, ESLint, Prettier, and diff check passed
+- full repository: 34 files passed / 1 skipped; 241 tests passed / 2 skipped
+- real `pi-agent-probe`: passed for Pi `0.81.1`, `kimi-coding/kimi-for-coding`, locked tools,
+  isolation flags, extension digest, guidance digest, and experiment digest
+- real Pi batch `b-20260723-005`: `COMPLETED`, one compile pass, one functional pass, zero
+  mismatches/not-run/verification-invalid cases, and completed post-processing
+
+Pi remains non-authoritative and is not a general OS sandbox. Enabling `bash`, third-party
+extensions, or broader paths requires a separate security decision. R04 remains `IN_PROGRESS`
+pending the acceptance-qualified evidence selection, human review, report, and checkpoint decision.
+
+### Follow-up: Lock One Shared Pi Configuration Without Changing OpenCode
+
+Kept `.rtl-agent/pi-config` as the single operator-owned Pi configuration directory. Added a
+non-auth semantic configuration digest to Pi capability/turn evidence and a private full-directory
+digest to the adapter lifecycle. The first probe establishes both locks; subsequent probes and
+turns fail closed if model/provider/settings or credential state changes. Authentication content is
+never serialized. This follow-up changes no `.opencode/**` file, OpenCode environment variable,
+OpenCode capability shape, profile identity, permission rule, or prompt guidance.
+
+Three new regressions prove semantic model configuration drift, credential drift, and configuration
+changes during a Pi turn all fail with `PI_AGENT_CAPABILITY_MISMATCH`, while capability JSON does
+not contain the credential. The Pi suite passes 7 tests. OpenCode-focused regressions pass 45 tests,
+and the final repository run passes 34 files / 1 skipped and 244 tests / 2 skipped. Lint, typecheck,
+build, format, `git diff --check`, harness validation, and a real Pi 0.81.1 probe also pass.

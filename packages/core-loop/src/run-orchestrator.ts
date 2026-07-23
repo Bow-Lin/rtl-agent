@@ -3,7 +3,7 @@ import path from "node:path";
 import { LogicalPathSchema } from "@rtl-agent/contracts";
 
 import { AgentTurnResultSchema } from "./agent-contracts.js";
-import type { AgentTurnResult, OpenCodeCapability } from "./agent-contracts.js";
+import type { AgentCapability, AgentTurnResult } from "./agent-contracts.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import { prepareCompileRequest } from "./compile-preparation.js";
 import type { IcarusCapability } from "./compiler-contracts.js";
@@ -78,7 +78,7 @@ export interface ValidateRunBaselineOptions {
 export interface ExecuteCoreLoopRunOptions {
   readonly agentAdapter: RtlAgentAdapter;
   readonly compilerAdapter: CoreLoopCompilerAdapter;
-  readonly lockedAgentCapability: OpenCodeCapability;
+  readonly lockedAgentCapability: AgentCapability;
   readonly lockedCompilerCapability: CompilerCapabilityLock;
   readonly clock?: RunClock;
 }
@@ -105,21 +105,38 @@ export function compilerCapabilityMatches(
 }
 
 export function agentCapabilityMatches(
-  capability: OpenCodeCapability,
-  locked: OpenCodeCapability,
+  capability: AgentCapability,
+  locked: AgentCapability,
 ): boolean {
   return sha256Jcs(capability) === sha256Jcs(locked);
 }
 
-function agentTurnMatchesLock(result: AgentTurnResult, locked: OpenCodeCapability): boolean {
+function agentTurnMatchesLock(result: AgentTurnResult, locked: AgentCapability): boolean {
+  if ("openCodeVersion" in locked) {
+    return (
+      "openCodeVersion" in result &&
+      result.openCodeVersion === locked.openCodeVersion &&
+      result.model === locked.model &&
+      result.variant === locked.variant &&
+      result.resolvedConfigDigest === locked.resolvedConfigDigest &&
+      result.resolvedAgentPermissionDigest === locked.resolvedAgentPermissionDigest &&
+      result.agentFileDigest === locked.agentFileDigest &&
+      result.skillFileDigest === locked.skillFileDigest &&
+      result.guidanceFileDigest === locked.guidanceFileDigest &&
+      result.experimentConfigDigest === locked.experimentConfigDigest
+    );
+  }
   return (
-    result.openCodeVersion === locked.openCodeVersion &&
+    "piVersion" in result &&
+    result.piVersion === locked.piVersion &&
+    result.provider === locked.provider &&
     result.model === locked.model &&
-    result.variant === locked.variant &&
+    result.sessionMode === locked.sessionMode &&
+    sha256Jcs(result.enabledTools) === sha256Jcs(locked.enabledTools) &&
     result.resolvedConfigDigest === locked.resolvedConfigDigest &&
-    result.resolvedAgentPermissionDigest === locked.resolvedAgentPermissionDigest &&
-    result.agentFileDigest === locked.agentFileDigest &&
-    result.skillFileDigest === locked.skillFileDigest &&
+    result.isolationConfigDigest === locked.isolationConfigDigest &&
+    result.toolPolicyDigest === locked.toolPolicyDigest &&
+    result.extensionFileDigest === locked.extensionFileDigest &&
     result.guidanceFileDigest === locked.guidanceFileDigest &&
     result.experimentConfigDigest === locked.experimentConfigDigest
   );

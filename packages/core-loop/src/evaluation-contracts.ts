@@ -1,7 +1,7 @@
 import { IsoTimestampSchema, SchemaVersionSchema, Sha256DigestSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
-import { OpenCodeCapabilitySchema } from "./agent-contracts.js";
+import { AgentCapabilitySchema } from "./agent-contracts.js";
 import { IcarusCapabilitySchema } from "./compiler-contracts.js";
 import {
   CompileIssueSchema,
@@ -85,7 +85,7 @@ export const EvaluationProfileSchema = z
     expectedCaseCount: z.int().positive().max(10_000),
     expectedOrderedCaseIdsDigest: Sha256DigestSchema,
     runProfile: CoreLoopRunProfileSchema,
-    agentCapability: OpenCodeCapabilitySchema,
+    agentCapability: AgentCapabilitySchema,
     compilerCapability: CompilerCapabilityLockSchema,
     thresholds: EvaluationThresholdsSchema,
     humanReview: HumanReviewPlanSchema,

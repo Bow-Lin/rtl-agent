@@ -30,6 +30,44 @@ How should future agents avoid repeating it?
 
 ## Known Failure Modes
 
+## 2026-07-23 - Hidden diagnosis Schema made a completed batch look failed
+
+### Symptom
+
+`evaluate --begin Prob021 --end Prob050` returned `MISMATCH_ANALYSIS_FAILED`, while its persisted
+summary showed a completed 30-case batch. The model had written a concrete diagnosis for
+`Prob034_dff8`, but used `INITIALIZATION`, string evidence entries, and lowercase `medium`.
+
+### Root Cause
+
+The runtime Schema required a fixed category enum, structured evidence objects, and uppercase
+confidence. The Agent saw only placeholder keys with `REPLACE_ME` and an empty evidence array, so it
+could not discover the actual output contract. Observed-issue generation was also awaited as though
+it were part of evaluation, allowing a reporting failure to replace the CLI's completed result.
+
+### Fix
+
+Materialize an exact private Schema guide, provide structured validation issues, and allow one
+bounded correction turn. Add initialization/spec-reference ambiguity categories. Keep post-processing
+best-effort for `evaluate`, return a retry warning, and add `reanalyze --batch` to reuse validated
+existing evidence without rerunning generation or simulation.
+
+### Prevention
+
+Any model-authored structured artifact must receive the complete allowed enums and nested field
+shape, not just top-level placeholder keys. Optional analysis/reporting after a durable primary
+result must have a separate status and a recovery command. Tests must cover schema repair,
+persistent invalid output, protected-input mutation, existing-batch reanalysis, and warning-only
+failure propagation.
+
+### Related Files
+
+- `.opencode/agents/rtl-mismatch-analyzer.md`
+- `packages/core-loop/src/mismatch-analyzer.ts`
+- `apps/rtl-core-loop/src/index.ts`
+- `packages/core-loop/test/mismatch-analyzer.test.ts`
+- `apps/rtl-core-loop/test/cli.test.ts`
+
 ## 2026-07-21 - Source-bound Icarus design errors were misclassified as tool failures
 
 ### Symptom

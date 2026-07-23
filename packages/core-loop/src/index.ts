@@ -1,5 +1,6 @@
 export * from "./agent-contracts.js";
 export * from "./agent-adapter.js";
+export * from "./pi-agent-adapter.js";
 export * from "./batch-evaluator.js";
 export * from "./catalog.js";
 export * from "./chipbench-lock.js";

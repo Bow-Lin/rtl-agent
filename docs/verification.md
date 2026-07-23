@@ -90,6 +90,39 @@ environment.
 
 Windows requires a regular native `.exe`; `.cmd`/`.bat` launchers and shell mediation are rejected. `agent-probe` must verify exact version, required flags, effective `autoupdate: false`, disabled sharing/snapshot/formatter/LSP, empty MCP/plugin/instructions, deny-only resolved global config, bounded resolved Agent permissions, repository Agent/Skill digests, and the experiment config digest. The explicit smoke uses only generated test data: one allowed Blank Generation turn must return `RTL_CHANGED`, and one test-only Agent must actually receive a denied write result without creating the target. Neither smoke is evaluation evidence. Ordinary `pnpm test` skips both network/model calls. OpenCode may retain its own session DB; shared Core Loop evidence stores neither its host path nor raw JSONL.
 
+The optional Pi backend is parallel to, and does not replace, the OpenCode backend. Configure the
+current `@earendil-works/pi-coding-agent` CLI without using an npm-generated `.cmd` shim:
+
+```powershell
+$env:RTL_AGENT_PI_EXECUTABLE = (Get-Command node).Source
+$env:RTL_AGENT_PI_ENTRYPOINT = '<absolute-path-to-pi-package>\dist\cli.js'
+$env:RTL_AGENT_PI_VERSION = '<locked-version>'
+$env:RTL_AGENT_PI_PROVIDER = 'kimi-coding'
+$env:RTL_AGENT_PI_MODEL = 'kimi-for-coding'
+$env:KIMI_API_KEY = '<key>' # KIMI_CODE_API_KEY is also accepted and mapped
+node .\apps\rtl-core-loop\dist\index.js pi-agent-probe
+```
+
+`pi-agent-probe` locks the exact Pi version, JSON/ephemeral/offline flags, isolated configuration,
+the explicit `read,write,edit` tool set, the repository path-policy extension, common guidance, and
+experiment configuration. The adapter disables discovered extensions, skills, prompt templates,
+context files, project trust, sessions, telemetry, and startup update traffic. Its explicit
+extension blocks reads outside `spec.md`, `context/**`, and `rtl/**`; writes and edits are restricted
+to supported RTL files below `rtl/**`. The normal post-turn manifest policy remains a second
+boundary. Pi itself has no general sandbox, so this bounded adapter must not enable `bash` or
+third-party extensions.
+
+All Pi invocations share `.rtl-agent/pi-config`. The adapter records its non-auth semantic file
+state as `resolvedConfigDigest` and privately locks the complete file state, including
+`auth.json`, for the lifetime of one adapter/batch. Configuration or credential drift during that
+lifecycle fails with `PI_AGENT_CAPABILITY_MISMATCH`; credential contents never enter capability or
+turn evidence.
+
+Windows evidence on 2026-07-23: the locked `0.81.1` probe passed, and
+`evaluate --profile verilog-eval-kimi-pi-v1 --cases Prob001` produced
+`b-20260723-005` with one compile pass, one functional pass, zero mismatches, zero not-run cases,
+zero verification-invalid cases, and completed post-processing.
+
 The generic VerilogEval/Kimi profile requires an explicit selection. Continuous ranges include both
 endpoints:
 
@@ -109,6 +142,16 @@ node .\apps\rtl-core-loop\dist\index.js evaluate `
   --cases "Prob001,Prob005,Prob010"
 ```
 
+After the current OpenCode batch and an explicit build complete, the equivalent Pi evaluation uses
+the distinct profile identity:
+
+```powershell
+node .\apps\rtl-core-loop\dist\index.js evaluate `
+  --profile verilog-eval-kimi-pi-v1 `
+  --begin Prob001 `
+  --end Prob010
+```
+
 Selectors are case-insensitive and may be full IDs or unambiguous prefixes. Range and list modes
 are mutually exclusive. The resolved case list is canonicalized to pinned Provider order and bound
 into the derived profile before any model turn. The v1 profile uses one Agent attempt per case.
@@ -125,10 +168,22 @@ a concrete root-cause category, cite at least one candidate RTL line, and state 
 limitations. The input also includes per-public-output mismatch counts and first-mismatch times
 parsed from the bounded simulation stdout. Complete structured analysis and capability metadata stay
 under `_internal/mismatch-analysis/<run-id>/`; the runtime journal publishes only one concise
-category/confidence/root-cause conclusion per mismatched case. A missing, generic, malformed, or input-mutating diagnosis fails with
-`MISMATCH_ANALYSIS_FAILED` instead of recording an unknown cause. These diagnosis turns consume
-additional model quota. The journal workflow never writes `common-guidance.md`; promotion into
-prompt guidance requires an explicit operator request and applies only to later batches.
+category/confidence/root-cause conclusion per mismatched case. A missing, generic, malformed, or
+input-mutating diagnosis fails with `MISMATCH_ANALYSIS_FAILED` instead of recording an unknown
+cause. The Agent receives the exact category/confidence enums and evidence-object contract. One
+schema-invalid response receives one bounded correction turn with structured validation issues. A
+diagnosis failure is post-processing: it produces a CLI warning and does not replace an already
+published batch result. Retry only the existing batch diagnosis without regenerating candidates
+with:
+
+```powershell
+node .\apps\rtl-core-loop\dist\index.js reanalyze --batch <batch-id>
+```
+
+The retry revalidates persisted batch input/result/functional evidence and reuses the existing
+public specification and candidate RTL. These diagnosis turns consume additional model quota. The
+journal workflow never writes `common-guidance.md`; promotion into prompt guidance requires an
+explicit operator request and applies only to later batches.
 Every `functionalNotRun` case is also listed under `Not Run Details` in selected-case order. The
 entry uses the stable run outcome or preflight status, maps a missing compile unit to
 `NO_COMPILE_UNIT`, and includes the latest structured compile-error message for `MAX_ATTEMPTS` when

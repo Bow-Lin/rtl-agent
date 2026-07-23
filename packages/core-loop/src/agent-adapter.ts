@@ -8,6 +8,7 @@ import type { AgentAttemptInput } from "./contracts.js";
 import { CoreLoopException } from "./errors.js";
 import { AgentTurnResultSchema, OpenCodeCapabilitySchema } from "./agent-contracts.js";
 import type {
+  AgentCapability,
   AgentTurnOutcome,
   AgentTurnResult,
   AgentWorkspaceViolation,
@@ -40,7 +41,7 @@ const REQUIRED_RUN_FLAGS = [
 const ALLOWED_RTL_EXTENSION = /\.(?:sv|svh|v|vh)$/i;
 const COMPILE_UNIT_EXTENSION = /\.(?:sv|v)$/i;
 
-interface LoadedGuidance {
+export interface LoadedGuidance {
   readonly content: string;
   readonly digest: ReturnType<typeof sha256Bytes>;
 }
@@ -69,7 +70,7 @@ export interface OpenCodeExperimentConfig {
 }
 
 export interface RtlAgentAdapter {
-  probe(): Promise<OpenCodeCapability>;
+  probe(): Promise<AgentCapability>;
   runTurn(rawInput: unknown, run: CoreLoopRun): Promise<AgentTurnResult>;
 }
 
@@ -114,7 +115,7 @@ function guidanceFilePath(repositoryRoot: string): string {
   return path.join(repositoryRoot, ".opencode", "skills", AGENT_NAME, GUIDANCE_FILE_NAME);
 }
 
-async function loadGuidance(repositoryRoot: string): Promise<LoadedGuidance> {
+export async function loadRtlAgentGuidance(repositoryRoot: string): Promise<LoadedGuidance> {
   let bytes: Buffer;
   try {
     bytes = await readFile(guidanceFilePath(repositoryRoot));
@@ -485,7 +486,7 @@ function activeArguments(
   return [...(config.executableArgumentsPrefix ?? []), ...arguments_];
 }
 
-async function writeAgentInput(
+export async function writeAgentInput(
   workspaceDirectory: string,
   input: AgentAttemptInput,
 ): Promise<void> {
@@ -499,7 +500,7 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopRun): Promise<void> {
+export async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopRun): Promise<void> {
   if (input.runId !== run.runId || input.category !== run.fixture.category) {
     throw new CoreLoopException(
       "AGENT_INPUT_INVALID",
@@ -541,7 +542,7 @@ async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopRun): Pr
   }
 }
 
-function workspacePolicyViolations(
+export function workspacePolicyViolations(
   before: FileManifest,
   after: FileManifest,
   limits: RtlWorkspaceLimits,
@@ -595,7 +596,7 @@ function workspacePolicyViolations(
   };
 }
 
-function chooseOutcome(
+export function chooseAgentTurnOutcome(
   violations: readonly AgentWorkspaceViolation[],
   timedOut: boolean,
   processFailed: boolean,
@@ -711,7 +712,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
     const [agentBytes, skillBytes, guidance] = await Promise.all([
       readFile(agentFile),
       readFile(skillFile),
-      loadGuidance(this.config.repositoryRoot),
+      loadRtlAgentGuidance(this.config.repositoryRoot),
     ]);
     return OpenCodeCapabilitySchema.parse({
       schemaVersion: 1,
@@ -751,7 +752,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       );
     }
     const capability = await this.probe();
-    const guidance = await loadGuidance(this.config.repositoryRoot);
+    const guidance = await loadRtlAgentGuidance(this.config.repositoryRoot);
     if (guidance.digest !== capability.guidanceFileDigest) {
       throw new CoreLoopException(
         "OPENCODE_CAPABILITY_MISMATCH",
@@ -813,7 +814,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       });
     }
 
-    const outcome = chooseOutcome(
+    const outcome = chooseAgentTurnOutcome(
       violations,
       processResult.timedOut,
       processResult.terminationFailed || processResult.spawnError !== undefined,
