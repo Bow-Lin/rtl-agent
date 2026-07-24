@@ -2,7 +2,7 @@
   "task_id": "r04-bounded-repair-loop-and-evaluation",
   "status": "in_progress",
   "current_phase": "implementation_complete_awaiting_acceptance_review",
-  "last_updated": "2026-07-24T10:32:07+08:00",
+  "last_updated": "2026-07-24T15:53:28+08:00",
   "active_plan": [
     "Record the final operator license-review disposition for the pinned dataset sources",
     "Resolve the operator-selected VerilogEval range/list into a concrete capability-bound profile",
@@ -264,9 +264,21 @@
       "corepack pnpm build",
       "corepack pnpm format:check",
       "git diff --check",
+      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
+      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts",
+      "corepack pnpm lint",
+      "corepack pnpm typecheck",
+      "corepack pnpm build",
+      "node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe",
+      "corepack pnpm test",
+      "corepack pnpm core-loop:evaluate:pi --cases NotARealCase",
+      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm test",
+      "corepack pnpm format:check",
+      "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Pi project resources now live under .pi, shared guidance under config/agents, and local state under .rtl-agent/pi-state; the policy activates only for bounded adapter turns; real Pi/OpenCode probes and Pi connection pass, with 249 full-repository tests plus lint, typecheck, build, format, diff, and harness checks",
+    "last_result": "Pi evaluation turns enforce provider capture count/byte limits before write/send and report bounded cleanup failure without reclassifying Agent outcomes; guarded review has no P1/P2, and the real Pi 0.81.1 probe, isolated process test, 252 repository tests, lint, typecheck, build, format, diff, and harness checks pass",
     "known_failures": [
       "Final operator MIT/license-review disposition is not yet recorded",
       "No acceptance-qualified R04 profile plus predeclared human-review checkpoint has completed; exploratory real batches exist",
@@ -290,7 +302,7 @@
     "blocked_on": "Final license-review disposition, execution of an operator-selected resolved profile, and the required human review"
   },
   "handoff": {
-    "last_summary": "Pi now has first-class .pi project configuration, backend-neutral shared guidance, and clearly named ignored pi-state; tool capability is strict and digest-locked, and its path policy activates only for bounded adapter turns. R04 remains IN_PROGRESS.",
+    "last_summary": "Pi provider payload capture now applies hard pre-write/pre-send limits and bounded non-fatal cleanup warnings while retaining ignored per-attempt _internal evidence. R04 remains IN_PROGRESS.",
     "resume_from": "Record the final MIT license disposition, decide whether existing functional evidence satisfies the acceptance profile or run the missing bounded repair evaluation, then complete the predeclared human review and checkpoint recommendation."
   }
 }

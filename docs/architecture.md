@@ -31,6 +31,12 @@ lives under `config/agents/`. Ignored `.rtl-agent/pi-state/` contains only Pi au
 mutable model state, while `.rtl-agent/tools/` contains the version-isolated Pi installation.
 Both adapters load repository resources explicitly and bind their semantic digests into capability
 identity.
+For Pi evaluation turns only, the locked policy extension observes the final serialized provider
+request payload and the adapter publishes the bounded ordered payloads below the corresponding
+batch `_internal/runs/.../evidence/attempts/` directory. This diagnostic evidence is ignored,
+contains no captured headers or credentials, and is not part of public batch summaries.
+Capture count and bytes are checked before each write/provider call. Temporary cleanup failure is
+reported locally and in turn evidence after bounded retries, but does not change the Agent outcome.
 
 ## Notes for Future Agents
 

@@ -1730,3 +1730,55 @@ during ordinary manual Pi discovery.
 - real OpenCode `1.18.2` probe passed with the backend-neutral guidance digest
 - full repository: 34 files passed / 1 skipped; 249 tests passed / 2 skipped
 - lint, typecheck, build, Prettier, diff check, and Harness check passed
+
+## Entry: Capture Pi Provider Prompts During Dataset Evaluation
+
+### Outcome
+
+Pi-backed evaluation turns now observe the actual final payload at
+`before_provider_request` and retain every request in order below
+`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json`. The hook
+returns `undefined`, so it never changes the provider request. Captures contain no HTTP headers or
+credentials, remain below ignored batch `_internal`, and are never copied into `summary.json`,
+generated RTL, or the observed-issues journal.
+
+The digest-locked Pi policy creates an exclusive, permission-restricted temporary JSONL capture
+outside the Agent workspace. It now checks the 64-request and 8-MiB limits before writing and before
+the corresponding provider call. The adapter validates sequence and JSON shape after the process
+closes, then exclusively publishes the internal JSON artifact. Missing or malformed capture fails
+closed with `PI_AGENT_CAPABILITY_MISMATCH`; a process that never spawns records an empty request
+list. Temporary-directory removal uses three bounded retries. Final failure emits
+`PROVIDER_CAPTURE_CLEANUP_FAILED` to stderr and adds `localWarnings` to the Pi turn evidence without
+changing the Agent/RTL outcome or retaining the host path in evidence.
+
+Added `core-loop:evaluate:pi` as a root build-and-run command. Local ignored `.env.local` now
+contains the existing host's Pi executable, entrypoint, version, provider, and model settings; the
+credential continues to come only from ignored `.env`.
+
+### Validation
+
+- focused Pi adapter/policy tests: 1 file, 13 tests passed
+- full repository: 34 files passed / 1 skipped; 252 tests passed / 2 skipped
+- lint, typecheck, and build: passed
+- real Pi `0.81.1` capability probe: passed with the changed extension digest
+- `corepack pnpm core-loop:evaluate:pi --cases NotARealCase`: reached the built CLI and returned the
+  expected pre-turn `DATASET_CASE_NOT_FOUND`, proving argument forwarding without making a model
+  request
+- Prettier, `git diff --check`, and Harness check: passed
+
+No live dataset/model request was made during validation. The first real selected Pi evaluation
+will create the new provider-payload artifact. These payloads can contain proprietary
+specifications and complete model context and must be reviewed before sharing.
+
+The guarded `commit-main` review then found two P2 issues before any Git mutation: limits were
+checked only after temporary capture, and cleanup failure was silently ignored. Both are now
+repaired. Direct extension tests prove count and byte overflow are rejected before another line is
+written. A cleanup helper passes `maxRetries: 3` / `retryDelay: 100` to recursive `fs.rm`, reports a
+stable warning after final failure, and returns a non-fatal status that becomes Pi
+`localWarnings`. The focused Pi suite increased to 13 tests and the full repository to 252 tests.
+
+The final guarded landing review found no remaining P1/P2. Its first aggregate validation hit the
+repository's documented Windows fake process-tree termination race: one unrelated OpenCode timeout
+test returned `AGENT_PROCESS_ERROR` instead of `AGENT_TIMEOUT`. The affected 21-test file passed
+with one worker, and the independent aggregate rerun then passed all 252 tests. Lint, typecheck,
+build, the real Pi probe, Prettier, diff check, and Harness check also passed before staging.

@@ -115,7 +115,11 @@ COMPLETED
 1. 写严格的 `AgentAttemptInput` 到 `context/agent-input.json`。blank fixture 的第一次 attempt 省略 `previousCompileResultPath`；seeded fixture 的第一次 attempt 引用 baseline `CompileResult`，后续 attempt 引用上一轮结果。被引用结果的有界脱敏副本写入 `context/previous-compile-result.json`。
 2. 保存 attempt开始前 workspace manifest与 `rtl-before/**` 副本。
 3. 通过 R02 启动一个全新 OpenCode session。
-4. 保存严格 `AgentTurnResult`、turn 后 manifest 与 `rtl-after/**` 副本；不持久化 raw JSONL、reasoning、完整 Assistant text 或 tool arguments/results。
+4. 保存严格 `AgentTurnResult`、turn 后 manifest 与 `rtl-after/**` 副本；不持久化 raw
+   OpenCode JSONL、reasoning、完整 Assistant text 或 tool arguments/results。Pi 是显式的内部诊断
+   例外：其实际 `before_provider_request` payload 按请求顺序写入忽略的
+   `_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json`，不进入公开
+   summary、生成 RTL 或 observed-issues。
 5. 穷举 R02 outcome：`POLICY_VIOLATION`、`NO_RTL_CHANGE`、`AGENT_PROCESS_ERROR`、`AGENT_TIMEOUT` 立即按停止表结束；只有 `RTL_CHANGED` 进入 compile preparation。R02 已拥有 workspace/process priority，R04 不重新解释原始 process evidence。
 6. 用 R03 request-builder 发现 source 并保存严格 `CompilePreparationResult`。只有 `READY` 才取出 `CompileRequest` 并调用 compiler。Agent turn 后的 `NO_RTL_SOURCE` 结束为 `AGENT_FAILED`；`UNSUPPORTED_INCLUDE_DIRECTIVE` 或 `SOURCE_POLICY_VIOLATION` 结束为 `POLICY_VIOLATION`。所有 preparation failure 都保存 compiler-not-invoked evidence，不伪造 `CompileRequest` 或 `CompileResult`；request 建立后的 manifest mismatch 由 compile adapter 返回 `TOOL_ERROR`。
 7. 首次 `COMPILE_PASSED` 时进入 `FINAL_RECOMPILING`：重新执行 preparation、构造新的 `CompileRequest`、确认 profile/tool/version/top/manifest identity 未漂移，再调用 compiler。只有第二次也为 `COMPILE_PASSED` 才结束为 `COMPILE_PASSED`。第二次 `COMPILE_ERROR`、preparation failure 或 manifest/identity mismatch 均结束为 `TOOL_ERROR`；第二次 `TIMEOUT`/`TOOL_ERROR` 保持对应终态，不增加 Agent attempt。

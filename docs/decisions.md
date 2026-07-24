@@ -819,3 +819,51 @@ behavior has no backend ownership. Local secrets and mutable Pi state remain ign
 mistaken for versioned policy. The extension path, shared-guidance path, and tool-policy digest
 change the resolved Pi/OpenCode capability identity as expected, without changing the allowed
 tools or workspace access.
+
+## 2026-07-24 - Retain Pi Provider Request Payloads as Internal Attempt Evidence
+
+### Context
+
+The Pi evaluation path previously excluded raw prompts and provider payloads from Core Loop
+evidence. The operator needs to run dataset cases through Pi and inspect what Pi actually sends to
+the configured provider. Recording only the CLI system/user arguments would miss provider-specific
+serialization and later requests produced after tool calls.
+
+### Decision
+
+During bounded Pi adapter turns, extend the existing digest-locked policy extension with a
+`before_provider_request` observer. The observer never replaces the payload and never receives or
+captures HTTP headers or credentials. It writes an ordered, size-bounded temporary JSONL capture
+outside the Agent run workspace. After the Pi process closes, the adapter validates the capture,
+exclusively publishes all request payloads to
+`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json`.
+The extension enforces the 64-request and 8-MiB limits before writing each payload; an over-limit
+request is not sent because doing so would create provider activity without the required record.
+Temporary-directory removal uses three bounded retries. Final cleanup failure emits the stable
+local warning `PROVIDER_CAPTURE_CLEANUP_FAILED` and adds `localWarnings` to the Pi turn result
+without changing its Agent/RTL outcome or serializing the host temporary path.
+
+Keep the artifact below ignored batch `_internal`; do not copy it into `summary.json`, public
+generated RTL, the observed-issues journal, or authoritative workflow state. A missing or malformed
+capture fails closed as `PI_AGENT_CAPABILITY_MISMATCH`. A process that never spawns records an
+empty request list because no provider request could have occurred.
+
+Add a root `core-loop:evaluate:pi` script that builds the workspace and invokes the existing generic
+VerilogEval profile with `--agent pi`; callers still must provide an explicit range or case list.
+
+### Alternatives Considered
+
+- Store only the fixed CLI prompt arguments: rejected because they are not the final serialized
+  provider payload and omit follow-up requests.
+- Print payloads only to the terminal: rejected because long-running batch output is not durable or
+  associated with a specific run/attempt.
+- Store payloads in public batch summaries: rejected because they can contain complete proprietary
+  specifications and model context.
+
+### Consequences
+
+Each tool-using Pi turn may retain multiple complete request payloads and therefore increases local
+evidence size and sensitivity. The 64-request/8-MiB capture bounds prevent unbounded retention.
+Changing the extension changes the locked Pi capability/profile digest. OpenCode retention policy
+is unchanged, and the new artifacts remain non-authoritative diagnostic evidence. A rare cleanup
+warning requires local operator follow-up but does not invalidate already completed model work.

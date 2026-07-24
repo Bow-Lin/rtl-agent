@@ -170,12 +170,32 @@ The equivalent Pi evaluation selects the backend explicitly while retaining the 
 profile at the CLI boundary:
 
 ```powershell
-node .\apps\rtl-core-loop\dist\index.js evaluate `
-  --profile verilog-eval-kimi-v1 `
-  --agent pi `
+corepack pnpm core-loop:evaluate:pi `
   --begin Prob001 `
   --end Prob010
 ```
+
+Sparse selection can be run as one build-and-evaluate command:
+
+```powershell
+corepack pnpm core-loop:evaluate:pi --cases Prob001
+```
+
+For every Pi attempt, the locked extension observes each actual `before_provider_request` payload
+without modifying it. The adapter validates a bounded temporary capture and publishes it at:
+
+```text
+.rtl-agent/batches/<batch-id>/_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json
+```
+
+The file records provider/model identity and every request in order because one tool-using turn can
+make multiple provider calls. It contains no captured headers or credentials, but it can contain
+the complete specification, prompt, tool context, and prior messages. Batch directories are
+ignored runtime evidence; review these payloads before sharing or copying them elsewhere.
+The extension checks the 64-request and 8-MiB limits before writing and before the corresponding
+provider call. Temporary-directory deletion retries three times; a final failure reports
+`PROVIDER_CAPTURE_CLEANUP_FAILED` to stderr and in the Pi turn's `localWarnings` without changing
+the Agent/RTL outcome.
 
 `--agent` accepts only `opencode` or `pi`. The CLI resolves `--agent pi` to the distinct locked
 `verilog-eval-kimi-pi-v1` evidence profile; the legacy explicit Pi profile ID remains accepted for

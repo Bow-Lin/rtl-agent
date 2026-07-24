@@ -1,4 +1,5 @@
-import { lstat, mkdir, readFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { LogicalPathSchema } from "@rtl-agent/contracts";
@@ -50,6 +51,14 @@ const TOOL_POLICY = {
   edit: ["rtl/**/*.sv", "rtl/**/*.svh", "rtl/**/*.v", "rtl/**/*.vh"],
   deniedTools: ["bash", "grep", "find", "ls"],
 } as const;
+const MAXIMUM_PROVIDER_REQUESTS = 64;
+const MAXIMUM_PROVIDER_CAPTURE_BYTES = 8 * 1024 * 1024;
+const PROVIDER_CAPTURE_CLEANUP_WARNING =
+  "Pi provider capture temporary directory could not be removed after bounded retries";
+const PiProviderRequestCaptureEntrySchema = z.strictObject({
+  sequence: z.int().positive().max(MAXIMUM_PROVIDER_REQUESTS),
+  payload: z.unknown(),
+});
 
 export interface PiExperimentConfig {
   readonly executable: string;
@@ -149,6 +158,7 @@ function activeArguments(config: PiExperimentConfig, arguments_: readonly string
 export function buildIsolatedPiEnvironment(
   config: PiExperimentConfig,
   workspaceRoot?: string,
+  providerCapturePath?: string,
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { ...process.env, ...config.environment };
   delete environment.PI_CODING_AGENT_DIR;
@@ -167,11 +177,20 @@ export function buildIsolatedPiEnvironment(
     environment.KIMI_API_KEY = environment.KIMI_CODE_API_KEY;
   }
   if (workspaceRoot !== undefined) {
+    if (providerCapturePath === undefined || !path.isAbsolute(providerCapturePath)) {
+      throw new TypeError("Pi provider capture path must be absolute for an Agent turn");
+    }
     environment.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspaceRoot;
+    environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH = providerCapturePath;
+    environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = String(MAXIMUM_PROVIDER_REQUESTS);
+    environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = String(MAXIMUM_PROVIDER_CAPTURE_BYTES);
   } else {
     delete environment.RTL_AGENT_PI_POLICY_REQUIRED;
     delete environment.RTL_AGENT_PI_WORKSPACE_ROOT;
+    delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
+    delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
+    delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
   }
   return environment;
 }
@@ -195,6 +214,10 @@ function isolationConfig(
     promptTemplates: [],
     themes: [],
     enabledTools: [...projectCapability.enabledTools],
+    providerCapture: {
+      maximumRequests: MAXIMUM_PROVIDER_REQUESTS,
+      maximumBytes: MAXIMUM_PROVIDER_CAPTURE_BYTES,
+    },
   };
 }
 
@@ -242,6 +265,66 @@ function fixedPrompt(guidance: string): string {
     "",
     guidance,
   ].join("\n");
+}
+
+async function readProviderRequestCapture(capturePath: string): Promise<unknown[]> {
+  try {
+    const stat = await lstat(capturePath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAXIMUM_PROVIDER_CAPTURE_BYTES) {
+      throw new Error("invalid capture file");
+    }
+    const content = await readFile(capturePath, "utf8");
+    if (Buffer.byteLength(content, "utf8") !== stat.size) {
+      throw new Error("capture file changed while being read");
+    }
+    const lines = content.length === 0 ? [] : content.trimEnd().split("\n");
+    if (lines.length > MAXIMUM_PROVIDER_REQUESTS) {
+      throw new Error("too many provider requests");
+    }
+    return lines.map((line, index) => {
+      const entry = PiProviderRequestCaptureEntrySchema.parse(JSON.parse(line));
+      if (entry.sequence !== index + 1) {
+        throw new Error("provider request sequence is invalid");
+      }
+      return entry.payload;
+    });
+  } catch {
+    throw new CoreLoopException(
+      "PI_AGENT_CAPABILITY_MISMATCH",
+      "Pi provider request capture is unavailable or invalid",
+    );
+  }
+}
+
+type RemoveProviderCaptureDirectory = (
+  directory: string,
+  options: {
+    readonly recursive: true;
+    readonly force: true;
+    readonly maxRetries: number;
+    readonly retryDelay: number;
+  },
+) => Promise<void>;
+
+export async function cleanupProviderCaptureDirectory(
+  directory: string,
+  removeDirectory: RemoveProviderCaptureDirectory = rm,
+  reportWarning: (message: string) => void = (message) => {
+    process.emitWarning(message, { code: "PROVIDER_CAPTURE_CLEANUP_FAILED" });
+  },
+): Promise<boolean> {
+  try {
+    await removeDirectory(directory, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+    return true;
+  } catch {
+    reportWarning(PROVIDER_CAPTURE_CLEANUP_WARNING);
+    return false;
+  }
 }
 
 export class PiRtlAgentAdapter implements RtlAgentAdapter {
@@ -403,39 +486,59 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
 
     await writeAgentInput(run.workspaceDirectory, input);
     const before = await createAttemptRunManifest(run.runDirectory);
-    const processResult = await executeOpenCodeProcess({
-      executable: this.config.executable,
-      arguments: activeArguments(this.config, [
-        "--mode",
-        "json",
-        "--no-session",
-        "--provider",
-        this.config.provider,
-        "--model",
-        this.config.model,
-        "--tools",
-        capability.enabledTools.join(","),
-        "--no-extensions",
-        "--extension",
-        this.config.extensionFile,
-        "--no-skills",
-        "--no-prompt-templates",
-        "--no-themes",
-        "--no-context-files",
-        "--no-approve",
-        "--offline",
-        "--system-prompt",
-        fixedPrompt(guidance.content),
-        "Execute the bounded RTL attempt now.",
-      ]),
-      cwd: run.workspaceDirectory,
-      environment: buildIsolatedPiEnvironment(this.config, run.workspaceDirectory),
-      timeoutMs: this.config.timeoutMs,
-      terminationGraceMs: this.config.terminationGraceMs,
-      stderrLimitBytes: this.config.stderrLimitBytes,
-      maximumEvents: this.config.maximumEvents,
-      maximumEventLineBytes: this.config.maximumEventLineBytes,
-    });
+    const providerCaptureDirectory = await mkdtemp(
+      path.join(os.tmpdir(), "rtl-agent-pi-provider-"),
+    );
+    const providerCapturePath = path.join(providerCaptureDirectory, "requests.jsonl");
+    let processResult;
+    let providerRequestPayloads: unknown[];
+    let providerCaptureCleanupSucceeded: boolean;
+    try {
+      processResult = await executeOpenCodeProcess({
+        executable: this.config.executable,
+        arguments: activeArguments(this.config, [
+          "--mode",
+          "json",
+          "--no-session",
+          "--provider",
+          this.config.provider,
+          "--model",
+          this.config.model,
+          "--tools",
+          capability.enabledTools.join(","),
+          "--no-extensions",
+          "--extension",
+          this.config.extensionFile,
+          "--no-skills",
+          "--no-prompt-templates",
+          "--no-themes",
+          "--no-context-files",
+          "--no-approve",
+          "--offline",
+          "--system-prompt",
+          fixedPrompt(guidance.content),
+          "Execute the bounded RTL attempt now.",
+        ]),
+        cwd: run.workspaceDirectory,
+        environment: buildIsolatedPiEnvironment(
+          this.config,
+          run.workspaceDirectory,
+          providerCapturePath,
+        ),
+        timeoutMs: this.config.timeoutMs,
+        terminationGraceMs: this.config.terminationGraceMs,
+        stderrLimitBytes: this.config.stderrLimitBytes,
+        maximumEvents: this.config.maximumEvents,
+        maximumEventLineBytes: this.config.maximumEventLineBytes,
+      });
+      providerRequestPayloads =
+        processResult.spawnError === undefined
+          ? await readProviderRequestCapture(providerCapturePath)
+          : [];
+    } finally {
+      providerCaptureCleanupSucceeded =
+        await cleanupProviderCaptureDirectory(providerCaptureDirectory);
+    }
     if ((await this.lockSharedConfig()) !== capability.resolvedConfigDigest) {
       throw new CoreLoopException(
         "PI_AGENT_CAPABILITY_MISMATCH",
@@ -510,7 +613,31 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       eventStream: processResult.eventStream,
       stderr: processResult.stderr,
       evidencePath,
+      ...(providerCaptureCleanupSucceeded
+        ? {}
+        : {
+            localWarnings: [
+              {
+                code: "PROVIDER_CAPTURE_CLEANUP_FAILED",
+                message: PROVIDER_CAPTURE_CLEANUP_WARNING,
+              },
+            ],
+          }),
     });
+    await writeJsonEvidenceExclusive(
+      run.runDirectory,
+      `evidence/attempts/${String(input.attempt)}/provider-request-payloads.json`,
+      {
+        schemaVersion: 1,
+        provider: capability.provider,
+        model: capability.model,
+        attempt: input.attempt,
+        requests: providerRequestPayloads.map((payload, index) => ({
+          sequence: index + 1,
+          payload,
+        })),
+      },
+    );
     await writeJsonEvidenceExclusive(run.runDirectory, evidencePath, result);
     return result;
   }

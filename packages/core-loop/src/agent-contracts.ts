@@ -146,6 +146,17 @@ export const PiAgentTurnResultSchema = z
     toolPolicyDigest: Sha256DigestSchema,
     extensionFileDigest: Sha256DigestSchema,
     guidanceFileDigest: Sha256DigestSchema,
+    localWarnings: z
+      .array(
+        z.strictObject({
+          code: z.literal("PROVIDER_CAPTURE_CLEANUP_FAILED"),
+          message: z.literal(
+            "Pi provider capture temporary directory could not be removed after bounded retries",
+          ),
+        }),
+      )
+      .max(1)
+      .optional(),
   })
   .superRefine(refineAgentTurnOutcome);
 

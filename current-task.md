@@ -35,6 +35,15 @@ The installed runtime is version-isolated under ignored `.rtl-agent/tools/pi-0.8
 `b-20260723-005` passed one Pi/Kimi case end to end: compile 1/1, functional simulation 1/1, and
 post-processing completed.
 
+Pi evaluation turns now retain every actual `before_provider_request` payload in ordered, bounded
+per-attempt evidence at
+`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json`. The hook does
+not modify requests or capture HTTP headers/credentials. These ignored internal files may contain
+complete specifications, prompts, and model context and must be reviewed before sharing.
+The extension applies its 64-request/8-MiB limits before writing or sending an over-limit request.
+Temporary cleanup retries three times; a final failure is a local/evidence warning rather than a
+model or RTL failure.
+
 Pi is now a first-class repository backend layout: `.pi/capability.json` declares the exact tool
 allowlist, `.pi/extensions/rtl-core-loop-policy.mjs` enforces workspace paths, and `.pi/skills/`
 is reserved for explicitly loaded Pi-only skills. Automatic resource discovery remains disabled
@@ -124,6 +133,8 @@ sandbox claim is made.
 - only R02 `RTL_CHANGED` is compile-eligible.
 - only R03 `COMPILE_ERROR` can start another Agent turn.
 - raw OpenCode JSONL, reasoning, full Assistant text, and tool payloads are never R04 evidence.
+- Pi provider request payloads are the explicit internal-diagnostics exception; they remain ignored
+  per-attempt evidence and are never copied into public summaries or generated RTL.
 - every compile preparation is evidence; compile results exist only when the compiler was invoked.
 - strict `FinalResult` is written last only for evidence-complete runs with a trustworthy final RTL manifest.
 - invalid fixtures and incomplete runs remain batch-level records rather than new R01 final outcomes.
@@ -170,4 +181,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-24T10:32:07+08:00
+2026-07-24T15:53:28+08:00
