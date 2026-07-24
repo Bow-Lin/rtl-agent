@@ -14,7 +14,12 @@ import type { AgentAttemptInput, CoreLoopRun, PiExperimentConfig } from "../src/
 import { RUN_REQUEST, TestFixtureProvider } from "./fixtures.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const POLICY_EXTENSION = path.join(REPOSITORY_ROOT, "config", "pi", "rtl-core-loop-extension.mjs");
+const POLICY_EXTENSION = path.join(
+  REPOSITORY_ROOT,
+  ".pi",
+  "extensions",
+  "rtl-core-loop-policy.mjs",
+);
 const roots: string[] = [];
 
 const FAKE_PI_SOURCE = String.raw`
@@ -27,6 +32,7 @@ if (process.env.FAKE_PI_LOG) {
     args,
     cwd: process.cwd(),
     configDir: process.env.PI_CODING_AGENT_DIR,
+    policyRequired: process.env.RTL_AGENT_PI_POLICY_REQUIRED,
     workspaceRoot: process.env.RTL_AGENT_PI_WORKSPACE_ROOT,
     offline: process.env.PI_OFFLINE,
     telemetry: process.env.PI_TELEMETRY
@@ -63,6 +69,12 @@ if (process.env.FAKE_PI_MODE === "config-drift") {
     '{"providers":{"kimi-coding":{"baseUrl":"https://changed.invalid"}}}\n'
   );
 }
+if (process.env.FAKE_PI_MODE === "capability-drift") {
+  writeFileSync(
+    process.env.FAKE_PI_CAPABILITY_FILE,
+    '{"schemaVersion":1,"enabledTools":["read","write"]}\n'
+  );
+}
 `;
 
 async function temporaryRoot(): Promise<string> {
@@ -72,19 +84,27 @@ async function temporaryRoot(): Promise<string> {
 }
 
 afterEach(async () => {
+  delete process.env.RTL_AGENT_PI_POLICY_REQUIRED;
   delete process.env.RTL_AGENT_PI_WORKSPACE_ROOT;
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function fakePi(root: string): Promise<{ readonly script: string; readonly log: string }> {
+async function fakePi(
+  root: string,
+): Promise<{ readonly script: string; readonly log: string; readonly capability: string }> {
   const script = path.join(root, "fake-pi.mjs");
   const log = path.join(root, "pi-log.jsonl");
-  await Promise.all([writeFile(script, FAKE_PI_SOURCE, "utf8"), writeFile(log, "", "utf8")]);
-  return { script, log };
+  const capability = path.join(root, "capability.json");
+  await Promise.all([
+    writeFile(script, FAKE_PI_SOURCE, "utf8"),
+    writeFile(log, "", "utf8"),
+    writeFile(capability, '{"schemaVersion":1,"enabledTools":["read","write","edit"]}\n', "utf8"),
+  ]);
+  return { script, log, capability };
 }
 
 function config(
-  fake: { readonly script: string; readonly log: string },
+  fake: { readonly script: string; readonly log: string; readonly capability: string },
   mode = "change",
 ): PiExperimentConfig {
   return {
@@ -92,9 +112,10 @@ function config(
     executableArgumentsPrefix: [fake.script],
     expectedPiVersion: "0.81.1",
     repositoryRoot: REPOSITORY_ROOT,
-    configDirectory: path.join(path.dirname(fake.script), "pi-config"),
+    configDirectory: path.join(path.dirname(fake.script), "pi-state"),
     provider: "kimi-coding",
     model: "kimi-for-coding",
+    capabilityFile: fake.capability,
     extensionFile: POLICY_EXTENSION,
     timeoutMs: 2_000,
     terminationGraceMs: 50,
@@ -110,6 +131,7 @@ function config(
     environment: {
       FAKE_PI_LOG: fake.log,
       FAKE_PI_MODE: mode,
+      FAKE_PI_CAPABILITY_FILE: fake.capability,
       KIMI_API_KEY: "test-key",
     },
   };
@@ -170,6 +192,7 @@ describe("Pi RTL Agent adapter", () => {
       sessionMode: "EPHEMERAL",
     });
     expect(invocation.cwd).toBe(run.workspaceDirectory);
+    expect(invocation.policyRequired).toBe("1");
     expect(invocation.workspaceRoot).toBe(run.workspaceDirectory);
     expect(invocation.offline).toBe("1");
     expect(invocation.telemetry).toBe("0");
@@ -205,6 +228,25 @@ describe("Pi RTL Agent adapter", () => {
     expect(configured.environment).toMatchObject({
       KIMI_API_KEY: "secret",
       KIMI_CODE_API_KEY: "secret",
+    });
+    expect(configured.configDirectory).toBe(path.join(REPOSITORY_ROOT, ".rtl-agent", "pi-state"));
+    expect(configured.capabilityFile).toBe(path.join(REPOSITORY_ROOT, ".pi", "capability.json"));
+    expect(configured.extensionFile).toBe(POLICY_EXTENSION);
+  });
+
+  it("fails closed when the versioned Pi tool capability changes", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const adapter = new PiRtlAgentAdapter(config(fake));
+    await adapter.probe();
+    await writeFile(
+      fake.capability,
+      '{"schemaVersion":1,"enabledTools":["read","write"]}\n',
+      "utf8",
+    );
+
+    await expect(adapter.probe()).rejects.toMatchObject({
+      error: { code: "PI_AGENT_CAPABILITY_MISMATCH" },
     });
   });
 
@@ -255,11 +297,38 @@ describe("Pi RTL Agent adapter", () => {
       error: { code: "PI_AGENT_CAPABILITY_MISMATCH" },
     });
   });
+
+  it("rejects a turn when the project capability changes while Pi is running", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const run = await createBlankRun(root);
+
+    await expect(
+      new PiRtlAgentAdapter(config(fake, "capability-drift")).runTurn(inputFor(run), run),
+    ).rejects.toMatchObject({
+      error: { code: "PI_AGENT_CAPABILITY_MISMATCH" },
+    });
+  });
 });
 
 describe("Pi RTL policy extension", () => {
+  it("stays inactive during ordinary project-level Pi discovery", async () => {
+    let registered = false;
+    const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {
+      default(pi: { on(): void }): void;
+    };
+    extension.default({
+      on: () => {
+        registered = true;
+      },
+    });
+
+    expect(registered).toBe(false);
+  });
+
   it("allows bounded RTL access and blocks paths outside the workspace", async () => {
     const workspace = path.join(await temporaryRoot(), "workspace");
+    process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
     let handler: ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
     const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {

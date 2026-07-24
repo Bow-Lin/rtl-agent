@@ -16,6 +16,7 @@ import {
   BatchInputManifestSchema,
   CHIPBENCH_DATASET_LOCK,
   CoreLoopException,
+  EvaluationProfileSchema,
   MismatchAnalysisSchema,
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFunctionalResultSchema,
@@ -192,13 +193,14 @@ describe("rtl-core-loop CLI boundary", () => {
       );
 
       expect(exitCode).toBe(0);
-      expect(errors).toEqual([]);
+      expect(errors).toEqual(["正在处理 case/001... (1/1)"]);
       expect(JSON.parse(output[0]!) as unknown).toMatchObject({
         ok: true,
         result: {
           status: "COMPLETED",
           caseCount: 1,
           claim: "COMPILE_ONLY",
+          agentBackend: "opencode",
         },
       });
       expect(output[0]).not.toContain(root);
@@ -354,6 +356,8 @@ describe("rtl-core-loop CLI boundary", () => {
         "evaluate",
         "--profile",
         "evaluation-test-v1",
+        "--agent",
+        "opencode",
         "--begin",
         "Prob001",
         "--end",
@@ -409,7 +413,12 @@ describe("rtl-core-loop CLI boundary", () => {
       );
 
       expect(exitCode).toBe(0);
-      expect(errors).toEqual([]);
+      expect(errors).toEqual(
+        example.expectedCaseIds.map(
+          (caseId, index) =>
+            `正在处理 ${caseId}... (${String(index + 1)}/${String(example.expectedCaseIds.length)})`,
+        ),
+      );
       expect(agent.inputs.map((input) => input.runId)).toHaveLength(2);
       const result = JSON.parse(output[0]!) as {
         result: { batchId: string; caseCount: number; batchDirectory: string };
@@ -460,6 +469,79 @@ describe("rtl-core-loop CLI boundary", () => {
     expect(agent.inputs).toHaveLength(0);
     expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
       error: { code: "EVALUATION_PROFILE_INVALID" },
+    });
+  });
+
+  it("rejects an unsupported Agent backend before any Agent turn", async () => {
+    const provider = new EvaluationTestProvider();
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter([]);
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      [
+        "evaluate",
+        "--profile",
+        profile.evaluationProfileId,
+        "--agent",
+        "unsupported",
+        "--cases",
+        "case/001",
+      ],
+      provider,
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [profile],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+        agentAdapter: agent,
+        compilerAdapter: new ScriptedCompilerAdapter([]),
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(agent.inputs).toHaveLength(0);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: {
+        code: "EVALUATION_PROFILE_INVALID",
+        message: "--agent must be either opencode or pi",
+      },
+    });
+  });
+
+  it("maps the generic Kimi profile to Pi and rejects a conflicting capability", async () => {
+    const provider = new EvaluationTestProvider();
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter([]);
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      ["evaluate", "--profile", "verilog-eval-kimi-v1", "--agent", "pi", "--cases", "case/001"],
+      provider,
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [
+          EvaluationProfileSchema.parse({
+            ...profile,
+            evaluationProfileId: "verilog-eval-kimi-pi-v1",
+          }),
+        ],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+        agentAdapter: agent,
+        compilerAdapter: new ScriptedCompilerAdapter([]),
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(agent.inputs).toHaveLength(0);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: {
+        code: "EVALUATION_PROFILE_INVALID",
+        message: "Requested profile does not use the pi Agent backend",
+      },
     });
   });
 

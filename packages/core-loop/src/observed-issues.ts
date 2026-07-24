@@ -13,7 +13,7 @@ const JOURNAL_HEADER = `# Observed Dataset Issues
 This file is generated after dataset evaluation batches. It records observed failures and concise
 mismatch conclusions. Detailed diagnosis evidence remains in each batch's internal directory. It is
 runtime evidence, not prompt guidance. Updating
-\`.opencode/skills/rtl-core-loop/common-guidance.md\` requires an explicit human request.
+\`config/agents/rtl-core-loop/common-guidance.md\` requires an explicit human request.
 `;
 
 export interface UpdateObservedIssuesOptions {

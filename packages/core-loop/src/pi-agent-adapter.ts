@@ -2,6 +2,7 @@ import { lstat, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { LogicalPathSchema } from "@rtl-agent/contracts";
+import { z } from "zod";
 
 import { AgentTurnResultSchema, PiCapabilitySchema } from "./agent-contracts.js";
 import type { AgentTurnResult, AgentWorkspaceViolation, PiCapability } from "./agent-contracts.js";
@@ -23,7 +24,11 @@ import type { CoreLoopRun } from "./materialize.js";
 import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.js";
 
 const AGENT_NAME = "rtl-core-loop" as const;
-const ENABLED_TOOLS = ["read", "write", "edit"] as const;
+const PiProjectCapabilitySchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  enabledTools: z.tuple([z.literal("read"), z.literal("write"), z.literal("edit")]),
+});
+type PiProjectCapability = z.infer<typeof PiProjectCapabilitySchema>;
 const REQUIRED_FLAGS = [
   "--mode",
   "--no-session",
@@ -54,6 +59,7 @@ export interface PiExperimentConfig {
   readonly configDirectory: string;
   readonly provider: string;
   readonly model: string;
+  readonly capabilityFile: string;
   readonly extensionFile: string;
   readonly timeoutMs: number;
   readonly terminationGraceMs: number;
@@ -86,9 +92,12 @@ function validateConfig(config: PiExperimentConfig): void {
     !path.isAbsolute(config.executable) ||
     !path.isAbsolute(config.repositoryRoot) ||
     !path.isAbsolute(config.configDirectory) ||
+    !path.isAbsolute(config.capabilityFile) ||
     !path.isAbsolute(config.extensionFile)
   ) {
-    throw new TypeError("Pi executable, repositoryRoot, and extensionFile must be absolute paths");
+    throw new TypeError(
+      "Pi executable, repositoryRoot, capabilityFile, and extensionFile must be absolute paths",
+    );
   }
   validateToken("expectedPiVersion", config.expectedPiVersion);
   validateToken("provider", config.provider);
@@ -118,6 +127,21 @@ async function requireRegularFile(
   }
 }
 
+async function loadPiProjectCapability(capabilityFile: string): Promise<PiProjectCapability> {
+  try {
+    const stat = await lstat(capabilityFile);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0 || stat.size > 4_096) {
+      throw new Error("invalid capability file");
+    }
+    return PiProjectCapabilitySchema.parse(JSON.parse(await readFile(capabilityFile, "utf8")));
+  } catch {
+    throw new CoreLoopException(
+      "PI_AGENT_CAPABILITY_MISMATCH",
+      "Pi project capability configuration is unavailable or invalid",
+    );
+  }
+}
+
 function activeArguments(config: PiExperimentConfig, arguments_: readonly string[]): string[] {
   return [...(config.executableArgumentsPrefix ?? []), ...arguments_];
 }
@@ -142,18 +166,27 @@ export function buildIsolatedPiEnvironment(
   if (environment.KIMI_API_KEY === undefined && environment.KIMI_CODE_API_KEY !== undefined) {
     environment.KIMI_API_KEY = environment.KIMI_CODE_API_KEY;
   }
-  if (workspaceRoot !== undefined) environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspaceRoot;
-  else delete environment.RTL_AGENT_PI_WORKSPACE_ROOT;
+  if (workspaceRoot !== undefined) {
+    environment.RTL_AGENT_PI_POLICY_REQUIRED = "1";
+    environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspaceRoot;
+  } else {
+    delete environment.RTL_AGENT_PI_POLICY_REQUIRED;
+    delete environment.RTL_AGENT_PI_WORKSPACE_ROOT;
+  }
   return environment;
 }
 
-function isolationConfig(config: PiExperimentConfig): Record<string, unknown> {
+function isolationConfig(
+  config: PiExperimentConfig,
+  projectCapability: PiProjectCapability,
+): Record<string, unknown> {
   return {
     schemaVersion: 1,
     mode: "json",
     sessionMode: "EPHEMERAL",
     offlineStartup: true,
     projectTrust: false,
+    policyActivation: "RTL_AGENT_PI_POLICY_REQUIRED=1",
     contextFiles: false,
     extensions: [
       path.relative(config.repositoryRoot, config.extensionFile).split(path.sep).join("/"),
@@ -161,11 +194,24 @@ function isolationConfig(config: PiExperimentConfig): Record<string, unknown> {
     skills: [],
     promptTemplates: [],
     themes: [],
-    enabledTools: [...ENABLED_TOOLS],
+    enabledTools: [...projectCapability.enabledTools],
   };
 }
 
-function experimentConfigDigest(config: PiExperimentConfig): ReturnType<typeof sha256Jcs> {
+function projectToolPolicyDigest(
+  projectCapability: PiProjectCapability,
+): ReturnType<typeof sha256Jcs> {
+  return sha256Jcs({
+    schemaVersion: 1,
+    projectCapability,
+    workspacePolicy: TOOL_POLICY,
+  });
+}
+
+function experimentConfigDigest(
+  config: PiExperimentConfig,
+  projectCapability: PiProjectCapability,
+): ReturnType<typeof sha256Jcs> {
   return sha256Jcs({
     schemaVersion: 1,
     expectedPiVersion: config.expectedPiVersion,
@@ -182,8 +228,8 @@ function experimentConfigDigest(config: PiExperimentConfig): ReturnType<typeof s
     maximumEvents: config.maximumEvents,
     maximumEventLineBytes: config.maximumEventLineBytes,
     workspaceLimits: config.workspaceLimits,
-    isolation: isolationConfig(config),
-    toolPolicy: TOOL_POLICY,
+    isolation: isolationConfig(config, projectCapability),
+    toolPolicyDigest: projectToolPolicyDigest(projectCapability),
   });
 }
 
@@ -200,7 +246,6 @@ function fixedPrompt(guidance: string): string {
 
 export class PiRtlAgentAdapter implements RtlAgentAdapter {
   private readonly config: PiExperimentConfig;
-  private readonly configDigest: ReturnType<typeof sha256Jcs>;
   private runtimeConfigDigest: ReturnType<typeof sha256Jcs> | undefined;
 
   public constructor(config: PiExperimentConfig) {
@@ -213,7 +258,6 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       workspaceLimits: { ...config.workspaceLimits },
       ...(config.environment === undefined ? {} : { environment: { ...config.environment } }),
     };
-    this.configDigest = experimentConfigDigest(this.config);
   }
 
   private async probeCommand(
@@ -273,6 +317,11 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
         "PI_AGENT_CAPABILITY_MISMATCH",
         "Pi RTL policy extension",
       ),
+      requireRegularFile(
+        this.config.capabilityFile,
+        "PI_AGENT_CAPABILITY_MISMATCH",
+        "Pi project capability configuration",
+      ),
     ]);
     const version = (await this.probeCommand(["--version"])).stdout.replace(/^pi\s+/i, "");
     if (version !== this.config.expectedPiVersion) {
@@ -290,9 +339,10 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       );
     }
     const resolvedConfigDigest = await this.lockSharedConfig();
-    const [extensionBytes, guidance] = await Promise.all([
+    const [extensionBytes, guidance, projectCapability] = await Promise.all([
       readFile(this.config.extensionFile),
       loadRtlAgentGuidance(this.config.repositoryRoot),
+      loadPiProjectCapability(this.config.capabilityFile),
     ]);
     return PiCapabilitySchema.parse({
       schemaVersion: 1,
@@ -302,13 +352,13 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       sessionMode: "EPHEMERAL",
       agentName: AGENT_NAME,
       requiredFlags: [...REQUIRED_FLAGS],
-      enabledTools: [...ENABLED_TOOLS],
+      enabledTools: [...projectCapability.enabledTools],
       resolvedConfigDigest,
-      isolationConfigDigest: sha256Jcs(isolationConfig(this.config)),
-      toolPolicyDigest: sha256Jcs(TOOL_POLICY),
+      isolationConfigDigest: sha256Jcs(isolationConfig(this.config, projectCapability)),
+      toolPolicyDigest: projectToolPolicyDigest(projectCapability),
       extensionFileDigest: sha256Bytes(extensionBytes),
       guidanceFileDigest: guidance.digest,
-      experimentConfigDigest: this.configDigest,
+      experimentConfigDigest: experimentConfigDigest(this.config, projectCapability),
     });
   }
 
@@ -335,17 +385,19 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
         "Shared Pi semantic configuration changed before the Agent turn",
       );
     }
-    const [extensionBytes, guidance] = await Promise.all([
+    const [extensionBytes, guidance, projectCapability] = await Promise.all([
       readFile(this.config.extensionFile),
       loadRtlAgentGuidance(this.config.repositoryRoot),
+      loadPiProjectCapability(this.config.capabilityFile),
     ]);
     if (
       sha256Bytes(extensionBytes) !== capability.extensionFileDigest ||
-      guidance.digest !== capability.guidanceFileDigest
+      guidance.digest !== capability.guidanceFileDigest ||
+      projectToolPolicyDigest(projectCapability) !== capability.toolPolicyDigest
     ) {
       throw new CoreLoopException(
         "PI_AGENT_CAPABILITY_MISMATCH",
-        "Pi policy or RTL guidance changed during Agent preparation",
+        "Pi capability, policy, or RTL guidance changed during Agent preparation",
       );
     }
 
@@ -362,7 +414,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
         "--model",
         this.config.model,
         "--tools",
-        ENABLED_TOOLS.join(","),
+        capability.enabledTools.join(","),
         "--no-extensions",
         "--extension",
         this.config.extensionFile,
@@ -388,6 +440,15 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       throw new CoreLoopException(
         "PI_AGENT_CAPABILITY_MISMATCH",
         "Shared Pi semantic configuration changed during the Agent turn",
+      );
+    }
+    if (
+      projectToolPolicyDigest(await loadPiProjectCapability(this.config.capabilityFile)) !==
+      capability.toolPolicyDigest
+    ) {
+      throw new CoreLoopException(
+        "PI_AGENT_CAPABILITY_MISMATCH",
+        "Pi project capability changed during the Agent turn",
       );
     }
 
@@ -501,14 +562,15 @@ export function piExperimentConfigFromEnvironment(
     ...(entrypoint === undefined ? {} : { executableArgumentsPrefix: [path.resolve(entrypoint)] }),
     expectedPiVersion,
     repositoryRoot: path.resolve(repositoryRoot),
-    configDirectory: path.join(path.resolve(repositoryRoot), ".rtl-agent", "pi-config"),
+    configDirectory: path.join(path.resolve(repositoryRoot), ".rtl-agent", "pi-state"),
     provider,
     model,
+    capabilityFile: path.join(path.resolve(repositoryRoot), ".pi", "capability.json"),
     extensionFile: path.join(
       path.resolve(repositoryRoot),
-      "config",
-      "pi",
-      "rtl-core-loop-extension.mjs",
+      ".pi",
+      "extensions",
+      "rtl-core-loop-policy.mjs",
     ),
     ...(kimiKey === undefined
       ? {}

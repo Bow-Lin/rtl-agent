@@ -66,6 +66,14 @@ export interface EvaluateCoreLoopBatchOptions {
   readonly batchesRoot: string;
   readonly batchIdFactory?: () => BatchId;
   readonly clock?: RunClock;
+  readonly onCaseStart?: (progress: CoreLoopBatchCaseProgress) => void;
+}
+
+export interface CoreLoopBatchCaseProgress {
+  readonly caseIndex: number;
+  readonly caseNumber: number;
+  readonly caseCount: number;
+  readonly caseRef: FixtureCaseRef;
 }
 
 export interface CoreLoopBatchExecution {
@@ -431,6 +439,16 @@ export async function evaluateCoreLoopBatch(
   if (!baselineInfrastructureInvalid) {
     for (const validated of validatedRuns) {
       if (validated.validation.status !== "VALID") continue;
+      try {
+        options.onCaseStart?.({
+          caseIndex: validated.validation.caseIndex,
+          caseNumber: validated.validation.caseIndex + 1,
+          caseCount: cases.length,
+          caseRef: validated.validation.caseRef,
+        });
+      } catch {
+        // Progress output must not change the evaluation outcome.
+      }
       const result = await executeValidatedCoreLoopRun(validated, {
         agentAdapter: options.agentAdapter,
         compilerAdapter: options.compilerAdapter,

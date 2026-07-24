@@ -36,6 +36,9 @@ function allowedWrite(logicalPath) {
 }
 
 export default function rtlCoreLoopPolicy(pi) {
+  if (process.env.RTL_AGENT_PI_POLICY_REQUIRED !== "1") {
+    return;
+  }
   const workspaceRoot = process.env.RTL_AGENT_PI_WORKSPACE_ROOT;
   if (workspaceRoot === undefined || !path.isAbsolute(workspaceRoot)) {
     throw new Error("RTL_AGENT_PI_WORKSPACE_ROOT must be an absolute path");

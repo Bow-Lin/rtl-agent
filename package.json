@@ -21,7 +21,8 @@
     "core-loop:dataset:prepare": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop dataset:prepare",
     "core-loop:dataset:prepare:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop dataset:prepare:chipbench",
     "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check",
-    "core-loop:fixtures:check:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check:chipbench"
+    "core-loop:fixtures:check:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check:chipbench",
+    "test:pi-connection": "node test_pi_connection.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

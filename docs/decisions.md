@@ -726,3 +726,96 @@ profile digest, prompts, and artifacts. Pi/OpenCode comparisons cannot accidenta
 ID. Pi integration adds a second schema branch and adapter-specific evidence, while its lack of a
 general sandbox remains explicit: enabling `bash`, arbitrary extensions, or unbounded paths requires
 a separate security decision.
+
+## 2026-07-24 - Select the Evaluation Agent Explicitly and Keep Progress off stdout
+
+### Context
+
+The VerilogEval CLI exposed OpenCode and Pi through different profile IDs, which made backend
+selection an implicit side effect of profile naming. Long-running evaluations also emitted no
+case-level progress while stdout was reserved for the final machine-readable JSON result.
+
+### Decision
+
+Add `--agent opencode|pi` to `evaluate`. Treat `verilog-eval-kimi-v1` as the generic operator-facing
+entry point: `--agent opencode` retains its OpenCode profile identity, while `--agent pi` resolves
+to the existing distinct `verilog-eval-kimi-pi-v1` evidence profile. Preserve the explicit Pi
+profile ID for backward compatibility and reject any backend/profile capability conflict before an
+Agent turn.
+
+Report each case immediately before it enters the Agent/compile loop as
+`正在处理 <case-id>... (<current>/<total>)`. Write progress to stderr and keep the final JSON as the
+only stdout line. Treat progress callbacks as non-evidentiary observability: a display failure must
+not change the evaluation result.
+
+### Consequences
+
+Operators can switch generation harnesses without memorizing backend-specific profile IDs, while
+the persisted capability/profile identity remains unambiguous. Existing stdout JSON consumers
+remain compatible, but wrappers that treat any stderr output as fatal must distinguish progress
+text from the structured JSON error emitted on command failure.
+
+## 2026-07-24 - Keep Full Pi Provider Inspection Outside Evaluation Evidence
+
+### Context
+
+The operator needs a small diagnostic that accepts arbitrary text and proves both Pi connectivity
+and the exact request Pi prepares for Kimi. The regular Pi adapter deliberately excludes raw
+prompts, event streams, reasoning, and provider payloads from formal Core Loop evidence. Adding
+unconditional capture to that adapter would increase exposure of dataset prompts and could affect
+an active evaluation.
+
+### Decision
+
+Provide root `test_pi_connection.ts` as one explicit standalone SDK diagnostic. Use the pinned Pi
+package and shared `.rtl-agent/pi-state`, disable tools and resource discovery, register one
+in-memory `before_provider_request` observer, send the command-line text, and print the captured
+payload plus final Assistant message. Do not create a separate extension or capture file.
+
+Never capture headers or credentials. Treat the printed result as sensitive operator diagnostics,
+not R04 evidence. Keep the existing Pi RTL extension, Pi adapter, OpenCode configuration,
+evaluation profiles, and `evaluate` command unchanged.
+
+### Consequences
+
+An operator can test custom prompt text and inspect the actual provider payload without running a
+dataset case. The diagnostic prints Pi's parsed Assistant response; Pi's SDK hook does not expose
+the raw streamed HTTP response body. Full output may contain system prompts, reasoning, thinking
+signatures, usage, and proprietary input, so it must not be committed or shared without review.
+
+## 2026-07-24 - Separate Backend Project Configuration From Pi Local State
+
+### Context
+
+Pi had become a first-class parallel backend, but its repository resources were split between
+`config/pi` and `.opencode`, while its ignored local directory was named `.rtl-agent/pi-config`.
+The two `config` names obscured the boundary between reviewed project behavior and mutable local
+state. Pi also consumed common guidance from an OpenCode-owned directory.
+
+### Decision
+
+Use `.pi/` for repository-owned Pi resources, parallel to `.opencode/`. Move the locked path-policy
+extension to `.pi/extensions/rtl-core-loop-policy.mjs` and declare the exact enabled tool list in
+`.pi/capability.json`. Parse that file strictly, combine its semantic content with the path policy
+in `toolPolicyDigest`, and fail closed if it is invalid or changes before or during a turn.
+Continue disabling Pi resource discovery and load the reviewed extension explicitly.
+Require the adapter-only `RTL_AGENT_PI_POLICY_REQUIRED=1` activation flag before the extension
+registers its handler. This prevents ordinary manual Pi project discovery from failing or
+unexpectedly acquiring the Core Loop policy, while adapter turns still fail closed if their
+workspace root is absent or invalid.
+
+Reserve `.pi/skills/` for Pi-only skills, but do not create a duplicate RTL Skill. Move the shared
+RTL checklist to `config/agents/rtl-core-loop/common-guidance.md`; both adapters inject and
+digest-lock that same file. A future Pi-native skill must be explicitly loaded and included in
+capability identity.
+
+Rename ignored `.rtl-agent/pi-config` to `.rtl-agent/pi-state`. Keep only authentication and
+mutable model state there. Retain the pinned Pi package below `.rtl-agent/tools/pi-0.81.1`.
+
+### Consequences
+
+Backend-specific project behavior is now discoverable under `.opencode/` and `.pi/`, while shared
+behavior has no backend ownership. Local secrets and mutable Pi state remain ignored and cannot be
+mistaken for versioned policy. The extension path, shared-guidance path, and tool-policy digest
+change the resolved Pi/OpenCode capability identity as expected, without changing the allowed
+tools or workspace access.

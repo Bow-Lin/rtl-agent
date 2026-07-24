@@ -112,11 +112,33 @@ to supported RTL files below `rtl/**`. The normal post-turn manifest policy rema
 boundary. Pi itself has no general sandbox, so this bounded adapter must not enable `bash` or
 third-party extensions.
 
-All Pi invocations share `.rtl-agent/pi-config`. The adapter records its non-auth semantic file
+All Pi invocations share `.rtl-agent/pi-state`. The adapter records its non-auth semantic file
 state as `resolvedConfigDigest` and privately locks the complete file state, including
 `auth.json`, for the lifetime of one adapter/batch. Configuration or credential drift during that
 lifecycle fails with `PI_AGENT_CAPABILITY_MISMATCH`; credential contents never enter capability or
 turn evidence.
+
+Repository-owned Pi resources live under `.pi/`. The adapter reads the exact `read,write,edit`
+allowlist from `.pi/capability.json` and explicitly loads
+`.pi/extensions/rtl-core-loop-policy.mjs` while automatic resource discovery remains disabled.
+The semantic capability plus the path policy participate in `toolPolicyDigest`; invalid or changed
+capability configuration fails closed. The extension registers its policy only when the adapter
+sets `RTL_AGENT_PI_POLICY_REQUIRED=1`; ordinary manual Pi project discovery therefore leaves it
+inactive.
+
+Use the standalone connectivity diagnostic when an operator needs to inspect a custom prompt
+outside the dataset flow:
+
+```powershell
+corepack pnpm test:pi-connection -- "仅回复 PI_OK"
+```
+
+The single file uses Pi's SDK with the repository-pinned `0.81.1` runtime and shared
+`.rtl-agent/pi-state`. It disables tools and resource discovery, observes
+`before_provider_request` in memory, and prints the actual provider payload followed by Pi's
+complete parsed Assistant message. The output can contain complete prompts, reasoning,
+signatures, usage, and model responses; do not redirect it into committed evidence or share it
+without review.
 
 Windows evidence on 2026-07-23: the locked `0.81.1` probe passed, and
 `evaluate --profile verilog-eval-kimi-pi-v1 --cases Prob001` produced
@@ -130,6 +152,7 @@ endpoints:
 corepack pnpm build
 node .\apps\rtl-core-loop\dist\index.js evaluate `
   --profile verilog-eval-kimi-v1 `
+  --agent opencode `
   --begin Prob001 `
   --end Prob010
 ```
@@ -139,24 +162,34 @@ Sparse selection uses a quoted comma-separated value:
 ```powershell
 node .\apps\rtl-core-loop\dist\index.js evaluate `
   --profile verilog-eval-kimi-v1 `
+  --agent opencode `
   --cases "Prob001,Prob005,Prob010"
 ```
 
-After the current OpenCode batch and an explicit build complete, the equivalent Pi evaluation uses
-the distinct profile identity:
+The equivalent Pi evaluation selects the backend explicitly while retaining the generic operator
+profile at the CLI boundary:
 
 ```powershell
 node .\apps\rtl-core-loop\dist\index.js evaluate `
-  --profile verilog-eval-kimi-pi-v1 `
+  --profile verilog-eval-kimi-v1 `
+  --agent pi `
   --begin Prob001 `
   --end Prob010
 ```
 
+`--agent` accepts only `opencode` or `pi`. The CLI resolves `--agent pi` to the distinct locked
+`verilog-eval-kimi-pi-v1` evidence profile; the legacy explicit Pi profile ID remains accepted for
+backward compatibility. An explicit backend that conflicts with a registered profile capability is
+rejected before any Agent turn.
+
 Selectors are case-insensitive and may be full IDs or unambiguous prefixes. Range and list modes
 are mutually exclusive. The resolved case list is canonicalized to pinned Provider order and bound
 into the derived profile before any model turn. The v1 profile uses one Agent attempt per case.
-Every Agent turn also receives the complete versioned checklist from
-`.opencode/skills/rtl-core-loop/common-guidance.md`. Its SHA-256 is stored as
+Immediately before each selected case enters the Agent/compile loop, `evaluate` writes
+`正在处理 <case-id>... (<current>/<total>)` to stderr. The final machine-readable result remains the
+only stdout line and includes `agentBackend`, so progress output does not corrupt JSON consumers.
+Every Agent turn also receives the complete backend-neutral versioned checklist from
+`config/agents/rtl-core-loop/common-guidance.md`. Its SHA-256 is stored as
 `guidanceFileDigest` in the Agent capability and turn evidence, so changing the checklist changes
 the resolved profile identity and mid-run drift fails closed. The guide contains only general
 Compile/Logic/Safety advice and must not contain case-specific answers or hidden verification data.

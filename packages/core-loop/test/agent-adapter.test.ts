@@ -163,12 +163,14 @@ async function createFakeOpenCode(root: string): Promise<{ script: string; log: 
 async function createAgentFiles(root: string, guidance: string): Promise<void> {
   const agentDirectory = path.join(root, ".opencode", "agents");
   const skillDirectory = path.join(root, ".opencode", "skills", "rtl-core-loop");
+  const guidanceDirectory = path.join(root, "config", "agents", "rtl-core-loop");
   await mkdir(agentDirectory, { recursive: true });
   await mkdir(skillDirectory, { recursive: true });
+  await mkdir(guidanceDirectory, { recursive: true });
   await Promise.all([
     writeFile(path.join(agentDirectory, "rtl-core-loop.md"), "synthetic agent\n", "utf8"),
     writeFile(path.join(skillDirectory, "SKILL.md"), "synthetic skill\n", "utf8"),
-    writeFile(path.join(skillDirectory, "common-guidance.md"), guidance, "utf8"),
+    writeFile(path.join(guidanceDirectory, "common-guidance.md"), guidance, "utf8"),
   ]);
 }
 
@@ -320,7 +322,7 @@ describe("OpenCode RTL Agent adapter", () => {
       agentName: "rtl-core-loop",
     });
     const guidanceBytes = await readFile(
-      path.join(REPOSITORY_ROOT, ".opencode", "skills", "rtl-core-loop", "common-guidance.md"),
+      path.join(REPOSITORY_ROOT, "config", "agents", "rtl-core-loop", "common-guidance.md"),
     );
     expect(capability.guidanceFileDigest).toBe(sha256Bytes(guidanceBytes));
 
@@ -391,7 +393,7 @@ describe("OpenCode RTL Agent adapter", () => {
     );
     const first = await adapter.probe();
     await writeFile(
-      path.join(root, ".opencode", "skills", "rtl-core-loop", "common-guidance.md"),
+      path.join(root, "config", "agents", "rtl-core-loop", "common-guidance.md"),
       "# Guidance v2\n",
       "utf8",
     );

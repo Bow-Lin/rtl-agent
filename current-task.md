@@ -28,18 +28,36 @@ OpenCode path. Legacy OpenCode capability/profile/turn evidence remains readable
 separate capability branch, `pi-agent-probe`, and `verilog-eval-kimi-pi-v1` profile. Pi runs in
 one-shot JSON/ephemeral mode with discovered resources and project trust disabled, only
 `read,write,edit` enabled, and a digest-locked extension that restricts public reads and RTL writes.
-All turns use the same operator-owned `.rtl-agent/pi-config`; its semantic state is capability
+All turns use the same operator-owned `.rtl-agent/pi-state`; its semantic state is capability
 locked, while complete state including authentication is privately checked for drift within one
 adapter/batch without serializing credentials.
 The installed runtime is version-isolated under ignored `.rtl-agent/tools/pi-0.81.1`. Real batch
 `b-20260723-005` passed one Pi/Kimi case end to end: compile 1/1, functional simulation 1/1, and
 post-processing completed.
 
+Pi is now a first-class repository backend layout: `.pi/capability.json` declares the exact tool
+allowlist, `.pi/extensions/rtl-core-loop-policy.mjs` enforces workspace paths, and `.pi/skills/`
+is reserved for explicitly loaded Pi-only skills. Automatic resource discovery remains disabled
+for adapter turns; the policy extension also stays inactive during ordinary manual Pi discovery
+unless the adapter explicitly activates it.
+Shared guidance lives outside both backend directories, while ignored authentication/model state
+lives under `.rtl-agent/pi-state`.
+
+Root `test_pi_connection.ts` now provides an explicit custom-prompt Pi connectivity diagnostic
+outside the dataset/evidence flow. The single file uses Pi's SDK and one in-memory Hook to print
+the actual provider request payload and complete parsed Assistant message. It disables tools and
+resource discovery, never captures credentials or headers, and does not alter either evaluation
+backend.
+
 The direct CLI now registers the generic `verilog-eval-kimi-v1` template. Each invocation must
 select either an inclusive `--begin/--end` range or a `--cases` list. Both forms resolve
 case-insensitive unambiguous prefixes to complete IDs, canonicalize them in the pinned Provider
 order, and derive a concrete profile identity/digest before any model turn. The v1 template uses
-one Agent attempt per case.
+one Agent attempt per case. `evaluate --agent opencode|pi` now selects the generation backend
+explicitly: Pi resolves to its existing distinct evidence profile, while legacy profile-only
+commands remain compatible. Each case entering the Agent/compile loop is reported to stderr as
+`正在处理 <case-id>... (<current>/<total>)`; stdout remains one final JSON object and records the
+resolved `agentBackend`.
 
 A real local generation and functional-simulation batch can now run from an explicit VerilogEval
 range/list. The same `evaluate` command performs generation, candidate compilation, hidden
@@ -49,9 +67,9 @@ under `_internal/`. A checkpoint claim remains blocked until the operator record
 license-review disposition, executes the resolved profile, and completes its predeclared human
 review.
 
-Stable RTL generation advice now lives in the versioned
-`.opencode/skills/rtl-core-loop/common-guidance.md` checklist. The adapter injects the full
-Compile/Logic/Safety guidance into every generation or repair prompt and locks its digest into the
+Stable RTL generation advice now lives in the backend-neutral versioned
+`config/agents/rtl-core-loop/common-guidance.md` checklist. Both adapters inject the full
+Compile/Logic/Safety guidance into every generation or repair prompt and lock its digest into the
 Agent capability and per-turn evidence. The guide is methodology-only and contains no case-specific
 reference or hidden testbench information.
 
@@ -86,6 +104,13 @@ successful rerun, 119 of 156 unique cases functionally passed. Two cases are sep
 model outcomes: Prob040 was not executed after the historical classifier stop, and Prob099 has a
 testbench port mismatch against both the public/reference interface and candidate.
 
+Today's complete OpenCode/Kimi rerun is summarized in
+`exp_result/verilog-eval/07.23-kimi-opencode-001-156.md`. Its five non-overlapping batches cover
+Prob001–Prob156 exactly once: 135/156 functionally pass, 16 are genuine mismatches, four never
+produce a compile-eligible candidate, and Prob099 remains verification-interface invalid. Ten of
+the 16 mismatches have schema-valid restricted diagnoses; the report leaves the other six
+unclassified instead of inferring unsupported root causes.
+
 Functional summaries now reserve `functionalFailed` for genuine nonzero simulated mismatches and
 report verification compile/process/timeout/output failures separately as `verificationInvalid`.
 Any verification-invalid result makes the CLI return `INVALID`/`ok: false`. Historical evidence
@@ -110,13 +135,15 @@ sandbox claim is made.
 - lint, typecheck, build, format, peer dependency, frozen-install, package, and full-repository checks pass.
 - Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
 - thin CLI/profile-selection tests: 3 files and 18 tests passed.
-- full repository: 34 files passed / 1 skipped; 244 tests passed / 2 skipped.
+- full repository: 34 files passed / 1 skipped; 249 tests passed / 2 skipped.
 - real Icarus integration: 2 files and 6 tests passed, including synthetic R04 baseline/repair/final-recompile composition.
 - real OpenCode 1.18.2 static probe and two live restricted-Agent smoke tests pass.
 - Kimi Code `kimi-for-coding` static probe and one live restricted-Agent blank-generation turn pass
   with the key loaded only from ignored local environment files.
 - Pi Coding Agent `0.81.1` static probe and real `verilog-eval-kimi-pi-v1` batch
   `b-20260723-005` pass with one compile/functional pass and no verification invalidity.
+- standalone Pi connectivity diagnostic passed one real Kimi request with custom input, one
+  captured provider payload, one parsed Assistant response, and exit status zero.
 - the pinned VerilogEval archive prepared successfully; `fixtures-check` validates the locked manifest and reports 156 `spec-to-rtl` cases.
 - real Icarus/vvp checks against existing Kimi-generated Prob001 and Prob002 candidates passed with
   `0/20` and `0/100` mismatched samples respectively; no model request was made.
@@ -143,4 +170,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-23T14:54:00+08:00
+2026-07-24T10:32:07+08:00

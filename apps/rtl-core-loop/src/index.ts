@@ -83,9 +83,11 @@ export interface RtlCoreLoopDatasetDependencies {
 }
 
 type DatasetName = "verilog-eval" | "chipbench";
+type AgentBackend = "opencode" | "pi";
 
 interface ParsedEvaluationCommand {
   readonly profileId: string;
+  readonly agentBackend?: AgentBackend;
   readonly selection?: EvaluationCaseSelectionRequest;
 }
 
@@ -285,15 +287,47 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       "Core Loop evaluation command arguments are invalid",
     );
   }
-  if (options.size === 1) return { profileId };
+  const agentBackend = options.get("--agent");
+  if (agentBackend !== undefined && agentBackend !== "opencode" && agentBackend !== "pi") {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "--agent must be either opencode or pi",
+    );
+  }
+  const allowedOptions = new Set(["--profile", "--agent", "--begin", "--end", "--cases"]);
+  if ([...options.keys()].some((name) => !allowedOptions.has(name))) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "Core Loop evaluation command arguments are invalid",
+    );
+  }
+  const selectionOptionCount = options.size - 1 - (agentBackend === undefined ? 0 : 1);
+  const parsedBackend = agentBackend as AgentBackend | undefined;
+  if (selectionOptionCount === 0) {
+    return { profileId, ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }) };
+  }
 
   const begin = options.get("--begin");
   const end = options.get("--end");
   const cases = options.get("--cases");
-  if (options.size === 3 && begin !== undefined && end !== undefined && cases === undefined) {
-    return { profileId, selection: { kind: "RANGE", begin, end } };
+  if (
+    selectionOptionCount === 2 &&
+    begin !== undefined &&
+    end !== undefined &&
+    cases === undefined
+  ) {
+    return {
+      profileId,
+      ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
+      selection: { kind: "RANGE", begin, end },
+    };
   }
-  if (options.size === 2 && cases !== undefined && begin === undefined && end === undefined) {
+  if (
+    selectionOptionCount === 1 &&
+    cases !== undefined &&
+    begin === undefined &&
+    end === undefined
+  ) {
     const selectors = cases.split(",").map((value) => value.trim());
     if (selectors.some((value) => value.length === 0)) {
       throw new CoreLoopException(
@@ -301,12 +335,36 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
         "--cases must contain a comma-separated list of case selectors",
       );
     }
-    return { profileId, selection: { kind: "CASES", cases: selectors } };
+    return {
+      profileId,
+      ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
+      selection: { kind: "CASES", cases: selectors },
+    };
   }
   throw new CoreLoopException(
     "EVALUATION_PROFILE_INVALID",
     "Use either --begin with --end or --cases, but not both",
   );
+}
+
+function profileIdForAgentBackend(command: ParsedEvaluationCommand): string {
+  if (command.agentBackend === undefined) return command.profileId;
+  if (command.profileId === VERILOG_EVAL_KIMI_PROFILE_ID) {
+    return command.agentBackend === "pi"
+      ? VERILOG_EVAL_KIMI_PI_PROFILE_ID
+      : VERILOG_EVAL_KIMI_PROFILE_ID;
+  }
+  if (command.profileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID && command.agentBackend !== "pi") {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      `${VERILOG_EVAL_KIMI_PI_PROFILE_ID} requires --agent pi`,
+    );
+  }
+  return command.profileId;
+}
+
+function profileAgentBackend(profile: EvaluationProfile): AgentBackend {
+  return "piVersion" in profile.agentCapability ? "pi" : "opencode";
 }
 
 async function runCompileSmoke(
@@ -515,26 +573,27 @@ export async function runRtlCoreLoopCli(
     try {
       const configuredProvider = requireFixtureProvider(provider);
       const parsedCommand = parseEvaluationCommand(arguments_);
+      const requestedProfileId = profileIdForAgentBackend(parsedCommand);
       let agentAdapter = evaluationDependencies?.agentAdapter;
       let compilerAdapter = evaluationDependencies?.compilerAdapter;
       let openCodeConfig: OpenCodeExperimentConfig | undefined;
       let providerImplementationDigest = evaluationDependencies?.providerImplementationDigest;
       let registered = evaluationDependencies?.profiles.find(
-        (profile) => profile.evaluationProfileId === parsedCommand.profileId,
+        (profile) => profile.evaluationProfileId === requestedProfileId,
       );
       if (
         registered === undefined &&
         evaluationDependencies === undefined &&
-        (parsedCommand.profileId === VERILOG_EVAL_KIMI_PROFILE_ID ||
-          parsedCommand.profileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID)
+        (requestedProfileId === VERILOG_EVAL_KIMI_PROFILE_ID ||
+          requestedProfileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID)
       ) {
         if (parsedCommand.selection === undefined) {
           throw new CoreLoopException(
             "EVALUATION_PROFILE_INVALID",
-            `${parsedCommand.profileId} requires --begin/--end or --cases`,
+            `${requestedProfileId} requires --begin/--end or --cases`,
           );
         }
-        if (parsedCommand.profileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID) {
+        if (requestedProfileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID) {
           agentAdapter = new PiRtlAgentAdapter(
             piExperimentConfigFromEnvironment(environment, repositoryRoot),
           );
@@ -547,7 +606,7 @@ export async function runRtlCoreLoopCli(
           probeWorkingDirectory: repositoryRoot,
         });
         registered =
-          parsedCommand.profileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID
+          requestedProfileId === VERILOG_EVAL_KIMI_PI_PROFILE_ID
             ? await createVerilogEvalKimiPiBaseProfile(
                 configuredProvider,
                 agentAdapter,
@@ -564,6 +623,15 @@ export async function runRtlCoreLoopCli(
         throw new CoreLoopException(
           "EVALUATION_PROFILE_NOT_CONFIGURED",
           "Requested Core Loop evaluation profile is not configured",
+        );
+      }
+      if (
+        parsedCommand.agentBackend !== undefined &&
+        profileAgentBackend(registered) !== parsedCommand.agentBackend
+      ) {
+        throw new CoreLoopException(
+          "EVALUATION_PROFILE_INVALID",
+          `Requested profile does not use the ${parsedCommand.agentBackend} Agent backend`,
         );
       }
       if (providerImplementationDigest === undefined) {
@@ -603,6 +671,15 @@ export async function runRtlCoreLoopCli(
         agentAdapter,
         compilerAdapter,
         batchesRoot,
+        ...(command === "evaluate"
+          ? {
+              onCaseStart: (progress: CoreLoop.CoreLoopBatchCaseProgress) => {
+                writeError(
+                  `正在处理 ${progress.caseRef.identity.caseId}... (${String(progress.caseNumber)}/${String(progress.caseCount)})`,
+                );
+              },
+            }
+          : {}),
       });
       const functionalResult =
         configuredProvider instanceof VerilogEvalFixtureProvider &&
@@ -638,6 +715,7 @@ export async function runRtlCoreLoopCli(
             status: finalStatus,
             authoritative: false,
             claim: functionalResult?.claim ?? execution.result.claim,
+            agentBackend: profileAgentBackend(profile),
             caseCount:
               functionalResult?.caseCount ?? execution.result.metrics.overall.evaluationDenominator,
             compilePassed:
@@ -671,7 +749,7 @@ export async function runRtlCoreLoopCli(
     }
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|run --profile <id> --case <id>|evaluate --profile <id> (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id>>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|run --profile <id> --case <id>|evaluate --profile <id> [--agent <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id>>",
   );
   return 2;
 }

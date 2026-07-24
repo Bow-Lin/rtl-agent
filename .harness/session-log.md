@@ -1607,3 +1607,126 @@ changes during a Pi turn all fail with `PI_AGENT_CAPABILITY_MISMATCH`, while cap
 not contain the credential. The Pi suite passes 7 tests. OpenCode-focused regressions pass 45 tests,
 and the final repository run passes 34 files / 1 skipped and 244 tests / 2 skipped. Lint, typecheck,
 build, format, `git diff --check`, harness validation, and a real Pi 0.81.1 probe also pass.
+
+## Entry: Summarize the 2026-07-23 VerilogEval Prob001–Prob156 Run
+
+### Outcome
+
+Created `exp_result/verilog-eval/07.23-kimi-opencode-001-156.md` from the immutable evidence of
+OpenCode batches `b-20260723-001`, `002`, `003`, `004`, and `006`. Excluded the duplicate Pi
+Prob001 smoke batch from the aggregate. The five selected batches contain 156 unique case IDs:
+135 functional passes, 16 genuine mismatches, four cases without a compile-eligible candidate, and
+one verification-interface-invalid case. The raw end-to-end pass rate is 86.54%; valid completed
+simulations pass at 89.40%.
+
+The report separates three `NO_COMPILE_UNIT` outcomes, one Agent process/termination failure, and
+the known Prob099 testbench interface defect from model logic mismatches. It lists mismatch ratios
+and affected outputs for all 16 cases. Ten have schema-valid restricted diagnoses; six remain
+explicitly unclassified because their diagnosis evidence is incomplete.
+
+### Validation
+
+- read-only aggregation assertions: 156 unique cases, exact `135/16/4/1` outcome partition
+- calculated rates: 86.54% raw, 87.10% excluding verification-invalid, 89.40% conditional on a
+  valid completed simulation, and 97.44% candidate compile pass
+- focused Prettier check for the new Markdown report: passed
+
+## Entry: Add Explicit Evaluation Backend Selection and Case Progress
+
+### Outcome
+
+Added `--agent opencode|pi` to `evaluate`. The generic `verilog-eval-kimi-v1` CLI entry retains its
+OpenCode identity for `--agent opencode` and resolves to the existing
+`verilog-eval-kimi-pi-v1` evidence profile for `--agent pi`. Legacy explicit Pi profile commands
+remain compatible. Unsupported backend values and profile/capability conflicts fail before an
+Agent turn.
+
+Added a non-evidentiary batch progress callback at the actual validated-run execution boundary.
+Immediately before each case enters the Agent/compile loop, the CLI writes
+`正在处理 <case-id>... (<current>/<total>)` to stderr. The final stdout remains one JSON object and
+now includes `agentBackend`. Progress callback failures are isolated from evaluation outcomes.
+
+### Validation
+
+- CLI/profile/batch focused regression: 3 files, 31 tests passed
+- full repository: 34 files passed / 1 skipped; 246 tests passed / 2 skipped
+- typecheck, lint, build, format, `git diff --check`, and harness check: passed
+- built CLI rejects an unsupported backend with stable `EVALUATION_PROFILE_INVALID` before any
+  model request
+
+## Entry: Add a Standalone Pi Provider Connectivity Diagnostic
+
+### Outcome
+
+Added root `test_pi_connection.ts` with `--prompt` and `--prompt-file` inputs plus optional custom
+system prompt and timeout. It loads the ignored repository environment and shared Pi configuration,
+defaults to the pinned Pi `0.81.1` runtime, and honors explicit `RTL_AGENT_PI_*` overrides. The
+diagnostic runs with tools, sessions, project context, and discovered resources disabled.
+
+Added `config/pi/provider-connection-test-extension.mjs` as a diagnostic-only observer. It records
+the fully assembled Agent input, every actual `before_provider_request` payload, provider HTTP
+status, and complete Pi-parsed Assistant message. It does not capture headers, does not modify the
+payload, uses a fresh OS temporary file with restrictive requested permissions, and deletes the
+capture after printing. None of the Pi RTL adapter, OpenCode configuration, evaluation profiles,
+or dataset flow changed.
+
+### Real Connection Evidence
+
+`node test_pi_connection.ts --prompt "仅回复 PI_OK" --timeout-ms 120000` completed with one provider
+request, HTTP 200, one Assistant response containing `PI_OK`, token/usage metadata, and final
+`ok: true`. The missing-input invocation failed before any network request and printed exact usage.
+
+### Validation
+
+- full repository: 34 files passed / 1 skipped; 246 tests passed / 2 skipped
+- lint, typecheck, build, Prettier, diff check, and Harness check passed
+- no dataset evaluation or OpenCode request was made
+
+### Follow-up: Simplify the Pi Diagnostic to One File
+
+Replaced the process wrapper, temporary capture protocol, option parser, and separate observer
+extension with a single Pi SDK script. The command is now
+`node test_pi_connection.ts "custom prompt"`. It creates an in-memory session with tools and
+resource discovery disabled, observes `before_provider_request` directly, and prints that payload
+plus the final Assistant message. No capture file or repository extension is created.
+
+The simplified real check returned `PI_OK` and printed one actual provider payload and one complete
+Assistant response. Full validation passed: 34 test files passed / 1 skipped, 246 tests passed / 2
+skipped, plus ESLint, typecheck, Prettier, diff check, and Harness check.
+
+## Entry: Make Pi a First-Class Repository Backend Layout
+
+### Outcome
+
+Moved repository-owned Pi resources from `config/pi` to `.pi/`, parallel to `.opencode/`.
+`.pi/capability.json` now declares the exact `read,write,edit` tool set and
+`.pi/extensions/rtl-core-loop-policy.mjs` retains the existing workspace path enforcement.
+Automatic Pi extension, skill, template, theme, and context discovery remains disabled; the
+adapter loads reviewed resources explicitly. The extension additionally requires an adapter-only
+activation flag, so ordinary manual Pi project discovery does not register the Core Loop policy.
+
+Moved the shared RTL checklist out of `.opencode` to
+`config/agents/rtl-core-loop/common-guidance.md`. OpenCode and Pi continue injecting the same
+content and lock the same `guidanceFileDigest`. `.pi/skills/` is reserved for future Pi-only
+skills; no duplicate RTL Skill was introduced.
+
+Renamed the ignored local state directory from `.rtl-agent/pi-config` to
+`.rtl-agent/pi-state`. The existing `auth.json` and `models-store.json` were moved in place. The
+pinned package remains below `.rtl-agent/tools/pi-0.81.1`.
+
+### Capability Enforcement
+
+The Pi adapter strictly parses the bounded `.pi/capability.json`, combines it with the fixed path
+policy in `toolPolicyDigest`, uses its tools for the actual `--tools` argv, and rejects invalid or
+mid-turn capability drift with `PI_AGENT_CAPABILITY_MISMATCH`. Regressions cover invalid tool
+configuration, project capability mutation during a running turn, and inactive policy behavior
+during ordinary manual Pi discovery.
+
+### Validation
+
+- focused Pi/OpenCode/guidance regressions: 3 files and 37 tests passed
+- real Pi `0.81.1` probe passed with the new capability, extension, guidance, and state paths
+- real Pi SDK connection returned `PI_OK` after the local-state rename
+- real OpenCode `1.18.2` probe passed with the backend-neutral guidance digest
+- full repository: 34 files passed / 1 skipped; 249 tests passed / 2 skipped
+- lint, typecheck, build, Prettier, diff check, and Harness check passed

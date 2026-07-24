@@ -25,6 +25,13 @@ OpenCode calls a loopback Remote MCP endpoint hosted by an independent TypeScrip
 
 The Spec-to-RTL Core Loop is a continuing capability layer with a deliberately separate trust classification: an external evaluation dataset is normalized through a versioned `FixtureProvider` into ignored per-run workspaces, a profile-locked Agent backend may edit only `workspace/rtl/**`, and a fixed Icarus profile compiles the mutable copy. OpenCode remains the established backend; Pi is available only through a separate capability/evidence branch and profile identity. The repository reserves the fixture interface/location but does not ship concrete evaluation cases in R01. Core Loop evidence is initially `authoritative: false` / `COMPILE_ONLY`; it cannot update the formal domain state or support a functional-correctness claim.
 
+Backend-owned project resources are separated from local runtime state. OpenCode configuration
+lives under `.opencode/`; Pi capability and extensions live under `.pi/`; shared Agent guidance
+lives under `config/agents/`. Ignored `.rtl-agent/pi-state/` contains only Pi authentication and
+mutable model state, while `.rtl-agent/tools/` contains the version-isolated Pi installation.
+Both adapters load repository resources explicitly and bind their semantic digests into capability
+identity.
+
 ## Notes for Future Agents
 
 - Use `docs/rtl-agent-high-level-design.md` as the implementation baseline.

@@ -112,7 +112,7 @@ function validateConfig(config: OpenCodeExperimentConfig): void {
 }
 
 function guidanceFilePath(repositoryRoot: string): string {
-  return path.join(repositoryRoot, ".opencode", "skills", AGENT_NAME, GUIDANCE_FILE_NAME);
+  return path.join(repositoryRoot, "config", "agents", AGENT_NAME, GUIDANCE_FILE_NAME);
 }
 
 export async function loadRtlAgentGuidance(repositoryRoot: string): Promise<LoadedGuidance> {
