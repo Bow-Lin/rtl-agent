@@ -14,8 +14,8 @@ The operator selected NVlabs VerilogEval v2 and ChipBench without submodules. Re
 
 ChipBench exposes 45 generation cases as `BLANK_GENERATION` and 178 prompt-embedded debugging cases as `PROMPTED_FUNCTIONAL_REPAIR`. The latter remains a separate compile-only metric category: compile success does not prove the timing, assignment, arithmetic, or state-machine bug was functionally repaired.
 
-The restricted OpenCode `1.18.2` Agent is now locally configured for
-`kimi-code/kimi-for-coding`. The direct CLI safely loads an allowlisted root `.env`/`.env.local`
+The restricted OpenCode `1.18.2` Agent is now locally configured through
+`RTL_AGENT_OPENCODE_MODEL` such as `kimi-code/kimi-for-coding` or `kimi-code/k3`. The direct CLI safely loads an allowlisted root `.env`/`.env.local`
 configuration and keeps the credential out of inline configuration and capability evidence. Only
 the standard `KIMI_CODE_API_KEY` credential name is accepted. A static probe and one live Kimi
 blank-generation turn passed on Windows. Root `test_connection.ts` provides a minimal direct
@@ -35,12 +35,13 @@ The installed runtime is version-isolated under ignored `.rtl-agent/tools/pi-0.8
 `b-20260723-005` passed one Pi/Kimi case end to end: compile 1/1, functional simulation 1/1, and
 post-processing completed.
 
-Pi evaluation turns now retain every actual `before_provider_request` payload in ordered, bounded
-per-attempt evidence at
-`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json`. The hook does
-not modify requests or capture HTTP headers/credentials. These ignored internal files may contain
-complete specifications, prompts, and model context and must be reviewed before sharing.
-The extension applies its 64-request/8-MiB limits before writing or sending an over-limit request.
+Pi evaluation turns now retain every actual `before_provider_request` payload and finalized parsed
+Assistant response in ordered, bounded per-attempt evidence at
+`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-transcript.json`. The hook does not
+modify requests or capture HTTP headers/credentials/raw HTTP bytes. Interrupted final exchanges
+retain `response: null`. These ignored internal files may contain complete specifications, prompts,
+reasoning, tool calls, model context, and usage and must be reviewed before sharing.
+The extension applies a combined 64-request/8-MiB limit without silent truncation.
 Temporary cleanup retries three times; a final failure is a local/evidence warning rather than a
 model or RTL failure.
 
@@ -133,8 +134,9 @@ sandbox claim is made.
 - only R02 `RTL_CHANGED` is compile-eligible.
 - only R03 `COMPILE_ERROR` can start another Agent turn.
 - raw OpenCode JSONL, reasoning, full Assistant text, and tool payloads are never R04 evidence.
-- Pi provider request payloads are the explicit internal-diagnostics exception; they remain ignored
-  per-attempt evidence and are never copied into public summaries or generated RTL.
+- Pi provider request/parsed-response transcripts are the explicit internal-diagnostics exception;
+  they remain ignored per-attempt evidence and are never copied into public summaries or generated
+  RTL.
 - every compile preparation is evidence; compile results exist only when the compiler was invoked.
 - strict `FinalResult` is written last only for evidence-complete runs with a trustworthy final RTL manifest.
 - invalid fixtures and incomplete runs remain batch-level records rather than new R01 final outcomes.
@@ -155,6 +157,17 @@ sandbox claim is made.
   `b-20260723-005` pass with one compile/functional pass and no verification invalidity.
 - standalone Pi connectivity diagnostic passed one real Kimi request with custom input, one
   captured provider payload, one parsed Assistant response, and exit status zero.
+- Pi provider diagnostics now persist per-attempt `provider-transcript.json` with paired request and
+  parsed Assistant response data. Focused Pi tests, full repository tests, lint, typecheck, and
+  build pass. A real `corepack pnpm core-loop:evaluate:pi --cases Prob101` run produced batch
+  `b-20260727-002` with a valid transcript and exposed Kimi `403 usage limit` as the reason no RTL
+  compile unit was generated.
+- VerilogEval Kimi profile construction now locks the model reported by the selected backend
+  capability instead of requiring `kimi-for-coding`; OpenCode accepts `kimi-code/<model>` and Pi
+  accepts `kimi-coding` plus `RTL_AGENT_PI_MODEL`, so switching to `k3` is an `.env.local` change.
+  Focused profile/CLI/environment tests, lint, typecheck, build, format, diff check, Harness check,
+  and the full repository test suite pass. The full suite is now 35 files passed / 1 skipped and
+  258 tests passed / 2 skipped.
 - the pinned VerilogEval archive prepared successfully; `fixtures-check` validates the locked manifest and reports 156 `spec-to-rtl` cases.
 - real Icarus/vvp checks against existing Kimi-generated Prob001 and Prob002 candidates passed with
   `0/20` and `0/100` mismatched samples respectively; no model request was made.
@@ -181,4 +194,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-24T15:53:28+08:00
+2026-07-27T16:53:52+08:00

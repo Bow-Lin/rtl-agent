@@ -55,10 +55,24 @@ const MAXIMUM_PROVIDER_REQUESTS = 64;
 const MAXIMUM_PROVIDER_CAPTURE_BYTES = 8 * 1024 * 1024;
 const PROVIDER_CAPTURE_CLEANUP_WARNING =
   "Pi provider capture temporary directory could not be removed after bounded retries";
-const PiProviderRequestCaptureEntrySchema = z.strictObject({
-  sequence: z.int().positive().max(MAXIMUM_PROVIDER_REQUESTS),
-  payload: z.unknown(),
-});
+const PiProviderTranscriptCaptureEntrySchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("request"),
+    sequence: z.int().positive().max(MAXIMUM_PROVIDER_REQUESTS),
+    payload: z.unknown(),
+  }),
+  z.strictObject({
+    kind: z.literal("response"),
+    sequence: z.int().positive().max(MAXIMUM_PROVIDER_REQUESTS),
+    message: z.unknown(),
+  }),
+]);
+
+interface PiProviderExchange {
+  readonly sequence: number;
+  readonly request: unknown;
+  readonly response: unknown | null;
+}
 
 export interface PiExperimentConfig {
   readonly executable: string;
@@ -158,12 +172,13 @@ function activeArguments(config: PiExperimentConfig, arguments_: readonly string
 export function buildIsolatedPiEnvironment(
   config: PiExperimentConfig,
   workspaceRoot?: string,
-  providerCapturePath?: string,
+  providerTranscriptPath?: string,
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { ...process.env, ...config.environment };
   delete environment.PI_CODING_AGENT_DIR;
   delete environment.PI_CODING_AGENT_SESSION_DIR;
   delete environment.PI_PACKAGE_DIR;
+  delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
   environment.PI_CODING_AGENT_DIR = config.configDirectory;
   environment.PI_CODING_AGENT_SESSION_DIR = path.join(
     config.repositoryRoot,
@@ -177,18 +192,18 @@ export function buildIsolatedPiEnvironment(
     environment.KIMI_API_KEY = environment.KIMI_CODE_API_KEY;
   }
   if (workspaceRoot !== undefined) {
-    if (providerCapturePath === undefined || !path.isAbsolute(providerCapturePath)) {
-      throw new TypeError("Pi provider capture path must be absolute for an Agent turn");
+    if (providerTranscriptPath === undefined || !path.isAbsolute(providerTranscriptPath)) {
+      throw new TypeError("Pi provider transcript path must be absolute for an Agent turn");
     }
     environment.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspaceRoot;
-    environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH = providerCapturePath;
+    environment.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = providerTranscriptPath;
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = String(MAXIMUM_PROVIDER_REQUESTS);
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = String(MAXIMUM_PROVIDER_CAPTURE_BYTES);
   } else {
     delete environment.RTL_AGENT_PI_POLICY_REQUIRED;
     delete environment.RTL_AGENT_PI_WORKSPACE_ROOT;
-    delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
+    delete environment.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH;
     delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
     delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
   }
@@ -267,7 +282,7 @@ function fixedPrompt(guidance: string): string {
   ].join("\n");
 }
 
-async function readProviderRequestCapture(capturePath: string): Promise<unknown[]> {
+async function readProviderTranscript(capturePath: string): Promise<PiProviderExchange[]> {
   try {
     const stat = await lstat(capturePath);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAXIMUM_PROVIDER_CAPTURE_BYTES) {
@@ -278,20 +293,41 @@ async function readProviderRequestCapture(capturePath: string): Promise<unknown[
       throw new Error("capture file changed while being read");
     }
     const lines = content.length === 0 ? [] : content.trimEnd().split("\n");
-    if (lines.length > MAXIMUM_PROVIDER_REQUESTS) {
-      throw new Error("too many provider requests");
+    if (lines.length > MAXIMUM_PROVIDER_REQUESTS * 2) {
+      throw new Error("too many provider transcript entries");
     }
-    return lines.map((line, index) => {
-      const entry = PiProviderRequestCaptureEntrySchema.parse(JSON.parse(line));
-      if (entry.sequence !== index + 1) {
-        throw new Error("provider request sequence is invalid");
+    const exchanges: { sequence: number; request: unknown; response: unknown | null }[] = [];
+    let lastResponseSequence = 0;
+    for (const line of lines) {
+      const entry = PiProviderTranscriptCaptureEntrySchema.parse(JSON.parse(line));
+      if (entry.kind === "request") {
+        if (entry.sequence !== exchanges.length + 1) {
+          throw new Error("provider request sequence is invalid");
+        }
+        exchanges.push({ sequence: entry.sequence, request: entry.payload, response: null });
+        continue;
       }
-      return entry.payload;
-    });
+      const exchange = exchanges[entry.sequence - 1];
+      const message =
+        typeof entry.message === "object" && entry.message !== null && !Array.isArray(entry.message)
+          ? (entry.message as Record<string, unknown>)
+          : undefined;
+      if (
+        exchange === undefined ||
+        exchange.response !== null ||
+        message?.role !== "assistant" ||
+        entry.sequence <= lastResponseSequence
+      ) {
+        throw new Error("provider response sequence is invalid");
+      }
+      exchange.response = entry.message;
+      lastResponseSequence = entry.sequence;
+    }
+    return exchanges;
   } catch {
     throw new CoreLoopException(
       "PI_AGENT_CAPABILITY_MISMATCH",
-      "Pi provider request capture is unavailable or invalid",
+      "Pi provider transcript is unavailable or invalid",
     );
   }
 }
@@ -489,9 +525,9 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
     const providerCaptureDirectory = await mkdtemp(
       path.join(os.tmpdir(), "rtl-agent-pi-provider-"),
     );
-    const providerCapturePath = path.join(providerCaptureDirectory, "requests.jsonl");
+    const providerCapturePath = path.join(providerCaptureDirectory, "transcript.jsonl");
     let processResult;
-    let providerRequestPayloads: unknown[];
+    let providerExchanges: PiProviderExchange[];
     let providerCaptureCleanupSucceeded: boolean;
     try {
       processResult = await executeOpenCodeProcess({
@@ -531,9 +567,9 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
         maximumEvents: this.config.maximumEvents,
         maximumEventLineBytes: this.config.maximumEventLineBytes,
       });
-      providerRequestPayloads =
+      providerExchanges =
         processResult.spawnError === undefined
-          ? await readProviderRequestCapture(providerCapturePath)
+          ? await readProviderTranscript(providerCapturePath)
           : [];
     } finally {
       providerCaptureCleanupSucceeded =
@@ -626,16 +662,13 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
     });
     await writeJsonEvidenceExclusive(
       run.runDirectory,
-      `evidence/attempts/${String(input.attempt)}/provider-request-payloads.json`,
+      `evidence/attempts/${String(input.attempt)}/provider-transcript.json`,
       {
         schemaVersion: 1,
         provider: capability.provider,
         model: capability.model,
         attempt: input.attempt,
-        requests: providerRequestPayloads.map((payload, index) => ({
-          sequence: index + 1,
-          payload,
-        })),
+        exchanges: providerExchanges,
       },
     );
     await writeJsonEvidenceExclusive(run.runDirectory, evidencePath, result);

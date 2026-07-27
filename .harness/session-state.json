@@ -2,7 +2,7 @@
   "task_id": "r04-bounded-repair-loop-and-evaluation",
   "status": "in_progress",
   "current_phase": "implementation_complete_awaiting_acceptance_review",
-  "last_updated": "2026-07-24T15:53:28+08:00",
+  "last_updated": "2026-07-27T16:53:52+08:00",
   "active_plan": [
     "Record the final operator license-review disposition for the pinned dataset sources",
     "Resolve the operator-selected VerilogEval range/list into a concrete capability-bound profile",
@@ -278,7 +278,7 @@
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Pi evaluation turns enforce provider capture count/byte limits before write/send and report bounded cleanup failure without reclassifying Agent outcomes; guarded review has no P1/P2, and the real Pi 0.81.1 probe, isolated process test, 252 repository tests, lint, typecheck, build, format, diff, and harness checks pass",
+    "last_result": "Guarded landing review found no remaining P1/P2 after removing stale test_async handoff references. Frozen install, lint, typecheck, build, format, peers, Pi probe, focused process test, and the independent full repository rerun pass; the first aggregate run hit the documented Windows process-tree race.",
     "known_failures": [
       "Final operator MIT/license-review disposition is not yet recorded",
       "No acceptance-qualified R04 profile plus predeclared human-review checkpoint has completed; exploratory real batches exist",
@@ -302,7 +302,7 @@
     "blocked_on": "Final license-review disposition, execution of an operator-selected resolved profile, and the required human review"
   },
   "handoff": {
-    "last_summary": "Pi provider payload capture now applies hard pre-write/pre-send limits and bounded non-fatal cleanup warnings while retaining ignored per-attempt _internal evidence. R04 remains IN_PROGRESS.",
-    "resume_from": "Record the final MIT license disposition, decide whether existing functional evidence satisfies the acceptance profile or run the missing bounded repair evaluation, then complete the predeclared human review and checkpoint recommendation."
+    "last_summary": "Kimi model selection for VerilogEval profiles is now environment-driven rather than hard-coded to kimi-for-coding. R04 remains IN_PROGRESS; model comparisons can be run by editing .env.local and keeping the same evaluate command.",
+    "resume_from": "To run K3, set RTL_AGENT_OPENCODE_MODEL=kimi-code/k3 for OpenCode or RTL_AGENT_PI_PROVIDER=kimi-coding plus RTL_AGENT_PI_MODEL=k3 for Pi, then run the normal selected evaluate command and inspect the locked profile/capability evidence."
   }
 }

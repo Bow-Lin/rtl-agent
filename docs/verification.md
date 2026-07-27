@@ -80,8 +80,8 @@ $env:CORE_LOOP_REAL_AGENT_TEST = '1'
 corepack pnpm core-loop:agent:smoke
 ```
 
-For Kimi Code, set `KIMI_CODE_API_KEY` and use
-`RTL_AGENT_OPENCODE_MODEL=kimi-code/kimi-for-coding`. The direct `rtl-core-loop` CLI also reads
+For Kimi Code, set `KIMI_CODE_API_KEY` and use `RTL_AGENT_OPENCODE_MODEL=kimi-code/<model>`, for
+example `kimi-code/kimi-for-coding` or `kimi-code/k3`. The direct `rtl-core-loop` CLI also reads
 these values from ignored root `.env` and `.env.local` files. A legacy root `kimi=<key>` entry is
 not accepted. Only the explicit Agent configuration allowlist is loaded, shell variables take
 precedence, and the key value is never serialized into the OpenCode inline configuration or
@@ -98,7 +98,7 @@ $env:RTL_AGENT_PI_EXECUTABLE = (Get-Command node).Source
 $env:RTL_AGENT_PI_ENTRYPOINT = '<absolute-path-to-pi-package>\dist\cli.js'
 $env:RTL_AGENT_PI_VERSION = '<locked-version>'
 $env:RTL_AGENT_PI_PROVIDER = 'kimi-coding'
-$env:RTL_AGENT_PI_MODEL = 'kimi-for-coding'
+$env:RTL_AGENT_PI_MODEL = '<model>' # for example 'kimi-for-coding' or 'k3'
 $env:KIMI_API_KEY = '<key>' # KIMI_CODE_API_KEY is also accepted and mapped
 node .\apps\rtl-core-loop\dist\index.js pi-agent-probe
 ```
@@ -182,18 +182,22 @@ corepack pnpm core-loop:evaluate:pi --cases Prob001
 ```
 
 For every Pi attempt, the locked extension observes each actual `before_provider_request` payload
-without modifying it. The adapter validates a bounded temporary capture and publishes it at:
+without modifying it and each finalized Assistant `message_end`. The adapter validates a bounded
+temporary transcript and publishes it at:
 
 ```text
-.rtl-agent/batches/<batch-id>/_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-request-payloads.json
+.rtl-agent/batches/<batch-id>/_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-transcript.json
 ```
 
-The file records provider/model identity and every request in order because one tool-using turn can
-make multiple provider calls. It contains no captured headers or credentials, but it can contain
-the complete specification, prompt, tool context, and prior messages. Batch directories are
-ignored runtime evidence; review these payloads before sharing or copying them elsewhere.
-The extension checks the 64-request and 8-MiB limits before writing and before the corresponding
-provider call. Temporary-directory deletion retries three times; a final failure reports
+The file records provider/model identity and every exchange in order because one tool-using turn
+can make multiple provider calls. Each exchange contains the final serialized request and Pi's
+complete parsed Assistant response, including text/reasoning, tool calls, stop reason, and usage
+when supplied by Pi. An interrupted final exchange retains `response: null`. It contains no
+captured headers, credentials, or raw streamed HTTP bytes. Batch directories are ignored runtime
+evidence; review transcripts before sharing or copying them elsewhere. The extension checks the
+64-request and combined 8-MiB limits without silent truncation; request overflow is rejected before
+the corresponding provider call, while an oversized response necessarily fails after receipt but
+before persistence. Temporary-directory deletion retries three times; a final failure reports
 `PROVIDER_CAPTURE_CLEANUP_FAILED` to stderr and in the Pi turn's `localWarnings` without changing
 the Agent/RTL outcome.
 

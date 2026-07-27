@@ -867,3 +867,82 @@ evidence size and sensitivity. The 64-request/8-MiB capture bounds prevent unbou
 Changing the extension changes the locked Pi capability/profile digest. OpenCode retention policy
 is unchanged, and the new artifacts remain non-authoritative diagnostic evidence. A rare cleanup
 warning requires local operator follow-up but does not invalidate already completed model work.
+
+## 2026-07-27 - Replace Pi Request-Only Evidence with Provider Transcripts
+
+### Context
+
+Request-only Pi evidence could explain what was sent to the provider, but it could not show the
+final provider outcome for a single request and could only expose prior responses indirectly through
+later request history. That made `functionalNotRun` cases hard to diagnose when Pi exited without
+producing RTL.
+
+### Decision
+
+Supersede new `provider-request-payloads.json` attempt artifacts with
+`provider-transcript.json`. During bounded Pi adapter turns, the digest-locked policy extension
+records each `before_provider_request` payload and the corresponding finalized parsed Assistant
+`message_end` response. The adapter validates the JSONL transcript and publishes ordered exchanges
+as `{ sequence, request, response }`; `response` is `null` when the process exits or fails before a
+final Assistant message is available for that request.
+
+Retain the existing 64-request and combined 8-MiB bounds with no truncation. Request overflow is
+checked before the provider call. Response overflow is checked after receipt and before append,
+because the extension only observes parsed Assistant messages at the Pi hook boundary. The artifact
+contains Pi's parsed provider-facing request and Assistant response objects, including tool calls,
+stop reason, usage, and provider error fields when Pi exposes them. It does not contain HTTP
+headers, credentials, raw streaming bytes, or raw OpenCode evidence.
+
+Keep the artifact below ignored batch `_internal`; do not copy it into public summaries, generated
+RTL, observed issues, or authoritative workflow state. Historical request-only artifacts remain
+valid as historical diagnostics but are not produced by new Pi attempts.
+
+### Alternatives Considered
+
+- Reconstruct responses from stdout: rejected because terminal output is not a stable provider
+  boundary and may be lossy.
+- Capture raw HTTP responses: rejected because headers, credentials, and raw streams expand the
+  sensitivity and implementation surface.
+- Require every request to have a response: rejected because provider errors, interruptions, and
+  lower-level retries can leave earlier requests without a final parsed Assistant message.
+
+### Consequences
+
+Pi `functionalNotRun` cases now have direct internal evidence of provider-side failures at the
+parsed Pi boundary. The artifact is more sensitive than request-only evidence and remains ignored,
+internal, and non-authoritative. Changing the extension changes the locked Pi capability/profile
+digest as expected.
+
+## 2026-07-27 - Make VerilogEval Kimi Model Selection Environment-Driven
+
+### Context
+
+The `verilog-eval-kimi-v1` and Pi-resolved profile templates were still hard-coded to
+`kimi-for-coding`. That made routine comparisons with another Kimi model, such as `k3`, require a
+new source-level profile even though the selected model is already part of each probed Agent
+capability and profile digest.
+
+### Decision
+
+Keep the generic VerilogEval Kimi profile IDs, pinned dataset lock, backend separation, and
+capability locking. Change profile validation to require only the Kimi provider family:
+OpenCode capabilities must use `kimi-code/<model>`, and Pi capabilities must use provider
+`kimi-coding`. The concrete model is whatever the selected adapter reports from environment
+configuration, for example `RTL_AGENT_OPENCODE_MODEL=kimi-code/k3` or
+`RTL_AGENT_PI_PROVIDER=kimi-coding` plus `RTL_AGENT_PI_MODEL=k3`.
+
+The resolved `EvaluationProfile` still records the complete Agent capability, so a model change
+changes the derived profile identity/digest and mid-run capability drift still fails closed.
+
+### Alternatives Considered
+
+- Create a new profile for every model: rejected because it adds source churn for ordinary
+  experiment selection while duplicating existing capability evidence.
+- Remove backend/provider checks entirely: rejected because the Kimi profile should not silently run
+  through a different provider family.
+
+### Consequences
+
+Operators can switch Kimi models by editing ignored local environment settings without changing
+source code. Results for different models remain distinguishable by their locked Agent capability
+and derived profile identity.

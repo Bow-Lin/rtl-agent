@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import { parseEnv } from "node:util";
 
 const ENDPOINT = "https://api.kimi.com/coding/v1/chat/completions";
-const MODEL = "kimi-for-coding";
-
+// const MODEL = "kimi-for-coding";
+const MODEL = "k3";
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)

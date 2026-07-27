@@ -52,14 +52,15 @@ if (args.length === 1 && args[0] === "--help") {
   process.exit(0);
 }
 if (
-  process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH &&
+  process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH &&
   process.env.FAKE_PI_MODE !== "missing-capture"
 ) {
   const systemPromptIndex = args.indexOf("--system-prompt");
-  writeFileSync(process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH, "", { flag: "wx", mode: 0o600 });
+  writeFileSync(process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH, "", { flag: "wx", mode: 0o600 });
   appendFileSync(
-    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH,
+    process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH,
     JSON.stringify({
+      kind: "request",
       sequence: 1,
       payload: {
         system: args[systemPromptIndex + 1],
@@ -68,6 +69,36 @@ if (
     }) + "\n",
     "utf8"
   );
+  if (process.env.FAKE_PI_MODE === "provider-retry") {
+    appendFileSync(
+      process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH,
+      JSON.stringify({
+        kind: "request",
+        sequence: 2,
+        payload: {
+          system: args[systemPromptIndex + 1],
+          messages: [{ role: "user", content: "retry prompt" }]
+        }
+      }) + "\n",
+      "utf8"
+    );
+  }
+  if (process.env.FAKE_PI_MODE !== "missing-response") {
+    appendFileSync(
+      process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH,
+      JSON.stringify({
+        kind: "response",
+        sequence: process.env.FAKE_PI_MODE === "provider-retry" ? 2 : 1,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "completed" }],
+          stopReason: "stop",
+          usage: { input: 10, output: 2, totalTokens: 12 }
+        }
+      }) + "\n",
+      "utf8"
+    );
+  }
 }
 if (process.env.FAKE_PI_MODE === "change") {
   const rtl = path.join(process.cwd(), "rtl");
@@ -105,6 +136,7 @@ async function temporaryRoot(): Promise<string> {
 afterEach(async () => {
   delete process.env.RTL_AGENT_PI_POLICY_REQUIRED;
   delete process.env.RTL_AGENT_PI_WORKSPACE_ROOT;
+  delete process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
@@ -229,28 +261,40 @@ describe("Pi RTL Agent adapter", () => {
         "--no-approve",
       ]),
     );
-    const providerRequests = JSON.parse(
+    const providerTranscript = JSON.parse(
       await readFile(
-        path.join(run.runDirectory, "evidence", "attempts", "1", "provider-request-payloads.json"),
+        path.join(run.runDirectory, "evidence", "attempts", "1", "provider-transcript.json"),
         "utf8",
       ),
     ) as {
       readonly provider: string;
-      readonly requests: readonly {
+      readonly exchanges: readonly {
         readonly sequence: number;
-        readonly payload: {
+        readonly request: {
           readonly system: string;
           readonly messages: readonly { readonly content: string }[];
         };
+        readonly response: {
+          readonly role: string;
+          readonly content: readonly { readonly text: string }[];
+          readonly stopReason: string;
+        };
       }[];
     };
-    expect(providerRequests.provider).toBe("kimi-coding");
-    expect(providerRequests.requests).toHaveLength(1);
-    expect(providerRequests.requests[0]?.sequence).toBe(1);
-    expect(providerRequests.requests[0]?.payload.system).toContain("Read context/agent-input.json");
-    expect(providerRequests.requests[0]?.payload.messages[0]?.content).toBe(
+    expect(providerTranscript.provider).toBe("kimi-coding");
+    expect(providerTranscript.exchanges).toHaveLength(1);
+    expect(providerTranscript.exchanges[0]?.sequence).toBe(1);
+    expect(providerTranscript.exchanges[0]?.request.system).toContain(
+      "Read context/agent-input.json",
+    );
+    expect(providerTranscript.exchanges[0]?.request.messages[0]?.content).toBe(
       "Execute the bounded RTL attempt now.",
     );
+    expect(providerTranscript.exchanges[0]?.response).toMatchObject({
+      role: "assistant",
+      content: [{ type: "text", text: "completed" }],
+      stopReason: "stop",
+    });
   });
 
   it("maps the repository Kimi credential without passing it on argv", () => {
@@ -366,6 +410,47 @@ describe("Pi RTL Agent adapter", () => {
     });
   });
 
+  it("preserves an incomplete final exchange when Pi exits before an Assistant response", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const run = await createBlankRun(root);
+
+    await new PiRtlAgentAdapter(config(fake, "missing-response")).runTurn(inputFor(run), run);
+    const transcript = JSON.parse(
+      await readFile(
+        path.join(run.runDirectory, "evidence", "attempts", "1", "provider-transcript.json"),
+        "utf8",
+      ),
+    ) as { readonly exchanges: readonly { readonly response: unknown }[] };
+
+    expect(transcript.exchanges).toHaveLength(1);
+    expect(transcript.exchanges[0]?.response).toBeNull();
+  });
+
+  it("preserves retried provider requests with the final Assistant response on the latest request", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const run = await createBlankRun(root);
+
+    await new PiRtlAgentAdapter(config(fake, "provider-retry")).runTurn(inputFor(run), run);
+    const transcript = JSON.parse(
+      await readFile(
+        path.join(run.runDirectory, "evidence", "attempts", "1", "provider-transcript.json"),
+        "utf8",
+      ),
+    ) as {
+      readonly exchanges: readonly {
+        readonly sequence: number;
+        readonly response: unknown | null;
+      }[];
+    };
+
+    expect(transcript.exchanges).toHaveLength(2);
+    expect(transcript.exchanges[0]).toMatchObject({ sequence: 1, response: null });
+    expect(transcript.exchanges[1]?.sequence).toBe(2);
+    expect(transcript.exchanges[1]?.response).toMatchObject({ role: "assistant" });
+  });
+
   it("reports cleanup failure after passing bounded retry options without failing the turn", async () => {
     const warnings: string[] = [];
     const removeCalls: unknown[] = [];
@@ -404,22 +489,24 @@ describe("Pi RTL policy extension", () => {
   it("allows bounded RTL access and blocks paths outside the workspace", async () => {
     const root = await temporaryRoot();
     const workspace = path.join(root, "workspace");
-    const capturePath = path.join(root, "provider-requests.jsonl");
+    const capturePath = path.join(root, "provider-transcript.jsonl");
     process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
-    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH = capturePath;
+    process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = capturePath;
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = "1";
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = "4096";
     let toolHandler:
       ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
     let providerHandler: ((event: { payload: unknown }) => unknown) | undefined;
+    let messageHandler: ((event: { message: unknown }) => unknown) | undefined;
     const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {
       default(pi: {
         on(
           name: string,
           callback:
             | ((event: { toolName: string; input: unknown }) => Promise<unknown>)
-            | ((event: { payload: unknown }) => unknown),
+            | ((event: { payload: unknown }) => unknown)
+            | ((event: { message: unknown }) => unknown),
         ): void;
       }): void;
     };
@@ -432,6 +519,8 @@ describe("Pi RTL policy extension", () => {
           }) => Promise<unknown>;
         } else if (name === "before_provider_request") {
           providerHandler = callback as (event: { payload: unknown }) => unknown;
+        } else if (name === "message_end") {
+          messageHandler = callback as (event: { message: unknown }) => unknown;
         }
       },
     });
@@ -451,14 +540,26 @@ describe("Pi RTL policy extension", () => {
     ).resolves.toMatchObject({ block: true });
     const payload = { system: "system prompt", messages: [{ role: "user", content: "prompt" }] };
     expect(providerHandler?.({ payload })).toBeUndefined();
-    expect(JSON.parse((await readFile(capturePath, "utf8")).trim())).toEqual({
-      sequence: 1,
-      payload,
-    });
+    const message = {
+      role: "assistant",
+      content: [{ type: "text", text: "response" }],
+      stopReason: "stop",
+      usage: { input: 1, output: 1, totalTokens: 2 },
+    };
+    expect(messageHandler?.({ message })).toBeUndefined();
+    expect(
+      (await readFile(capturePath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line)),
+    ).toEqual([
+      { kind: "request", sequence: 1, payload },
+      { kind: "response", sequence: 1, message },
+    ]);
     expect(() => providerHandler?.({ payload })).toThrow(
       "Pi provider request capture count limit exceeded",
     );
-    expect((await readFile(capturePath, "utf8")).trim().split("\n")).toHaveLength(1);
+    expect((await readFile(capturePath, "utf8")).trim().split("\n")).toHaveLength(2);
   });
 
   it("rejects a provider payload before writing when the byte limit would be exceeded", async () => {
@@ -467,7 +568,7 @@ describe("Pi RTL policy extension", () => {
     const capturePath = path.join(root, "provider-requests.jsonl");
     process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
-    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH = capturePath;
+    process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = capturePath;
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = "64";
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = "16";
     let providerHandler: ((event: { payload: unknown }) => unknown) | undefined;
@@ -484,7 +585,46 @@ describe("Pi RTL policy extension", () => {
 
     expect(() =>
       providerHandler?.({ payload: { messages: [{ role: "user", content: "too large" }] } }),
-    ).toThrow("Pi provider request capture byte limit exceeded");
+    ).toThrow("Pi provider transcript byte limit exceeded");
     expect(await readFile(capturePath, "utf8")).toBe("");
+  });
+
+  it("rejects an Assistant response before writing when the transcript byte limit is exceeded", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    const capturePath = path.join(root, "provider-transcript.jsonl");
+    process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
+    process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
+    process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = capturePath;
+    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = "64";
+    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = "256";
+    let providerHandler: ((event: { payload: unknown }) => unknown) | undefined;
+    let messageHandler: ((event: { message: unknown }) => unknown) | undefined;
+    const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {
+      default(pi: {
+        on(
+          name: string,
+          callback: (event: { payload?: unknown; message?: unknown }) => unknown,
+        ): void;
+      }): void;
+    };
+    extension.default({
+      on: (name, callback) => {
+        if (name === "before_provider_request") {
+          providerHandler = callback as (event: { payload: unknown }) => unknown;
+        } else if (name === "message_end") {
+          messageHandler = callback as (event: { message: unknown }) => unknown;
+        }
+      },
+    });
+
+    providerHandler?.({ payload: { messages: [] } });
+    const requestOnly = await readFile(capturePath, "utf8");
+    expect(() =>
+      messageHandler?.({
+        message: { role: "assistant", content: [{ type: "text", text: "x".repeat(256) }] },
+      }),
+    ).toThrow("Pi provider transcript byte limit exceeded");
+    expect(await readFile(capturePath, "utf8")).toBe(requestOnly);
   });
 });

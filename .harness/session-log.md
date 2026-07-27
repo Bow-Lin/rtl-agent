@@ -1782,3 +1782,82 @@ repository's documented Windows fake process-tree termination race: one unrelate
 test returned `AGENT_PROCESS_ERROR` instead of `AGENT_TIMEOUT`. The affected 21-test file passed
 with one worker, and the independent aggregate rerun then passed all 252 tests. Lint, typecheck,
 build, the real Pi probe, Prettier, diff check, and Harness check also passed before staging.
+
+## Entry: Replace Pi Provider Request Capture with Provider Transcripts
+
+### Outcome
+
+Pi-backed evaluation turns now publish
+`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-transcript.json` instead of the
+request-only `provider-request-payloads.json`. Each exchange records the provider request payload
+observed at `before_provider_request` and the finalized parsed Assistant message observed at
+`message_end`. If Pi exits or fails before the final Assistant message for a request, that exchange
+is retained with `response: null`.
+
+The transcript keeps the existing 64-request and combined 8-MiB bounds with no truncation. Request
+overflow is still rejected before the provider call. Response overflow is rejected after Pi exposes
+the parsed Assistant message and before the response line is appended. Pairing now tolerates lower
+level provider retries by allowing earlier requests to remain response-null and attaching the final
+Assistant response to the latest provider request.
+
+The artifact remains ignored internal diagnostic evidence. It contains Pi's parsed request and
+Assistant message objects, including stop reason, usage, tool calls, and provider error fields when
+available, but not HTTP headers, credentials, raw streaming bytes, public summaries, generated RTL,
+or authoritative workflow state.
+
+### Validation
+
+- focused Pi adapter/policy tests: 1 file, 16 tests passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm build`: passed
+- full repository: 34 files passed / 1 skipped; 255 tests passed / 2 skipped
+- real `corepack pnpm core-loop:evaluate:pi --cases Prob101`: completed batch `b-20260727-002` and
+  produced one `provider-transcript.json` exchange with both request and Assistant response
+
+The real Prob101 run did not generate RTL because the transcript captured a Kimi provider response
+with `stopReason: "error"` and a `403` usage-limit message. The run therefore ended as
+`POLICY_VIOLATION` / `NO_COMPILE_UNIT`, with `functionalNotRun: 1`. This validates the new
+diagnostic path but does not complete R04's acceptance batch or human-review requirement.
+
+## Entry: Make VerilogEval Kimi Model Selection Environment-Driven
+
+### Outcome
+
+The VerilogEval Kimi profile templates no longer require the concrete model
+`kimi-for-coding`. They now require only the intended Kimi backend family: OpenCode capabilities
+must report `kimi-code/<model>`, while Pi capabilities must report provider `kimi-coding`. The
+selected model is taken from the probed backend capability and remains locked into the resolved
+profile evidence and digest.
+
+This means K3 is selected by local environment configuration instead of a source-level profile:
+OpenCode uses `RTL_AGENT_OPENCODE_MODEL=kimi-code/k3`; Pi uses
+`RTL_AGENT_PI_PROVIDER=kimi-coding` plus `RTL_AGENT_PI_MODEL=k3`. Non-Kimi OpenCode and Pi providers
+still fail profile construction before any Agent turn.
+
+### Validation
+
+- focused VerilogEval profile/CLI/environment tests: 3 files, 18 tests passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `git diff --check`: passed
+- Harness check: passed
+- full repository: 35 files passed / 1 skipped; 258 tests passed / 2 skipped
+
+No live model request was made for this change. The behavior is covered by deterministic capability
+stubs, and actual model choice remains visible in the resolved Agent capability for real batches.
+
+### Guarded Landing Review
+
+The `commit-main` review found no remaining P1/P2 after the operator confirmed that the deleted
+`test_async.js` example should not be committed and its stale handoff references were removed.
+
+Submission validation passed: frozen install, lint, typecheck, build, format, peer dependency check,
+Pi `0.81.1` static probe, `git diff --check`, and Harness check. The first aggregate test run hit the
+documented Windows fake process-tree termination race in `agent-adapter.test.ts`; the affected file
+then passed 21/21 with `--maxWorkers=1`, and an independent aggregate rerun passed 35 files / 1
+skipped and 258 tests / 2 skipped. An initial diagnostic retry included the removed Vitest 4 option
+`--minWorkers` and did not start tests; the supported `--maxWorkers=1` command supplied the focused
+evidence.

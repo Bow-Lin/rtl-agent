@@ -18,6 +18,20 @@ import type {
 
 export const VERILOG_EVAL_KIMI_PROFILE_ID = "verilog-eval-kimi-v1" as const;
 export const VERILOG_EVAL_KIMI_PI_PROFILE_ID = "verilog-eval-kimi-pi-v1" as const;
+const OPENCODE_KIMI_MODEL_PREFIX = "kimi-code/";
+const PI_KIMI_PROVIDER = "kimi-coding";
+
+function isKimiOpenCodeCapability(agentCapability: Awaited<ReturnType<RtlAgentAdapter["probe"]>>) {
+  return (
+    "openCodeVersion" in agentCapability &&
+    agentCapability.model.startsWith(OPENCODE_KIMI_MODEL_PREFIX) &&
+    agentCapability.model.length > OPENCODE_KIMI_MODEL_PREFIX.length
+  );
+}
+
+function isKimiPiCapability(agentCapability: Awaited<ReturnType<RtlAgentAdapter["probe"]>>) {
+  return "piVersion" in agentCapability && agentCapability.provider === PI_KIMI_PROVIDER;
+}
 
 async function createVerilogEvalKimiBaseProfileForAgent(
   evaluationProfileId: typeof VERILOG_EVAL_KIMI_PROFILE_ID | typeof VERILOG_EVAL_KIMI_PI_PROFILE_ID,
@@ -32,11 +46,8 @@ async function createVerilogEvalKimiBaseProfileForAgent(
   ]);
   const expectedAgent =
     evaluationProfileId === VERILOG_EVAL_KIMI_PROFILE_ID
-      ? "openCodeVersion" in agentCapability &&
-        agentCapability.model === "kimi-code/kimi-for-coding"
-      : "piVersion" in agentCapability &&
-        agentCapability.provider === "kimi-coding" &&
-        agentCapability.model === "kimi-for-coding";
+      ? isKimiOpenCodeCapability(agentCapability)
+      : isKimiPiCapability(agentCapability);
   if (
     descriptor.datasetId !== VERILOG_EVAL_DATASET_LOCK.datasetId ||
     descriptor.datasetVersion !== VERILOG_EVAL_DATASET_LOCK.datasetVersion ||

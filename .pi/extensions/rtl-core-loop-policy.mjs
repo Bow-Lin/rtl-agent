@@ -53,9 +53,9 @@ export default function rtlCoreLoopPolicy(pi) {
   if (workspaceRoot === undefined || !path.isAbsolute(workspaceRoot)) {
     throw new Error("RTL_AGENT_PI_WORKSPACE_ROOT must be an absolute path");
   }
-  const providerCapturePath = process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
-  if (providerCapturePath === undefined || !path.isAbsolute(providerCapturePath)) {
-    throw new Error("RTL_AGENT_PI_PROVIDER_CAPTURE_PATH must be an absolute path");
+  const providerTranscriptPath = process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH;
+  if (providerTranscriptPath === undefined || !path.isAbsolute(providerTranscriptPath)) {
+    throw new Error("RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH must be an absolute path");
   }
   const maximumProviderRequests = requiredPositiveIntegerEnvironment(
     "RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS",
@@ -63,27 +63,49 @@ export default function rtlCoreLoopPolicy(pi) {
   const maximumProviderCaptureBytes = requiredPositiveIntegerEnvironment(
     "RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES",
   );
-  writeFileSync(providerCapturePath, "", { encoding: "utf8", flag: "wx", mode: 0o600 });
+  writeFileSync(providerTranscriptPath, "", { encoding: "utf8", flag: "wx", mode: 0o600 });
   let providerRequestSequence = 0;
+  let lastProviderResponseSequence = 0;
   let providerCaptureBytes = 0;
+
+  function appendProviderTranscriptEntry(entry, limitDescription) {
+    const serialized = JSON.stringify(entry);
+    if (serialized === undefined) {
+      throw new Error(`Pi provider ${limitDescription} is not JSON serializable`);
+    }
+    const line = `${serialized}\n`;
+    const nextByteLength = Buffer.byteLength(line, "utf8");
+    if (providerCaptureBytes + nextByteLength > maximumProviderCaptureBytes) {
+      throw new Error("Pi provider transcript byte limit exceeded");
+    }
+    appendFileSync(providerTranscriptPath, line, "utf8");
+    providerCaptureBytes += nextByteLength;
+  }
 
   pi.on("before_provider_request", (event) => {
     const nextSequence = providerRequestSequence + 1;
     if (nextSequence > maximumProviderRequests) {
       throw new Error("Pi provider request capture count limit exceeded");
     }
-    const serialized = JSON.stringify({ sequence: nextSequence, payload: event.payload });
-    if (serialized === undefined) {
-      throw new Error("Pi provider request payload is not JSON serializable");
-    }
-    const line = `${serialized}\n`;
-    const nextByteLength = Buffer.byteLength(line, "utf8");
-    if (providerCaptureBytes + nextByteLength > maximumProviderCaptureBytes) {
-      throw new Error("Pi provider request capture byte limit exceeded");
-    }
-    appendFileSync(providerCapturePath, line, "utf8");
+    appendProviderTranscriptEntry(
+      { kind: "request", sequence: nextSequence, payload: event.payload },
+      "request payload",
+    );
     providerRequestSequence = nextSequence;
-    providerCaptureBytes += nextByteLength;
+    return undefined;
+  });
+
+  pi.on("message_end", (event) => {
+    if (event.message?.role !== "assistant") return undefined;
+    const responseSequence = providerRequestSequence;
+    if (responseSequence <= lastProviderResponseSequence) {
+      throw new Error("Pi provider response has no matching request");
+    }
+    appendProviderTranscriptEntry(
+      { kind: "response", sequence: responseSequence, message: event.message },
+      "response message",
+    );
+    lastProviderResponseSequence = responseSequence;
     return undefined;
   });
 
