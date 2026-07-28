@@ -1,4 +1,4 @@
-import { lstat, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -36,6 +36,25 @@ export interface VerilogEvalVerificationMaterialization {
   readonly testbenchLogicalPath: "testbench.sv";
   readonly testbenchDigest: ScannedFile["contentDigest"];
   readonly testbenchTopModule: "tb";
+}
+
+export class VerilogEvalCoverageFixtureProvider implements FixtureProvider {
+  public constructor(private readonly provider: VerilogEvalFixtureProvider) {}
+
+  public describe(): Promise<DatasetDescriptor> {
+    return this.provider.describe();
+  }
+
+  public listCases(selection: DatasetSelection): AsyncIterable<FixtureCaseRef> {
+    return this.provider.listCases(selection);
+  }
+
+  public materialize(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<FixtureMaterialization> {
+    return this.provider.materializeCoverageFixture(caseRef, destination);
+  }
 }
 
 interface VerilogEvalMetadata {
@@ -303,5 +322,63 @@ export class VerilogEvalFixtureProvider implements FixtureProvider {
       testbenchDigest: entry.testbenchDigest,
       testbenchTopModule: "tb",
     };
+  }
+
+  public async materializeCoverageFixture(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<FixtureMaterialization> {
+    const parsedCaseRef = FixtureCaseRefSchema.parse(caseRef);
+    const metadata = await this.loadMetadata();
+    const entry = metadata.byCaseId.get(parsedCaseRef.identity.caseId);
+    if (entry === undefined || sha256Jcs(entry.caseRef) !== sha256Jcs(parsedCaseRef)) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "Requested VerilogEval coverage case does not match the locked catalog",
+      );
+    }
+    await requireRegularDirectory(destination, "Coverage fixture staging destination");
+    const [prompt, reference] = await Promise.all([
+      readFile(entry.promptPath),
+      readFile(entry.referencePath),
+    ]);
+    if (
+      sha256Bytes(prompt) !== entry.promptDigest ||
+      sha256Bytes(reference) !== entry.referenceDigest
+    ) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "VerilogEval coverage inputs changed after dataset validation",
+      );
+    }
+    const referenceText = reference.toString("utf8");
+    const moduleDeclarations = referenceText.match(/\bmodule\s+RefModule\b/gu) ?? [];
+    if (moduleDeclarations.length !== 1) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "VerilogEval reference must contain exactly one RefModule declaration",
+      );
+    }
+    const normalizedReference = Buffer.from(
+      referenceText.replace(/\bmodule\s+RefModule\b/u, "module TopModule"),
+      "utf8",
+    );
+    const rtlDirectory = path.join(destination, "rtl");
+    await mkdir(rtlDirectory);
+    await Promise.all([
+      writeFile(path.join(destination, "prompt.txt"), prompt, { flag: "wx" }),
+      writeFile(path.join(rtlDirectory, "dut.sv"), normalizedReference, { flag: "wx" }),
+    ]);
+    return FixtureMaterializationSchema.parse({
+      schemaVersion: 1,
+      fixtureId: entry.caseRef.fixtureId,
+      identity: entry.caseRef.identity,
+      caseSourceDigest: entry.caseRef.caseSourceDigest,
+      category: "SEEDED_COMPILE_REPAIR",
+      specPath: "prompt.txt",
+      starterRtlRoot: "rtl",
+      topModule: "TopModule",
+      tags: ["coverage-experiment", "spec-to-rtl", "verilog-eval-v2"],
+    });
   }
 }

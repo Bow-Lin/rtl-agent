@@ -33,7 +33,7 @@ function normalizedToken(token: string): string {
   return value.toLowerCase();
 }
 
-function resolveCaseId(token: string, availableCaseIds: readonly string[]): string {
+export function resolveCaseSelector(token: string, availableCaseIds: readonly string[]): string {
   const normalized = normalizedToken(token);
   const exact = availableCaseIds.filter((caseId) => caseId.toLowerCase() === normalized);
   if (exact.length === 1) return exact[0]!;
@@ -56,8 +56,8 @@ function selectedCaseIds(
   availableCaseIds: readonly string[],
 ): readonly string[] {
   if (request.kind === "RANGE") {
-    const begin = resolveCaseId(request.begin, availableCaseIds);
-    const end = resolveCaseId(request.end, availableCaseIds);
+    const begin = resolveCaseSelector(request.begin, availableCaseIds);
+    const end = resolveCaseSelector(request.end, availableCaseIds);
     const beginIndex = availableCaseIds.indexOf(begin);
     const endIndex = availableCaseIds.indexOf(end);
     if (beginIndex > endIndex) {
@@ -75,7 +75,7 @@ function selectedCaseIds(
       "Evaluation case list must contain from 1 to 10000 selectors",
     );
   }
-  const requested = request.cases.map((token) => resolveCaseId(token, availableCaseIds));
+  const requested = request.cases.map((token) => resolveCaseSelector(token, availableCaseIds));
   if (new Set(requested).size !== requested.length) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",

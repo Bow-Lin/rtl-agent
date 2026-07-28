@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveEvaluationProfileSelection } from "../src/profile-selection.js";
+import {
+  resolveCaseSelector,
+  resolveEvaluationProfileSelection,
+} from "../src/profile-selection.js";
 import {
   EvaluationTestProvider,
   testEvaluationProfile,
@@ -30,6 +33,12 @@ const CASES = [
 ] as const;
 
 describe("evaluation profile selection", () => {
+  it("resolves an exact ID or a case-insensitive unique prefix", () => {
+    const caseIds = CASES.map((entry) => entry.caseId);
+    expect(resolveCaseSelector("Prob001_zero", caseIds)).toBe("Prob001_zero");
+    expect(resolveCaseSelector("prob001", caseIds)).toBe("Prob001_zero");
+  });
+
   it("resolves an inclusive case-insensitive range in locked Provider order", async () => {
     const provider = new EvaluationTestProvider(CASES);
     const base = await testEvaluationProfile(provider);

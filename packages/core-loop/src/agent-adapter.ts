@@ -5,6 +5,11 @@ import { LogicalPathSchema } from "@rtl-agent/contracts";
 
 import { AgentAttemptInputSchema, CompileResultSchema, ToolVersionSchema } from "./contracts.js";
 import type { AgentAttemptInput } from "./contracts.js";
+import {
+  CoverageFeedbackSchema,
+  VerificationAssetFeedbackSchema,
+  VerilatorCompileFeedbackSchema,
+} from "./coverage-experiment.js";
 import { CoreLoopException } from "./errors.js";
 import { AgentTurnResultSchema, OpenCodeCapabilitySchema } from "./agent-contracts.js";
 import type {
@@ -27,7 +32,7 @@ import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.
 
 const AGENT_NAME = "rtl-core-loop" as const;
 const FIXED_PROMPT =
-  "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one RTL editing attempt.";
+  "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one bounded RTL or verification-asset editing attempt.";
 const GUIDANCE_FILE_NAME = "common-guidance.md" as const;
 const MAXIMUM_GUIDANCE_BYTES = 16_384;
 const REQUIRED_RUN_FLAGS = [
@@ -537,6 +542,75 @@ export async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopR
       throw new CoreLoopException(
         "AGENT_INPUT_INVALID",
         "Previous compile result does not precede this attempt in the same run",
+      );
+    }
+  }
+  if (input.coverageFeedbackPath !== undefined) {
+    const hostPath = resolveLogicalPath(run.workspaceDirectory, input.coverageFeedbackPath);
+    let rawFeedback: unknown;
+    try {
+      rawFeedback = JSON.parse(await readFile(hostPath, "utf8")) as unknown;
+    } catch {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Coverage feedback is missing or invalid JSON",
+      );
+    }
+    const feedback = CoverageFeedbackSchema.safeParse(rawFeedback);
+    if (
+      !feedback.success ||
+      feedback.data.runId !== input.runId ||
+      feedback.data.round >= input.attempt
+    ) {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Coverage feedback does not precede this attempt in the same run",
+      );
+    }
+  }
+  if (input.verificationFeedbackPath !== undefined) {
+    const hostPath = resolveLogicalPath(run.workspaceDirectory, input.verificationFeedbackPath);
+    let rawFeedback: unknown;
+    try {
+      rawFeedback = JSON.parse(await readFile(hostPath, "utf8")) as unknown;
+    } catch {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Verification asset feedback is missing or invalid JSON",
+      );
+    }
+    const feedback = VerificationAssetFeedbackSchema.safeParse(rawFeedback);
+    if (
+      !feedback.success ||
+      feedback.data.runId !== input.runId ||
+      feedback.data.attempt >= input.attempt
+    ) {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Verification asset feedback does not precede this attempt in the same run",
+      );
+    }
+  }
+  if (input.verilatorCompileFeedbackPath !== undefined) {
+    const hostPath = resolveLogicalPath(run.workspaceDirectory, input.verilatorCompileFeedbackPath);
+    let rawFeedback: unknown;
+    try {
+      rawFeedback = JSON.parse(await readFile(hostPath, "utf8")) as unknown;
+    } catch {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Verilator compile feedback is missing or invalid JSON",
+      );
+    }
+    const feedback = VerilatorCompileFeedbackSchema.safeParse(rawFeedback);
+    if (
+      !feedback.success ||
+      feedback.data.runId !== input.runId ||
+      feedback.data.attempt >= input.attempt
+    ) {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Verilator compile feedback does not precede this attempt in the same run",
       );
     }
   }

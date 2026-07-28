@@ -313,6 +313,7 @@ The standalone bin intentionally has no built-in dataset/profile and must fail c
 | Production Linux readiness / later portable milestones | Windows checks plus Linux CI checks |
 | Formal RTL Gate | Linux execution plus non-Linux rejection test |
 | R01–R04 Core Loop | Unified checks plus task-specific real OpenCode/Icarus smoke or batch evidence; results remain non-authoritative |
+| Verilator coverage Agent experiment | Focused unit tests plus `RUN_VERILATOR_COVERAGE=1` integration and one real `coverage --case`; result remains non-authoritative and requires human review |
 
 ## If Validation Cannot Be Run
 

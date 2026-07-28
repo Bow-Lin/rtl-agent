@@ -50,6 +50,7 @@ export interface CreateCoreLoopRunOptions {
   readonly runsRoot: string;
   readonly stagingRoot?: string;
   readonly runIdFactory?: () => RunId;
+  readonly runDirectoryNameFactory?: (runId: RunId, collisionIndex: number) => string;
   readonly removeStagingDirectory?: (directory: string) => Promise<void>;
 }
 
@@ -301,20 +302,69 @@ async function writeJson(hostPath: string, value: unknown): Promise<void> {
   });
 }
 
+const MAX_RUN_DIRECTORY_COLLISIONS = 999;
+const PORTABLE_RUN_DIRECTORY_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const WINDOWS_RESERVED_DIRECTORY_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+
+function validateRunDirectoryName(name: string): string {
+  if (
+    !PORTABLE_RUN_DIRECTORY_NAME.test(name) ||
+    WINDOWS_RESERVED_DIRECTORY_NAME.test(name) ||
+    name.endsWith(".")
+  ) {
+    throw new CoreLoopException(
+      "PATH_POLICY_VIOLATION",
+      "Core Loop run directory name is not a portable path segment",
+    );
+  }
+  return name;
+}
+
+function runDirectoryCandidate(
+  runsRoot: string,
+  runId: RunId,
+  collisionIndex: number,
+  factory: CreateCoreLoopRunOptions["runDirectoryNameFactory"],
+): string {
+  return path.join(runsRoot, validateRunDirectoryName(factory?.(runId, collisionIndex) ?? runId));
+}
+
 async function publishRun(
   prepared: PreparedFixture,
   request: CreateRunRequest,
   runsRoot: string,
   runId: RunId,
+  runDirectoryNameFactory: CreateCoreLoopRunOptions["runDirectoryNameFactory"],
 ): Promise<CoreLoopRun> {
   await mkdir(runsRoot, { recursive: true });
-  const runDirectory = path.join(path.resolve(runsRoot), runId);
-  const existing = await lstat(runDirectory).catch(() => undefined);
-  if (existing !== undefined) {
-    throw new CoreLoopException("RUN_ALREADY_EXISTS", "Core Loop run ID already exists");
+  const resolvedRunsRoot = path.resolve(runsRoot);
+  let collisionIndex = 0;
+  let runDirectory = runDirectoryCandidate(
+    resolvedRunsRoot,
+    runId,
+    collisionIndex,
+    runDirectoryNameFactory,
+  );
+  const attemptedDirectories = new Set<string>();
+  while ((await lstat(runDirectory).catch(() => undefined)) !== undefined) {
+    attemptedDirectories.add(runDirectory.toLocaleLowerCase("en-US"));
+    collisionIndex += 1;
+    if (collisionIndex > MAX_RUN_DIRECTORY_COLLISIONS) {
+      throw new CoreLoopException("RUN_ALREADY_EXISTS", "Core Loop run directory already exists");
+    }
+    const nextDirectory = runDirectoryCandidate(
+      resolvedRunsRoot,
+      runId,
+      collisionIndex,
+      runDirectoryNameFactory,
+    );
+    if (attemptedDirectories.has(nextDirectory.toLocaleLowerCase("en-US"))) {
+      throw new CoreLoopException("RUN_ALREADY_EXISTS", "Core Loop run directory already exists");
+    }
+    runDirectory = nextDirectory;
   }
 
-  const temporaryRun = await mkdtemp(path.join(path.resolve(runsRoot), ".run-staging-"));
+  const temporaryRun = await mkdtemp(path.join(resolvedRunsRoot, ".run-staging-"));
   try {
     const workspace = path.join(temporaryRun, "workspace");
     const evidence = path.join(temporaryRun, "evidence");
@@ -345,14 +395,35 @@ async function publishRun(
     await writeJson(path.join(evidence, "fixture.json"), prepared.fixture);
     await writeJson(path.join(evidence, "baseline-manifest.json"), baselineManifest);
 
-    try {
-      await rename(temporaryRun, runDirectory);
-    } catch (error) {
-      const nowExists = await lstat(runDirectory).catch(() => undefined);
-      if (nowExists !== undefined) {
-        throw new CoreLoopException("RUN_ALREADY_EXISTS", "Core Loop run ID already exists");
+    while (true) {
+      try {
+        await rename(temporaryRun, runDirectory);
+        break;
+      } catch (error) {
+        const nowExists = await lstat(runDirectory).catch(() => undefined);
+        if (nowExists === undefined) throw error;
+        attemptedDirectories.add(runDirectory.toLocaleLowerCase("en-US"));
+        collisionIndex += 1;
+        if (collisionIndex > MAX_RUN_DIRECTORY_COLLISIONS) {
+          throw new CoreLoopException(
+            "RUN_ALREADY_EXISTS",
+            "Core Loop run directory already exists",
+          );
+        }
+        const nextDirectory = runDirectoryCandidate(
+          resolvedRunsRoot,
+          runId,
+          collisionIndex,
+          runDirectoryNameFactory,
+        );
+        if (attemptedDirectories.has(nextDirectory.toLocaleLowerCase("en-US"))) {
+          throw new CoreLoopException(
+            "RUN_ALREADY_EXISTS",
+            "Core Loop run directory already exists",
+          );
+        }
+        runDirectory = nextDirectory;
       }
-      throw error;
     }
     return {
       runId,
@@ -401,6 +472,7 @@ export async function createCoreLoopRun(
         request,
         options.runsRoot,
         RunIdSchema.parse(runId),
+        options.runDirectoryNameFactory,
       );
     } catch (error) {
       await removeStagingDirectory(prepared.stagingDirectory).catch(() => undefined);

@@ -111,6 +111,16 @@ describe("dataset fixture staging and run publication", () => {
     ).rejects.toMatchObject({ error: { code: "RUN_ALREADY_EXISTS" } });
   });
 
+  it("rejects a non-portable custom run directory name", async () => {
+    const root = await temporaryRoot();
+    await expect(
+      createCoreLoopRun(new TestFixtureProvider(), RUN_REQUEST, {
+        runsRoot: path.join(root, "runs"),
+        runDirectoryNameFactory: () => "../escape",
+      }),
+    ).rejects.toMatchObject({ error: { code: "PATH_POLICY_VIOLATION" } });
+  });
+
   it("fails closed on mismatched provenance and undeclared files", async () => {
     const root = await temporaryRoot();
     await expect(

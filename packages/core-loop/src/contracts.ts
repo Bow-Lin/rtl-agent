@@ -236,44 +236,91 @@ export const CompileIssueSchema = z.strictObject({
   column: z.int().positive().optional(),
 });
 
-export const AgentAttemptInputSchema = z.strictObject({
-  schemaVersion: SchemaVersionSchema,
-  runId: RunIdSchema,
-  attempt: z.int().positive().max(3),
-  category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
-  specPath: z.literal("spec.md"),
-  workspaceRtlRoot: z.literal("rtl"),
-  rtlSourceFiles: z
-    .array(LogicalPathSchema)
-    .max(256)
-    .refine(sortedUnique, "RTL source files must be sorted and unique")
-    .superRefine((sourceFiles, context) => {
-      const collisionKeys = new Set<string>();
-      sourceFiles.forEach((sourceFile, index) => {
-        if (!sourceFile.startsWith("rtl/") || !/\.(?:sv|svh|v|vh)$/i.test(sourceFile)) {
-          context.addIssue({
-            code: "custom",
-            path: [index],
-            message: "RTL source files must use an allowed extension below rtl/",
-          });
-        }
-        const key = sourceFile.normalize("NFC").toLowerCase();
-        if (collisionKeys.has(key)) {
-          context.addIssue({
-            code: "custom",
-            path: [index],
-            message: "RTL source files must not collide after normalization and case folding",
-          });
-        }
-        collisionKeys.add(key);
+export const AgentAttemptInputSchema = z
+  .strictObject({
+    schemaVersion: SchemaVersionSchema,
+    runId: RunIdSchema,
+    attempt: z.int().positive().max(3),
+    category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
+    specPath: z.literal("spec.md"),
+    workspaceRtlRoot: z.literal("rtl"),
+    rtlSourceFiles: z
+      .array(LogicalPathSchema)
+      .max(256)
+      .refine(sortedUnique, "RTL source files must be sorted and unique")
+      .superRefine((sourceFiles, context) => {
+        const collisionKeys = new Set<string>();
+        sourceFiles.forEach((sourceFile, index) => {
+          if (!sourceFile.startsWith("rtl/") || !/\.(?:sv|svh|v|vh)$/i.test(sourceFile)) {
+            context.addIssue({
+              code: "custom",
+              path: [index],
+              message: "RTL source files must use an allowed extension below rtl/",
+            });
+          }
+          const key = sourceFile.normalize("NFC").toLowerCase();
+          if (collisionKeys.has(key)) {
+            context.addIssue({
+              code: "custom",
+              path: [index],
+              message: "RTL source files must not collide after normalization and case folding",
+            });
+          }
+          collisionKeys.add(key);
+        });
+      }),
+    topModule: SystemVerilogIdentifierSchema,
+    previousCompileResultPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Previous compile result must stay below context/",
+    ).optional(),
+    taskKind: z.literal("VERIFICATION_ASSET_GENERATION").optional(),
+    coverageFeedbackPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Coverage feedback must stay below context/",
+    ).optional(),
+    verificationFeedbackPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Verification asset feedback must stay below context/",
+    ).optional(),
+    verilatorCompileFeedbackPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Verilator compile feedback must stay below context/",
+    ).optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      value.taskKind === undefined &&
+      (value.coverageFeedbackPath !== undefined ||
+        value.verificationFeedbackPath !== undefined ||
+        value.verilatorCompileFeedbackPath !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["taskKind"],
+        message: "Verification feedback is only valid for verification asset generation",
       });
-    }),
-  topModule: SystemVerilogIdentifierSchema,
-  previousCompileResultPath: LogicalPathSchema.refine(
-    (value) => value.startsWith("context/"),
-    "Previous compile result must stay below context/",
-  ).optional(),
-});
+    }
+    const verificationFeedbackCount = [
+      value.coverageFeedbackPath,
+      value.verificationFeedbackPath,
+      value.verilatorCompileFeedbackPath,
+    ].filter((feedbackPath) => feedbackPath !== undefined).length;
+    if (verificationFeedbackCount > 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["verilatorCompileFeedbackPath"],
+        message: "An Agent attempt may consume only one verification feedback type",
+      });
+    }
+    if (value.taskKind !== undefined && value.category !== "SEEDED_COMPILE_REPAIR") {
+      context.addIssue({
+        code: "custom",
+        path: ["category"],
+        message: "Verification asset generation requires seeded DUT RTL",
+      });
+    }
+  });
 
 export const CompileRequestSchema = z
   .strictObject({

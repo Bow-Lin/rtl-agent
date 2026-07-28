@@ -8,6 +8,25 @@ Implement R04 as a bounded, non-authoritative Core Loop that composes the comple
 
 R04 is `IN_PROGRESS`.
 
+An explicitly authorized, independent Verilator coverage-Agent MVP is now implemented and locally
+validated. It does not complete or replace R04 acceptance. The new `coverage --case <id>` path uses
+VerilogEval prompt + normalized reference RTL only, never materializes the upstream TB, asks the
+restricted Agent for `tb.sv` and `checker.sv`, enforces an unchanged DUT digest, converts DUT-only
+LCOV into structured uncovered targets, and performs at most two rounds with fixed stop/review
+rules. Results remain `COVERAGE_EXPERIMENT`, non-authoritative, and pending human review.
+The default Windows CLI now supplies the complete matched MSYS2 Verilator environment and allows
+non-fatal lint warnings; genuine Verilator errors still fail the run.
+Verification-asset structural failures are now recoverable: missing TB/checker structure,
+assertions, or `$fatal` paths produce bounded structured feedback for the next Agent attempt instead
+of returning `finalCoverage: null` immediately. Coverage rounds are counted only after Verilator
+runs. Raw Verilator line/toggle types are separated before LCOV conversion; line coverage remains
+primary, while continuous-assignment DUTs with no line point use typed toggle coverage rather than
+an empty 100% result.
+Normal nonzero Verilator compile errors that point to generated `rtl/tb.sv` or `rtl/checker.sv` are
+also recoverable. The runner emits bounded structured compile feedback, uses a unique build directory
+per Agent attempt, and retries without consuming a coverage round. DUT-bound errors and tool,
+timeout, simulation, and coverage failures remain terminal.
+
 Reusable single-run/batch orchestration, batch preflight, conditional and exclusive evidence, independent final recompile, raw/review-adjusted metrics, human-review publication, and thin CLI behavior are implemented and validated. R02 effective isolation was also narrowed explicitly without changing its established turn protocol.
 
 The operator selected NVlabs VerilogEval v2 and ChipBench without submodules. Repository-owned Providers, pinned archive/cache preparation, source/content/implementation digests, MIT license metadata, all 156 VerilogEval `spec-to-rtl` cases, and 223 ChipBench generation/debugging cases are implemented and validated. Ignored local caches contain only allowlisted license/dataset content; reference/testbench files never enter Agent workspaces.
@@ -178,6 +197,30 @@ sandbox claim is made.
   and that guide changes alter the locked capability digest.
 - the pinned ChipBench archive prepared successfully; its check validates the 683-file manifest and reports 45 generation plus 178 debugging cases across 11 splits.
 - Windows checkout now keeps `.mjs` configuration files at LF, so the same Prettier check is stable on `windows-latest`.
+- local MSYS2 UCRT64 Verilator `5.050` is installed for future Agent-driven Windows experiments.
+  A synthetic `--binary --coverage --timing` smoke compiled and simulated successfully and produced
+  `coverage.dat`, LCOV output, and a summary after applying the required GCC 16 compatibility flag
+  `-CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0`. This is local tooling evidence only and does not satisfy a
+  Linux formal compile, simulation, or coverage Gate.
+- verification-asset auto-repair tests pass, including a first checker missing both assertion and
+  fatal failure handling; the repair attempt does not consume a coverage round.
+- final full repository validation: 36 files passed / 1 skipped; 268 tests passed / 2 skipped;
+  lint, typecheck, build, format, diff, real Verilator integration, and Harness check pass.
+- real Pi run `run_1e59e739-92ba-43d5-8aa8-f03cb1cf2edb` generated a correct exhaustive Prob101 TB,
+  checker, and assertion and completed Verilator. Its initial zero-line-point result exposed the
+  empty-coverage scoring bug; the corrected continuous-assignment integration now proves typed
+  toggle fallback and rejects reports with no DUT coverage points.
+- real Pi run `run_4f1fc7c8-6ce3-4345-aa87-a6681c1ade99` completed Prob131 in two coverage rounds and
+  reached typed toggle coverage 6/6 (100%). A real Verilator recheck of retained failed run
+  `run_70f67eaf-722e-4a9a-9bbb-aa74e1383338` parsed its five `checker` keyword syntax errors into
+  bounded repairable TB diagnostics.
+- new coverage runs are grouped as
+  `.rtl-agent/coverage-runs/<case-id>/run_<YYYYMMDD-HHmmss-SSS>/`; the timestamp is local and
+  lexically sortable, same-millisecond collisions receive `-001`/`-002`, and the UUID `runId`
+  remains the internal evidence identity. Path/collision tests, the 270-test full suite, lint,
+  typecheck, build, format, diff, Harness, and the real Verilator integration pass. The real integration
+  needed 34 seconds, so its enclosing finite test timeout now exceeds the Runner's 120-second
+  process bound instead of interrupting cleanup at 30 seconds.
 
 These are non-authoritative benchmark mechanics checks. Real Linux execution remains unavailable
 and no formal Gate, production-readiness, full-dataset capability, or checkpoint claim is permitted.
@@ -194,4 +237,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-27T16:53:52+08:00
+2026-07-28T16:57:41+08:00

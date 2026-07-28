@@ -24,6 +24,8 @@ import {
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFunctionalResultSchema,
   VerilogEvalFixtureProvider,
+  VerilogEvalCoverageFixtureProvider,
+  VerilatorCoverageRunner,
   chipBenchCacheRoot,
   chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
@@ -36,6 +38,7 @@ import {
   piExperimentConfigFromEnvironment,
   prepareChipBenchDataset,
   prepareVerilogEvalDataset,
+  runCoverageExperiment,
   requireFixtureProvider,
   scanRegularFiles,
   updateObservedIssues,
@@ -51,8 +54,12 @@ import type {
   OpenCodeExperimentConfig,
   RtlAgentAdapter,
 } from "@rtl-agent/core-loop";
-import { loadRepositoryEnvironment } from "./environment.js";
 import {
+  loadRepositoryEnvironment,
+  withDefaultWindowsVerilatorEnvironment,
+} from "./environment.js";
+import {
+  resolveCaseSelector,
   resolveEvaluationProfileSelection,
   type EvaluationCaseSelectionRequest,
 } from "./profile-selection.js";
@@ -80,6 +87,12 @@ export interface RtlCoreLoopDatasetDependencies {
   readonly prepareDataset?: typeof prepareVerilogEvalDataset;
   readonly chipBenchCacheRoot?: string;
   readonly prepareChipBenchDataset?: typeof prepareChipBenchDataset;
+}
+
+export interface RtlCoreLoopCoverageDependencies {
+  readonly agentAdapter?: RtlAgentAdapter;
+  readonly coverageRunner?: CoreLoop.CoverageRoundRunner;
+  readonly runsRoot?: string;
 }
 
 type DatasetName = "verilog-eval" | "chipbench";
@@ -435,6 +448,7 @@ export async function runRtlCoreLoopCli(
   repositoryRoot: string = DEFAULT_REPOSITORY_ROOT,
   evaluationDependencies?: RtlCoreLoopEvaluationDependencies,
   datasetDependencies?: RtlCoreLoopDatasetDependencies,
+  coverageDependencies?: RtlCoreLoopCoverageDependencies,
 ): Promise<number> {
   const dataset =
     arguments_[0] === "fixtures-check" || arguments_[0] === "dataset-prepare"
@@ -519,6 +533,90 @@ export async function runRtlCoreLoopCli(
   }
 
   const command = arguments_[0];
+  if (command === "coverage") {
+    try {
+      if (!(provider instanceof VerilogEvalFixtureProvider)) {
+        throw new CoreLoopException(
+          "DATASET_NOT_CONFIGURED",
+          "Coverage experiment requires the locked VerilogEval dataset",
+        );
+      }
+      const options = parseNamedOptions(arguments_.slice(1));
+      const caseId = options.get("--case");
+      const backend = options.get("--agent") ?? "opencode";
+      if (
+        caseId === undefined ||
+        (backend !== "opencode" && backend !== "pi") ||
+        options.size !== (options.has("--agent") ? 2 : 1)
+      ) {
+        throw new CoreLoopException(
+          "EVALUATION_PROFILE_INVALID",
+          "Coverage command requires --case and optional --agent <opencode|pi>",
+        );
+      }
+      const cases = await listFixtureCases(provider, {
+        schemaVersion: 1,
+        split: VERILOG_EVAL_DATASET_LOCK.split,
+      });
+      const resolvedCaseId = resolveCaseSelector(
+        caseId,
+        cases.map((caseRef) => caseRef.identity.caseId),
+      );
+      const caseRef = cases.find((candidate) => candidate.identity.caseId === resolvedCaseId)!;
+      const agentAdapter =
+        coverageDependencies?.agentAdapter ??
+        (backend === "pi"
+          ? new PiRtlAgentAdapter(piExperimentConfigFromEnvironment(environment, repositoryRoot))
+          : new OpenCodeRtlAgentAdapter(
+              openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
+            ));
+      const windowsVerilator = "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe";
+      const windowsCoverage = "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe";
+      const coverageRunner =
+        coverageDependencies?.coverageRunner ??
+        new VerilatorCoverageRunner({
+          verilatorExecutable:
+            environment.RTL_AGENT_VERILATOR_EXECUTABLE ??
+            (process.platform === "win32" ? windowsVerilator : "verilator"),
+          coverageExecutable:
+            environment.RTL_AGENT_VERILATOR_COVERAGE_EXECUTABLE ??
+            (process.platform === "win32" ? windowsCoverage : "verilator_coverage"),
+          environment:
+            process.platform === "win32" && environment.RTL_AGENT_VERILATOR_EXECUTABLE === undefined
+              ? withDefaultWindowsVerilatorEnvironment(environment)
+              : environment,
+          ...(process.platform === "win32" ? { cflags: ["-D_GLIBCXX_USE_CXX11_ABI=0"] } : {}),
+        });
+      const execution = await runCoverageExperiment({
+        provider: new VerilogEvalCoverageFixtureProvider(provider),
+        caseRef,
+        agentAdapter,
+        coverageRunner,
+        runsRoot:
+          coverageDependencies?.runsRoot ??
+          path.join(repositoryRoot, ".rtl-agent", "coverage-runs"),
+      });
+      writeOutput(
+        JSON.stringify({
+          ok: execution.result.status !== "FAILED",
+          result: {
+            ...execution.result,
+            runDirectory: path
+              .relative(repositoryRoot, execution.run.runDirectory)
+              .replaceAll("\\", "/"),
+          },
+        }),
+      );
+      return execution.result.status === "FAILED" ? 3 : 0;
+    } catch (error) {
+      const safeError =
+        error instanceof CoreLoopException
+          ? error.error
+          : new CoreLoopException("INTERNAL_ERROR", "An internal error occurred").error;
+      writeError(JSON.stringify({ ok: false, error: safeError }));
+      return 2;
+    }
+  }
   if (command === "reanalyze") {
     try {
       const options = parseNamedOptions(arguments_.slice(1));
@@ -749,7 +847,7 @@ export async function runRtlCoreLoopCli(
     }
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|run --profile <id> --case <id>|evaluate --profile <id> [--agent <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id>>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|run --profile <id> --case <id>|evaluate --profile <id> [--agent <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id>>",
   );
   return 2;
 }

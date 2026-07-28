@@ -30,6 +30,35 @@ How should future agents avoid repeating it?
 
 ## Known Failure Modes
 
+## 2026-07-28 - Verilator integration test timed out before its process runner
+
+### Symptom
+
+The focused real Verilator coverage integration reached Vitest's explicit 30-second test deadline.
+Cleanup then reported `EBUSY` because the still-running Verilator toolchain retained the temporary
+workspace.
+
+### Root Cause
+
+`VerilatorCoverageRunner` has a bounded 120-second external-process timeout, but the integration
+test's enclosing timeout was only 30 seconds. On a slower Windows build, Vitest could abort the
+test before the runner completed or performed its own bounded termination.
+
+### Fix
+
+Raise only the real Verilator integration test deadline to 150 seconds, keeping it finite and longer
+than the runner's process bound. Ordinary deterministic test timeouts remain unchanged.
+
+### Prevention
+
+An integration test that wraps a bounded external process must allow enough time for the process
+timeout plus termination and cleanup. The test harness must not be the first timeout boundary.
+
+### Related Files
+
+- `packages/core-loop/test/verilator-coverage.integration.test.ts`
+- `packages/core-loop/src/coverage-experiment.ts`
+
 ## 2026-07-23 - Hidden diagnosis Schema made a completed batch look failed
 
 ### Symptom
@@ -360,6 +389,162 @@ source status unless that text still describes the mapped outcome.
 
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
+
+## 2026-07-28 - Zero DUT line points were reported as 100% coverage
+
+### Symptom
+
+Real Pi run `run_1e59e739-92ba-43d5-8aa8-f03cb1cf2edb` compiled and simulated Prob101 correctly, but
+the result contained `line.found: 0`, `score: 100`, and no uncovered targets. LCOV contained only TB
+line records because the DUT was a single continuous assignment.
+
+### Root Cause
+
+The percentage helper treated an empty denominator as complete. Line-only Verilator instrumentation
+does not necessarily create a DUT point for a continuous assignment, so the empty set was not proof
+of full coverage.
+
+### Fix
+
+Enable line and toggle instrumentation, preserve point types from raw `coverage.dat`, convert only
+line records to LCOV, and use typed DUT toggle coverage only when the DUT has no line point. Fail
+explicitly when neither type contains a DUT point.
+
+### Prevention
+
+Every coverage integration must assert a positive DUT denominator, not only a percentage. Keep a
+continuous-assignment regression in the real Verilator integration suite.
+
+## 2026-07-28 - Missing assertion prevented coverage from starting
+
+### Symptom
+
+Pi run `run_0d887b75-8790-40b8-a387-95d1bf649122` generated a bounded exhaustive TB and a comparison
+checker, but the checker used `$display`/`$finish` without an assertion or `$fatal`. The orchestrator
+stopped as `VERIFICATION_ASSETS_MISSING`, so `roundsCompleted` was zero and `finalCoverage` was null.
+
+### Root Cause
+
+Minimum asset validation was a terminal precondition even though its missing requirements were
+mechanically identifiable and repairable by the same Agent.
+
+### Fix
+
+Write `context/verification-feedback-attempt-<n>.json` with stable missing-requirement codes and give
+the Agent a bounded repair attempt before invoking Verilator. Asset repair does not consume a
+coverage round; the total three-turn Agent budget still applies.
+
+### Prevention
+
+Keep a deterministic regression where attempt one omits `assert` and `$fatal`, attempt two consumes
+the structured feedback, and coverage round one then executes.
+
+## 2026-07-28 - Generated checker instance used a SystemVerilog keyword
+
+### Symptom
+
+Prob131 run `run_70f67eaf-722e-4a9a-9bbb-aa74e1383338` stopped before simulation with five Verilator
+syntax errors. The generated TB declared `tb_checker checker (...)` and called `checker.check()`.
+
+### Root Cause
+
+`checker` is a SystemVerilog keyword. Static asset validation checked module/file/assertion shape but
+did not compile syntax, and the coverage orchestrator treated every Verilator failure as terminal.
+
+### Fix
+
+The common guidance now forbids `checker` as both module and instance name. More importantly, normal
+nonzero Verilator compile errors bound to generated TB/checker paths are parsed into
+`context/verilator-compile-feedback-attempt-<n>.json` and receive a bounded Agent repair turn. Each
+compile attempt has a distinct evidence directory and does not consume a coverage round.
+
+### Prevention
+
+Keep exact parsing coverage for the observed `%Error: rtl\\tb.sv:<line>:<column>:` form, a
+deterministic compile-repair orchestration test, and a real Verilator recheck of the retained failed
+assets. Never route DUT-bound or process/tool failures into the verification-asset Agent.
+
+## 2026-07-28 - VerilogEval reference module name did not match the public spec
+
+### Symptom
+
+The first real coverage-Agent run generated a TB that instantiated `TopModule`, but Verilator could
+only find `RefModule` in the materialized reference RTL.
+
+### Root Cause
+
+VerilogEval reference files consistently name their model `RefModule` because the upstream hidden
+TB compares it with a candidate `TopModule`. The new experiment intentionally does not use that TB
+and initially copied the reference without adapting this dataset convention.
+
+### Fix
+
+The coverage-only Provider validates exactly one `RefModule` declaration and deterministically
+renames it to `TopModule` while materializing `rtl/dut.sv`. The original dataset digest and locked
+source remain unchanged.
+
+### Prevention
+
+Treat dataset-facing module naming as Provider normalization, not Agent prompt behavior. Provider
+tests now prove that the coverage fixture contains prompt + normalized DUT only.
+
+## 2026-07-28 - Toggle coverage misclassified a constant output as an untested target
+
+### Symptom
+
+`Prob001_zero` simulated successfully for two rounds, but LCOV reported the DUT's constant output
+line and two derived branches at zero hits.
+
+### Root Cause
+
+Verilator `--coverage` includes toggle coverage. Its LCOV writer represents the constant signal's
+0→1 and 1→0 toggle points as `DA`/`BRDA`, which the MVP parser reasonably but incorrectly treated as
+line/branch execution gaps. A correct constant output cannot satisfy those toggle targets.
+
+### Fix
+
+Keep line coverage as the primary supplementation signal. Preserve Verilator's raw point type before
+LCOV conversion, and use explicitly typed toggle points only as a fallback when the DUT has no
+instrumentable line points. A report with no DUT line or toggle points is invalid rather than 100%.
+
+### Prevention
+
+Do not combine heterogeneous Verilator coverage types without preserving their original type.
+Validate constant-output, continuous-assignment, and branch-bearing circuits separately in
+integration tests.
+
+## 2026-07-28 - MSYS2 GCC 16 could not link Verilator runtime with the default C++ ABI
+
+### Symptom
+
+Verilator `5.050` successfully parsed the SystemVerilog smoke test and compiled generated C++, but
+the final UCRT64 GCC `16.1.0` link repeatedly failed on the move constructor for
+`std::__cxx11::basic_string`. Ordinary C++ string compilation still passed.
+
+### Root Cause
+
+The Verilator runtime objects referenced the GCC 16 new-ABI `C4` constructor symbol, while the
+installed MSYS2 libstdc++ import/static libraries exposed the compatible `C1`/`C2` forms but not
+that `C4` symbol. A separate early attempt also selected MSYS Python, which cannot consume the
+native `C:/...` path emitted into the generated Makefile.
+
+### Fix
+
+Install native `mingw-w64-ucrt-x86_64-python`, keep `/ucrt64/bin` before `/usr/bin`, and pass
+`-CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0` to Verilator so every generated and runtime C++ object uses the
+same packaged legacy ABI. The compile, simulation, coverage data, LCOV export, and summary then
+passed.
+
+### Prevention
+
+Probe more than `--version`: every Windows Verilator profile must compile and run a timed
+SystemVerilog test with the exact frozen environment and C++ flags, then prove coverage data can be
+post-processed. Do not infer that the default ABI is usable from a successful parser/version probe.
+
+### Related Files
+
+- `.harness/session-log.md`
+- `current-task.md`
 
 ## 2026-07-22 - Historical compile error masked a later tool failure
 

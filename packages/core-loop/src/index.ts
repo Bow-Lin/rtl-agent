@@ -13,6 +13,7 @@ export * from "./compiler-diagnostics.js";
 export * from "./compiler-process.js";
 export * from "./compiler-profile.js";
 export * from "./contracts.js";
+export * from "./coverage-experiment.js";
 export * from "./errors.js";
 export * from "./evaluation-contracts.js";
 export * from "./evaluation-metrics.js";

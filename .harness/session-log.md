@@ -1861,3 +1861,191 @@ then passed 21/21 with `--maxWorkers=1`, and an independent aggregate rerun pass
 skipped and 258 tests / 2 skipped. An initial diagnostic retry included the removed Vitest 4 option
 `--minWorkers` and did not start tests; the supported `--maxWorkers=1` command supplied the focused
 evidence.
+
+## Entry: Install Local Verilator Coverage Tooling
+
+### Outcome
+
+Installed MSYS2 `20260611`, UCRT64 Verilator `5.050-1`, GCC `16.1.0-5`, GNU Make `4.4.1`,
+and native UCRT64 Python `3.14.6`. The fixed Windows executable is
+`C:\msys64\ucrt64\bin\verilator_bin.exe`; it requires
+`VERILATOR_ROOT=C:\msys64\ucrt64\share\verilator` and PATH entries for
+`C:\msys64\ucrt64\bin` and `C:\msys64\usr\bin`. Coverage post-processing uses the native
+`C:\msys64\ucrt64\bin\verilator_coverage_bin_dbg.exe` supplied by the same package.
+
+The current GCC 16 package emits a new-ABI `C4` `std::__cxx11::basic_string` constructor reference
+that the packaged libstdc++ import library does not provide when compiling Verilator runtime
+sources. Passing `-CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0` keeps all generated/runtime objects on the
+packaged legacy ABI and makes the fixed toolchain link successfully. This flag is part of the
+validated local invocation and must not be silently omitted.
+
+### Validation
+
+- `verilator_bin.exe --version`: passed, `Verilator 5.050`.
+- synthetic `--binary --coverage --timing` compile: passed with the GCC ABI compatibility flag.
+- generated `sim.exe`: passed and reached `$finish` at 12 ps.
+- `coverage.dat`: produced with nonzero line, toggle, branch, and expression counters.
+- native coverage summary with `--annotate-min 1`: line 100%, toggle 90%, branch 100%, expression
+  100%; LCOV `coverage.info` and annotated source were also produced.
+- smoke sources and generated artifacts remain ignored under `.rtl-agent/verilator-smoke/`.
+
+No project business logic, compiler profile, formal Gate, or Linux-readiness claim changed. This is
+reproducible Windows host tooling evidence only; a formal coverage Gate remains Linux-only.
+
+## Entry: Implement Minimal Verification Agent and Verilator Coverage Loop
+
+### Outcome
+
+Implemented an independent `coverage --case <id> [--agent opencode|pi]` experiment. Its dedicated
+VerilogEval Provider view materializes the prompt and reference RTL only, normalizes the dataset's
+`RefModule` to `TopModule`, and does not materialize or invoke the upstream TB. The Agent generates
+`rtl/tb.sv` and `rtl/checker.sv`; the orchestrator enforces an unchanged DUT digest, minimum TB/
+checker/assertion structure, fixed Verilator execution, DUT-only LCOV parsing, structured uncovered
+targets, at most two supplementation rounds, coverage/no-target/no-gain/max-round stops, and four
+mandatory human-review rules.
+
+The first real run exposed the VerilogEval module-name convention and was retained as failed evidence
+under `run_bb447beb-3ad1-46cb-aae7-b059b247a701`. After Provider normalization, real run
+`run_4558ac19-8ca5-4aa5-9ccc-c119627d14da` completed two Agent + Verilator rounds and stopped for
+human review. Its aggregate `--coverage` LCOV also exposed an unsatisfiable constant-output toggle
+target, so the final MVP uses `--coverage-line`. The final line-only runner passed a real Verilator
+integration; no additional model call was needed for that tool-semantic correction.
+
+### Validation
+
+- focused coverage/provider/Agent tests: passed
+- real Windows Verilator line-coverage integration: passed
+- real OpenCode Agent + Verilator two-round run: completed, non-authoritative, human review required
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm build`: passed
+- full repository tests: 36 files passed / 1 skipped; 260 tests passed / 2 skipped
+- scoped ESLint and Prettier checks for all touched implementation/docs files: passed
+- `git diff --check`: passed
+- repository-wide lint/format commands remain blocked only by pre-existing untracked `.tmp/`
+  midyear-PPT artifacts; those user-owned files were not modified or deleted
+
+## Entry: Accept Short Coverage Case Selectors
+
+### Outcome
+
+The coverage CLI now reuses the existing evaluation selector semantics. `--case` accepts an exact
+case ID or a case-insensitive unique prefix, so `Prob001` and `prob001` resolve to
+`Prob001_zero`. Missing or ambiguous prefixes fail before constructing an Agent adapter or making a
+model call. Both `--agent opencode` and `--agent pi` use the same resolution path.
+
+### Validation
+
+- focused profile-selection tests: 1 file, 8 tests passed
+- `corepack pnpm typecheck`: passed
+- scoped ESLint and Prettier checks: passed
+
+## Entry: Repair Default Windows Verilator Launch for Pi Coverage Runs
+
+### Outcome
+
+Diagnosed failed coverage run `run_e3b8f3cf-1d68-4d38-a373-351b8eb0583e`. Pi successfully resolved
+`Prob101` to `Prob101_circuit4`, preserved the DUT, and generated a complete TB plus checker. The
+first Verilator failure was environmental: the default executable did not receive its matching
+`VERILATOR_ROOT` or UCRT64/MSYS PATH. After supplying those values, Verilator exposed a non-fatal
+`TIMESCALEMOD` warning because generated verification files had a timescale and the dataset DUT did
+not.
+
+The default Windows path now automatically supplies the verified MSYS2 root/PATH and retains the
+GCC ABI flag. The fixed Verilator argv also includes `-Wno-fatal`, so warnings remain in evidence but
+do not replace actual errors. Explicit executable overrides remain responsible for their own
+environment.
+
+The existing Prob101 DUT/TB/checker were reused without another Pi call. They compiled, simulated
+all 16 input combinations, printed `All tests passed.`, produced `coverage.dat`, and converted to
+LCOV successfully under `evidence/coverage/environment-recheck-2`.
+
+### Validation
+
+- focused environment/selector/coverage tests: 3 files, 14 tests passed
+- real Verilator integration with deliberate DUT/TB timescale mismatch: passed
+- existing Prob101 generated assets: real compile, simulation, coverage data, and LCOV passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm build`: passed
+- scoped ESLint, Prettier, and `git diff --check`: passed
+
+## Entry: Make Missing Coverage Self-Repairing and Reject Empty DUT Scores
+
+### Outcome
+
+The verification experiment now feeds missing TB/checker/assertion/`$fatal` requirements back to the
+selected Agent for a bounded repair attempt instead of failing before coverage. These attempts are
+separate from coverage rounds. If the three-turn Agent budget ends after valid coverage, the result
+stops as `MAX_AGENT_ATTEMPTS` and requires human review.
+
+Real Pi run `run_1e59e739-92ba-43d5-8aa8-f03cb1cf2edb` generated a complete exhaustive Prob101 TB and
+assertion checker and completed Verilator, then exposed a false empty-denominator score: the
+continuous-assignment DUT had no line points and was shown as 100%. The runner now instruments line
+and toggle coverage, splits raw records by their preserved Verilator type, converts only line records
+to LCOV, and uses explicitly typed toggle targets only when no DUT line point exists. A report with
+neither DUT line nor toggle points fails instead of reporting 100%.
+
+### Validation
+
+- focused coverage/Agent/Pi tests: 3 files, 40 tests passed before typed-toggle addition; updated
+  focused coverage tests: 4 tests passed
+- full repository tests before typed-toggle addition: 36 files passed / 1 skipped; 265 tests passed /
+  2 skipped
+- real Pi + Verilator Prob101 run completed with valid TB/checker/assertion and coverage artifacts
+- real Verilator continuous-assignment integration passed with a positive typed toggle denominator
+- final full repository validation: 36 files passed / 1 skipped; 266 tests passed / 2 skipped
+- typecheck, build, repository lint/format, `git diff --check`, and Harness check passed
+
+## Entry: Feed Verilator Compile Errors Back to the Verification Agent
+
+### Outcome
+
+The coverage experiment now distinguishes repairable generated-source compilation failures from
+terminal Verilator failures. A normal nonzero compile result with `%Error` records bound to
+`rtl/tb.sv` or `rtl/checker.sv` becomes bounded structured feedback at
+`context/verilator-compile-feedback-attempt-<n>.json`. The next Agent turn may repair only generated
+verification assets; the DUT digest remains enforced and the failed compile does not consume a
+coverage round. Each Agent attempt uses a distinct `round-<n>-attempt-<n>` build directory.
+
+DUT-bound diagnostics, spawn/signal/timeout/termination failures, simulation failures, missing
+coverage data, and report conversion failures remain terminal. Common guidance now explicitly
+forbids `checker` as an instance name because it is a SystemVerilog keyword.
+
+### Real Evidence
+
+- retained Prob131 failure `run_70f67eaf-722e-4a9a-9bbb-aa74e1383338` was recompiled with the new
+  real runner; its five `%Error` records were parsed as bounded repairable `rtl/tb.sv` issues
+- fresh Pi run `run_4f1fc7c8-6ce3-4345-aa87-a6681c1ade99` avoided the keyword error, completed two
+  Verilator rounds, and reached toggle coverage 6/6 (100%) with human review still required
+
+### Validation
+
+- focused coverage/contracts/OpenCode/Pi tests: 4 files, 56 tests passed
+- real Windows Verilator coverage integration: passed
+- full repository: 36 files passed / 1 skipped; 268 tests passed / 2 skipped
+- lint, typecheck, format, and `git diff --check`: passed before final build/Harness validation
+
+## Entry: Use Case/Time Directories for Coverage Runs
+
+### Outcome
+
+New coverage experiments are published under
+`.rtl-agent/coverage-runs/<case-id>/run_<YYYYMMDD-HHmmss-SSS>/`. The local timestamp is readable and
+lexically sortable. A same-case, same-millisecond collision receives `-001`, `-002`, and so on.
+Unsafe case IDs are converted to a portable readable stem with a digest suffix. The established UUID
+`runId` remains unchanged inside contracts and evidence, and historical UUID directories are not
+migrated.
+
+The CLI now reports the actual relative run directory instead of reconstructing an obsolete UUID
+path. Core publication validates every custom directory name as one portable path segment and keeps
+atomic no-overwrite behavior during pre-existing and concurrent collisions.
+
+### Validation
+
+- focused coverage/materialization tests: 2 files and 16 tests passed
+- full repository: 36 files passed / 1 skipped; 270 tests passed / 2 skipped
+- lint, typecheck, build, format, `git diff --check`, and Harness check: passed
+- real Windows Verilator coverage integration: passed in 34 seconds
+- the first integration invocation used the ordinary Vitest config and was excluded; the first run
+  with the correct integration config then reached the test's old 30-second outer timeout while the
+  Runner remained active. The integration-only deadline now allows 150 seconds, exceeding the
+  Runner's bounded 120-second process timeout, and the isolated rerun passed.

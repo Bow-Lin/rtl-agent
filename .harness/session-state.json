@@ -2,7 +2,7 @@
   "task_id": "r04-bounded-repair-loop-and-evaluation",
   "status": "in_progress",
   "current_phase": "implementation_complete_awaiting_acceptance_review",
-  "last_updated": "2026-07-27T16:53:52+08:00",
+  "last_updated": "2026-07-28T16:57:41+08:00",
   "active_plan": [
     "Record the final operator license-review disposition for the pinned dataset sources",
     "Resolve the operator-selected VerilogEval range/list into a concrete capability-bound profile",
@@ -41,6 +41,7 @@
     "core-loop/fixtures/verilog-eval-v2.lock.json",
     "current-task.md",
     "docs/architecture.md",
+    "docs/coverage-experiment.md",
     "docs/decisions.md",
     "docs/error-journal.md",
     "docs/experiments/spec-to-rtl-core-loop-report.md",
@@ -65,12 +66,14 @@
     "packages/core-loop/src/compiler-process.ts",
     "packages/core-loop/src/compiler-profile.ts",
     "packages/core-loop/src/contracts.ts",
+    "packages/core-loop/src/coverage-experiment.ts",
     "packages/core-loop/src/errors.ts",
     "packages/core-loop/src/evaluation-contracts.ts",
     "packages/core-loop/src/evaluation-metrics.ts",
     "packages/core-loop/src/evidence.ts",
     "packages/core-loop/src/include-scanner.ts",
     "packages/core-loop/src/index.ts",
+    "packages/core-loop/src/materialize.ts",
     "packages/core-loop/src/mismatch-analyzer.ts",
     "packages/core-loop/src/observed-issues.ts",
     "packages/core-loop/src/output.ts",
@@ -89,14 +92,17 @@
     "packages/core-loop/test/compiler-process.test.ts",
     "packages/core-loop/test/compiler-test-fixtures.ts",
     "packages/core-loop/test/contracts.test.ts",
+    "packages/core-loop/test/coverage-experiment.test.ts",
     "packages/core-loop/test/evaluation-test-fixtures.ts",
     "packages/core-loop/test/iverilog.integration.test.ts",
+    "packages/core-loop/test/materialize.test.ts",
     "packages/core-loop/test/mismatch-analyzer.test.ts",
     "packages/core-loop/test/observed-issues.test.ts",
     "packages/core-loop/test/pi-agent-adapter.test.ts",
     "packages/core-loop/test/r04-iverilog.integration.test.ts",
     "packages/core-loop/test/run-orchestrator.test.ts",
     "packages/core-loop/test/verilog-eval-provider.test.ts",
+    "packages/core-loop/test/verilator-coverage.integration.test.ts",
     "packages/core-loop/test/verilog-eval-simulation.test.ts",
     "package.json",
     "pnpm-lock.yaml",
@@ -276,14 +282,60 @@
       "corepack pnpm test",
       "corepack pnpm format:check",
       "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
+      "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe --version",
+      "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe -CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0 --binary --coverage --timing --top-module tb tb.sv --Mdir obj_dir_abi0 -o sim.exe",
+      "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe --report summary --annotate annotate-min1 --annotate-min 1 coverage.dat"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/verilog-eval-provider.test.ts --config vitest.config.ts"
+      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"node apps/rtl-core-loop/dist/index.js coverage --case Prob001_zero --agent opencode"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm test"
+      ,"scoped eslint/prettier checks for coverage experiment files"
+      ,"git diff --check"
+      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/profile-selection.test.ts --config vitest.config.ts"
+      ,"scoped eslint/prettier checks for coverage case-prefix selection"
+      ,"real Verilator compile/simulation/LCOV recheck of run_e3b8f3cf-1d68-4d38-a373-351b8eb0583e assets"
+      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
+      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/environment.test.ts apps/rtl-core-loop/test/profile-selection.test.ts packages/core-loop/test/coverage-experiment.test.ts --config vitest.config.ts"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/pi-agent-adapter.test.ts"
+      ,"corepack pnpm test"
+      ,"corepack pnpm core-loop:coverage --case Prob101 --agent pi"
+      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/contracts.test.ts packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/pi-agent-adapter.test.ts"
+      ,"real Verilator recheck of run_70f67eaf-722e-4a9a-9bbb-aa74e1383338 generated five repairable TB diagnostics"
+      ,"corepack pnpm core-loop:coverage --case Prob131 --agent pi"
+      ,"corepack pnpm test"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm format:check"
+      ,"git diff --check"
+      ,"corepack pnpm exec vitest run --config vitest.config.ts packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/materialize.test.ts"
+      ,"corepack pnpm test"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"git diff --check"
+      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Guarded landing review found no remaining P1/P2 after removing stale test_async handoff references. Frozen install, lint, typecheck, build, format, peers, Pi probe, focused process test, and the independent full repository rerun pass; the first aggregate run hit the documented Windows process-tree race.",
+    "last_result": "Coverage runs now publish below a readable case directory and lexically sortable local-time run directory while preserving the UUID runId in evidence. Same-millisecond collisions receive a numeric suffix and unsafe case IDs remain portable. Focused tests, 270-test full suite, lint, typecheck, build, format, diff, Harness, and real Verilator integration passed.",
     "known_failures": [
       "Final operator MIT/license-review disposition is not yet recorded",
       "No acceptance-qualified R04 profile plus predeclared human-review checkpoint has completed; exploratory real batches exist",
       "Direct host vvp execution is an explicitly accepted local benchmark risk and is not suitable for a formal Gate or production claim",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
+      ,"Coverage-Agent results require semantic human review; structural coverage does not establish functional correctness"
     ]
   },
   "cognitive_state": {
@@ -302,7 +354,7 @@
     "blocked_on": "Final license-review disposition, execution of an operator-selected resolved profile, and the required human review"
   },
   "handoff": {
-    "last_summary": "Kimi model selection for VerilogEval profiles is now environment-driven rather than hard-coded to kimi-for-coding. R04 remains IN_PROGRESS; model comparisons can be run by editing .env.local and keeping the same evaluate command.",
-    "resume_from": "To run K3, set RTL_AGENT_OPENCODE_MODEL=kimi-code/k3 for OpenCode or RTL_AGENT_PI_PROVIDER=kimi-coding plus RTL_AGENT_PI_MODEL=k3 for Pi, then run the normal selected evaluate command and inspect the locked profile/capability evidence."
+    "last_summary": "Coverage evidence now uses <case-id>/run_<local-time> directories with collision suffixes; internal UUID run IDs and all verification behavior remain unchanged.",
+    "resume_from": "Run coverage for any selected case and inspect the reported case/time directory; historical UUID directories remain unchanged."
   }
 }

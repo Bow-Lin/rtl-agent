@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       "packages/core-loop/test/iverilog.integration.test.ts",
       "packages/core-loop/test/r04-iverilog.integration.test.ts",
+      "packages/core-loop/test/verilator-coverage.integration.test.ts",
     ],
     exclude: ["**/dist/**", "**/node_modules/**"],
   },

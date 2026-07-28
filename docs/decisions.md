@@ -946,3 +946,84 @@ changes the derived profile identity/digest and mid-run capability drift still f
 Operators can switch Kimi models by editing ignored local environment settings without changing
 source code. Results for different models remain distinguishable by their locked Agent capability
 and derived profile identity.
+
+## 2026-07-28 - Add a Non-Authoritative Verilator Coverage Agent Experiment
+
+### Context
+
+The compile-generation loop now has enough real signal to try a small verification-Agent path. The
+requested experiment needs to generate a testbench, checker, and assertions from RTL plus spec,
+measure coverage, and perform one focused supplementation round. It must not reuse the upstream
+VerilogEval testbench or be mistaken for the future Linux formal Gate.
+
+### Decision
+
+Add an independent `coverage --case <id>` workflow. A dedicated VerilogEval Provider view
+materializes only the prompt and reference model, renaming its single `RefModule` declaration to
+`TopModule`; the dataset testbench remains outside the run. The existing restricted Agent gets an
+explicit `VERIFICATION_ASSET_GENERATION` task and may create `rtl/tb.sv` and `rtl/checker.sv` while
+the orchestrator enforces the original DUT digest.
+
+Treat minimum verification-asset validation as repairable Agent feedback. Missing TB/checker
+structure, assertion, or fatal failure handling writes a bounded context artifact for the next
+Agent attempt; it does not consume a coverage round. The total Agent budget remains three turns.
+Treat a normal nonzero Verilator compile result as repairable only when a parsed `%Error` points to
+generated `rtl/tb.sv` or `rtl/checker.sv`. Give the Agent bounded path/line/column/message feedback
+and use a distinct build directory for every Agent attempt. DUT errors and tool/process/simulation/
+coverage failures remain terminal; compilation feedback must never authorize DUT changes.
+
+Use fixed, shell-free Verilator argv and preserve Verilator's coverage types before LCOV conversion.
+Line coverage is the primary score and target source. When a DUT has no instrumentable line point,
+use explicitly typed DUT toggle coverage as the fallback rather than treating zero found points as
+100%. Convert DUT-only line/branch/toggle records into bounded structured uncovered targets. Run at
+most two rounds, stop on 90% coverage, no targets, less than 0.5 percentage-point gain, or failure,
+and always require the four recorded human-review checks before acceptance. Label every result
+`authoritative: false` and `claim: COVERAGE_EXPERIMENT`.
+
+### Alternatives Considered
+
+- Reuse the upstream VerilogEval TB: rejected because the experiment is specifically measuring
+  Agent-generated verification assets.
+- Use toggle coverage in every score: rejected because a valid constant output can never satisfy
+  both transitions. Toggle targets are used only when the DUT has no line-coverage points.
+- Mark a threshold hit as verified: rejected because generated checkers and assertion timing require
+  semantic human review.
+
+### Consequences
+
+One real Windows case can now run end to end without changing the formal Gate boundary. Coverage
+artifacts and process records are reproducible under the run evidence directory. This path is useful
+for experimentation but does not prove checker correctness, complete functional coverage, Linux
+readiness, or production sandboxing.
+
+## 2026-07-28 - Group Coverage Runs by Case and Local Start Time
+
+### Context
+
+Coverage evidence was published directly under a UUID-named directory. The UUID was reliable for
+protocol identity but made it difficult for an operator to identify a case or compare repeated runs
+from the filesystem.
+
+### Decision
+
+Publish new coverage experiments as
+`.rtl-agent/coverage-runs/<portable-case-id>/run_<YYYYMMDD-HHmmss-SSS>/`. Use the host's local start
+time so the directory is readable and lexically chronological for the operator. Resolve a same-case,
+same-millisecond collision with a zero-padded numeric suffix. Preserve the UUID `runId` inside all
+contracts and evidence instead of changing the established protocol identity. Unsafe or ambiguous
+case IDs receive a readable sanitized stem plus a digest suffix.
+
+### Alternatives Considered
+
+- Replace the protocol `runId` UUID with a timestamp: rejected because it would weaken uniqueness
+  and change historical contract assumptions.
+- Put the timestamp above the case directory: rejected because repeated results for one case would
+  be scattered across unrelated run directories.
+- Rename historical runs: rejected because old evidence is immutable local history and migration is
+  unnecessary for the new layout.
+
+### Consequences
+
+Operators can browse one case and see its runs in chronological name order. The filesystem directory
+basename is no longer required to equal the internal `runId` for this coverage-only workflow.
+Historical UUID directories remain readable at their existing locations.

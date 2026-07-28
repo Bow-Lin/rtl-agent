@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   VERILOG_EVAL_DATASET_LOCK,
+  VerilogEvalCoverageFixtureProvider,
   VerilogEvalFixtureProvider,
   asHostDirectoryForProvider,
   createFileManifest,
@@ -113,6 +114,23 @@ describe("VerilogEval pinned dataset Provider", () => {
     await expect(createFileManifest(verification)).resolves.toMatchObject({
       entries: [{ path: "reference.sv" }, { path: "testbench.sv" }],
     });
+
+    const coverage = path.join(root, "coverage");
+    await mkdir(coverage);
+    const coverageProvider = new VerilogEvalCoverageFixtureProvider(provider);
+    await expect(
+      coverageProvider.materialize(cases[0]!, asHostDirectoryForProvider(coverage)),
+    ).resolves.toMatchObject({
+      category: "SEEDED_COMPILE_REPAIR",
+      specPath: "prompt.txt",
+      starterRtlRoot: "rtl",
+    });
+    await expect(createFileManifest(coverage)).resolves.toMatchObject({
+      entries: [{ path: "prompt.txt" }, { path: "rtl/dut.sv" }],
+    });
+    await expect(readFile(path.join(coverage, "rtl", "dut.sv"), "utf8")).resolves.toBe(
+      "module TopModule; endmodule\n",
+    );
   });
 
   it("honors explicit selection and detects source drift", async () => {

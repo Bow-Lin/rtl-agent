@@ -23,6 +23,9 @@ const ALLOWED_ENVIRONMENT_NAMES = [
   "RTL_AGENT_MAXIMUM_FILES",
   "RTL_AGENT_MAXIMUM_FILE_BYTES",
   "RTL_AGENT_MAXIMUM_TOTAL_BYTES",
+  "RTL_AGENT_VERILATOR_EXECUTABLE",
+  "RTL_AGENT_VERILATOR_COVERAGE_EXECUTABLE",
+  "VERILATOR_ROOT",
 ] as const;
 
 async function readEnvironmentFile(filePath: string): Promise<Record<string, string>> {
@@ -52,4 +55,28 @@ export async function loadRepositoryEnvironment(
   }
 
   return environment;
+}
+
+export function withDefaultWindowsVerilatorEnvironment(
+  environment: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  if (platform !== "win32") return { ...environment };
+  const result: NodeJS.ProcessEnv = { ...environment };
+  result.VERILATOR_ROOT ??= path.win32.join("C:\\msys64", "ucrt64", "share", "verilator");
+  const pathKey = Object.keys(result).find((name) => name.toLowerCase() === "path") ?? "Path";
+  const existingPath = result[pathKey];
+  const required = [
+    path.win32.join("C:\\msys64", "ucrt64", "bin"),
+    path.win32.join("C:\\msys64", "usr", "bin"),
+  ];
+  const existing = (existingPath ?? "")
+    .split(path.win32.delimiter)
+    .filter((entry) => entry.length > 0);
+  const existingKeys = new Set(existing.map((entry) => path.win32.normalize(entry).toLowerCase()));
+  result[pathKey] = [
+    ...required.filter((entry) => !existingKeys.has(path.win32.normalize(entry).toLowerCase())),
+    ...existing,
+  ].join(path.win32.delimiter);
+  return result;
 }

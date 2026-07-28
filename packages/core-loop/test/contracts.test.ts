@@ -96,6 +96,25 @@ describe("Core Loop contracts", () => {
       }).success,
     ).toBe(false);
     expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 2,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut.sv", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        verilatorCompileFeedbackPath: "context/verilator-compile-feedback-attempt-1.json",
+      }).success,
+    ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 2,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut.sv", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        verificationFeedbackPath: "context/verification-feedback-attempt-1.json",
+        verilatorCompileFeedbackPath: "context/verilator-compile-feedback-attempt-1.json",
+      }).success,
+    ).toBe(false);
+    expect(
       CompileRequestSchema.parse({
         schemaVersion: 1,
         runId: RUN_ID,
