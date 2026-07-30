@@ -234,13 +234,23 @@ published batch result. Retry only the existing batch diagnosis without regenera
 with:
 
 ```powershell
-node .\apps\rtl-core-loop\dist\index.js reanalyze --batch <batch-id>
+node .\apps\rtl-core-loop\dist\index.js reanalyze --batch <batch-id> [--analyzer <opencode|pi>]
 ```
 
 The retry revalidates persisted batch input/result/functional evidence and reuses the existing
-public specification and candidate RTL. These diagnosis turns consume additional model quota. The
-journal workflow never writes `common-guidance.md`; promotion into prompt guidance requires an
-explicit operator request and applies only to later batches.
+public specification and candidate RTL. Without `--analyzer`, it validates
+`agent-capability.json` against the batch manifest and uses that persisted generation backend.
+`--analyzer` selects a diagnosis backend independently, so a Pi-generated batch may be analyzed by
+OpenCode or a historical OpenCode batch may be analyzed by Pi. `evaluate` and `run` accept the same
+optional flag and otherwise use their resolved profile backend. The Pi analyzer loads only
+`.pi/extensions/rtl-mismatch-analyzer-policy.mjs`, enables `read,edit`, and permits edits only to
+`analysis.json`; immutable manifests still reject any specification, context, or RTL change.
+The first successful diagnosis for a batch/run is stable evidence. If valid analysis metadata
+already exists, `reanalyze` reuses it and does not replace it with a different backend; select
+`--analyzer` before that first successful diagnosis.
+These diagnosis turns consume additional model quota. The journal workflow never writes
+`common-guidance.md`; promotion into prompt guidance requires an explicit operator request and
+applies only to later batches.
 Every `functionalNotRun` case is also listed under `Not Run Details` in selected-case order. The
 entry uses the stable run outcome or preflight status, maps a missing compile unit to
 `NO_COMPILE_UNIT`, and includes the latest structured compile-error message for `MAX_ATTEMPTS` when

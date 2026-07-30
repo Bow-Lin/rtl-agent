@@ -1,10 +1,12 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { z } from "zod";
 
 import type { OpenCodeExperimentConfig } from "./agent-adapter.js";
 import { buildIsolatedOpenCodeEnvironment } from "./agent-adapter.js";
+import type { PiExperimentConfig } from "./pi-agent-adapter.js";
+import { buildIsolatedPiEnvironment } from "./pi-agent-adapter.js";
 import { FixtureCaseRefSchema } from "./contracts.js";
 import type { FixtureCaseRef } from "./contracts.js";
 import { CoreLoopException } from "./errors.js";
@@ -263,269 +265,497 @@ function validationIssues(error: z.ZodError): readonly { path: string; message: 
   }));
 }
 
-export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
-  private readonly config: OpenCodeExperimentConfig;
-  private readonly environment: NodeJS.ProcessEnv;
+interface MismatchAnalyzerRuntime {
+  readonly metadata: Readonly<Record<string, unknown>>;
+  runTurn(instruction: string): Promise<number>;
+}
 
-  public constructor(config: OpenCodeExperimentConfig) {
-    this.config = {
-      ...config,
-      ...(config.executableArgumentsPrefix === undefined
-        ? {}
-        : { executableArgumentsPrefix: [...config.executableArgumentsPrefix] }),
-      workspaceLimits: { ...config.workspaceLimits },
-      ...(config.environment === undefined ? {} : { environment: { ...config.environment } }),
-    };
-    this.environment = buildIsolatedOpenCodeEnvironment(this.config);
+type MismatchAnalyzerRuntimeFactory = (options: {
+  readonly workspace: string;
+  readonly request: MismatchAnalysisRequest;
+}) => Promise<MismatchAnalyzerRuntime>;
+
+function validateMismatchRequest(rawRequest: MismatchAnalysisRequest): MismatchAnalysisRequest {
+  const caseRef = FixtureCaseRefSchema.parse(rawRequest.caseRef);
+  if (
+    !Number.isSafeInteger(rawRequest.mismatches) ||
+    rawRequest.mismatches <= 0 ||
+    !Number.isSafeInteger(rawRequest.samples) ||
+    rawRequest.samples <= 0 ||
+    rawRequest.outputMismatches.length > 512 ||
+    rawRequest.outputMismatches.some(
+      (item) =>
+        !/^[A-Za-z_][A-Za-z0-9_$]*$/u.test(item.outputPort) ||
+        !Number.isSafeInteger(item.mismatches) ||
+        item.mismatches <= 0 ||
+        !Number.isSafeInteger(item.firstMismatchTime) ||
+        item.firstMismatchTime < 0,
+    )
+  ) {
+    throw new CoreLoopException("MISMATCH_ANALYSIS_FAILED", "Mismatch analysis input is invalid");
   }
+  return { ...rawRequest, caseRef };
+}
 
-  public async analyze(rawRequest: MismatchAnalysisRequest): Promise<MismatchAnalysis> {
-    const caseRef = FixtureCaseRefSchema.parse(rawRequest.caseRef);
-    if (
-      !Number.isSafeInteger(rawRequest.mismatches) ||
-      rawRequest.mismatches <= 0 ||
-      !Number.isSafeInteger(rawRequest.samples) ||
-      rawRequest.samples <= 0 ||
-      rawRequest.outputMismatches.length > 512 ||
-      rawRequest.outputMismatches.some(
-        (item) =>
-          !/^[A-Za-z_][A-Za-z0-9_$]*$/u.test(item.outputPort) ||
-          !Number.isSafeInteger(item.mismatches) ||
-          item.mismatches <= 0 ||
-          !Number.isSafeInteger(item.firstMismatchTime) ||
-          item.firstMismatchTime < 0,
-      )
-    ) {
-      throw new CoreLoopException("MISMATCH_ANALYSIS_FAILED", "Mismatch analysis input is invalid");
-    }
-    const request = { ...rawRequest, caseRef };
-    const workspace = analyzerWorkspace(request);
-    const existingMetadata = await readFile(
-      path.join(workspace, "analysis-metadata.json"),
-      "utf8",
-    ).catch(() => undefined);
-    if (existingMetadata !== undefined) {
-      try {
-        return MismatchAnalysisSchema.parse(
-          JSON.parse(await readFile(path.join(workspace, "analysis.json"), "utf8")) as unknown,
-        );
-      } catch {
-        throw new CoreLoopException(
-          "MISMATCH_ANALYSIS_FAILED",
-          "Existing mismatch diagnosis evidence is invalid",
-        );
-      }
-    }
-    const sourceWorkspace = path.join(
-      request.batchDirectory,
-      "_internal",
-      "runs",
-      request.runId,
-      "workspace",
+async function prepareMismatchWorkspace(
+  request: MismatchAnalysisRequest,
+  workspace: string,
+): Promise<void> {
+  const sourceWorkspace = path.join(
+    request.batchDirectory,
+    "_internal",
+    "runs",
+    request.runId,
+    "workspace",
+  );
+  await Promise.all([
+    mkdir(path.join(workspace, "context"), { recursive: true }),
+    mkdir(path.join(workspace, "rtl"), { recursive: true }),
+  ]);
+  const sourceRtlDirectory = path.join(sourceWorkspace, "rtl");
+  const sourceRtlManifest = await createFileManifest(sourceRtlDirectory);
+  const rtlSourceFiles = sourceRtlManifest.entries.map((entry) => `rtl/${entry.path}`);
+  const spec = await readFile(path.join(sourceWorkspace, "spec.md"), "utf8");
+  const mismatchInput = `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      caseId: request.caseRef.identity.caseId,
+      mismatches: request.mismatches,
+      samples: request.samples,
+      outputMismatches: request.outputMismatches,
+      rtlSourceFiles,
+    },
+    undefined,
+    2,
+  )}\n`;
+  await Promise.all([
+    ensureExactFile(path.join(workspace, "spec.md"), spec),
+    ensureExactFile(path.join(workspace, "context", "mismatch.json"), mismatchInput),
+    ensureExactFile(
+      path.join(workspace, "context", "analysis-schema.json"),
+      `${JSON.stringify(ANALYSIS_SCHEMA_GUIDE, undefined, 2)}\n`,
+    ),
+  ]);
+  let workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
+  if (workspaceRtlManifest.entries.length === 0) {
+    await copyRegularTreeToEvidence(sourceRtlDirectory, workspace, "rtl");
+    workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
+  }
+  if (workspaceRtlManifest.manifestDigest !== sourceRtlManifest.manifestDigest) {
+    throw new CoreLoopException(
+      "MISMATCH_ANALYSIS_FAILED",
+      "Existing mismatch diagnosis RTL does not match the evaluated candidate",
     );
-    await Promise.all([
-      mkdir(path.join(workspace, "context"), { recursive: true }),
-      mkdir(path.join(workspace, "rtl"), { recursive: true }),
-    ]);
-    const sourceRtlDirectory = path.join(sourceWorkspace, "rtl");
-    const sourceRtlManifest = await createFileManifest(sourceRtlDirectory);
-    const rtlSourceFiles = sourceRtlManifest.entries.map((entry) => `rtl/${entry.path}`);
-    const spec = await readFile(path.join(sourceWorkspace, "spec.md"), "utf8");
-    const mismatchInput = `${JSON.stringify(
-      {
-        schemaVersion: 1,
-        caseId: caseRef.identity.caseId,
-        mismatches: request.mismatches,
-        samples: request.samples,
-        outputMismatches: request.outputMismatches,
-        rtlSourceFiles,
-      },
-      undefined,
-      2,
-    )}\n`;
-    await Promise.all([
-      ensureExactFile(path.join(workspace, "spec.md"), spec),
-      ensureExactFile(path.join(workspace, "context", "mismatch.json"), mismatchInput),
-      ensureExactFile(
-        path.join(workspace, "context", "analysis-schema.json"),
-        `${JSON.stringify(ANALYSIS_SCHEMA_GUIDE, undefined, 2)}\n`,
-      ),
-    ]);
-    let workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
-    if (workspaceRtlManifest.entries.length === 0) {
-      await copyRegularTreeToEvidence(sourceRtlDirectory, workspace, "rtl");
-      workspaceRtlManifest = await createFileManifest(path.join(workspace, "rtl"));
-    }
-    if (workspaceRtlManifest.manifestDigest !== sourceRtlManifest.manifestDigest) {
-      throw new CoreLoopException(
-        "MISMATCH_ANALYSIS_FAILED",
-        "Existing mismatch diagnosis RTL does not match the evaluated candidate",
-      );
-    }
-    try {
-      await writeFile(
-        path.join(workspace, "analysis.json"),
-        `${JSON.stringify(
-          {
-            schemaVersion: 1,
-            category: "REPLACE_ME",
-            rootCause: "REPLACE_ME with a concrete root-cause hypothesis grounded in the files.",
-            evidence: [
-              {
-                path: rtlSourceFiles[0] ?? "rtl/REPLACE_ME.sv",
-                lineStart: 1,
-                lineEnd: 1,
-                observation: "REPLACE_ME with the relevant candidate RTL observation.",
-              },
-            ],
-            confidence: "REPLACE_ME",
-            limitations: "REPLACE_ME with what cannot be proven without hidden assets.",
-          },
-          undefined,
-          2,
-        )}\n`,
-        { encoding: "utf8", flag: "wx" },
-      );
-    } catch (error) {
-      const code =
-        typeof error === "object" && error !== null && "code" in error
-          ? (error as { readonly code?: unknown }).code
-          : undefined;
-      if (code !== "EEXIST") throw error;
-    }
-    const agentFile = await readFile(
-      path.join(this.config.repositoryRoot, ".opencode", "agents", `${ANALYZER_AGENT_NAME}.md`),
-    );
-    const version = await executeProbeCommand({
-      executable: this.config.executable,
-      arguments: [...(this.config.executableArgumentsPrefix ?? []), "--version"],
-      cwd: this.config.repositoryRoot,
-      environment: this.environment,
-      timeoutMs: Math.min(this.config.timeoutMs, 30_000),
-      terminationGraceMs: this.config.terminationGraceMs,
-    });
-    const permissions = await executeProbeCommand({
-      executable: this.config.executable,
-      arguments: [...(this.config.executableArgumentsPrefix ?? []), "agent", "list"],
-      cwd: this.config.repositoryRoot,
-      environment: this.environment,
-      timeoutMs: Math.min(this.config.timeoutMs, 30_000),
-      terminationGraceMs: this.config.terminationGraceMs,
-    });
-    if (
-      version.exitCode !== 0 ||
-      version.timedOut ||
-      version.terminationFailed ||
-      version.stdout.trim() !== this.config.expectedOpenCodeVersion ||
-      permissions.exitCode !== 0 ||
-      permissions.timedOut ||
-      permissions.terminationFailed
-    ) {
-      throw new CoreLoopException(
-        "MISMATCH_ANALYSIS_FAILED",
-        "Mismatch diagnosis Agent capability probe failed",
-      );
-    }
-    const analyzerPermissionDigest = validateAnalyzerPermissions(permissions.stdout);
-    const runTurn = async (instruction: string): Promise<number> => {
-      const before = await immutableManifest(workspace);
-      const processResult = await executeOpenCodeProcess({
-        executable: this.config.executable,
-        arguments: [
-          ...(this.config.executableArgumentsPrefix ?? []),
-          "--pure",
-          "run",
-          "--agent",
-          ANALYZER_AGENT_NAME,
-          "--model",
-          this.config.providerModel,
-          ...(this.config.variant === undefined ? [] : ["--variant", this.config.variant]),
-          "--format",
-          "json",
-          "--dir",
-          workspace,
-          "--title",
-          `mismatch-${request.runId}`,
-          instruction,
-        ],
-        cwd: this.config.repositoryRoot,
-        environment: this.environment,
-        timeoutMs: this.config.timeoutMs,
-        terminationGraceMs: this.config.terminationGraceMs,
-        stderrLimitBytes: this.config.stderrLimitBytes,
-        maximumEvents: this.config.maximumEvents,
-        maximumEventLineBytes: this.config.maximumEventLineBytes,
-      });
-      const after = await immutableManifest(workspace);
-      if (
-        processResult.exitCode !== 0 ||
-        processResult.timedOut ||
-        processResult.terminationFailed ||
-        processResult.spawnError !== undefined ||
-        before.manifestDigest !== after.manifestDigest
-      ) {
-        throw new CoreLoopException(
-          "MISMATCH_ANALYSIS_FAILED",
-          "Mismatch diagnosis Agent failed or changed protected inputs",
-        );
-      }
-      return processResult.durationMs;
-    };
-
-    let analysis: ReturnType<typeof MismatchAnalysisSchema.safeParse> | undefined;
-    let durationMs = 0;
-    let diagnosisTurns = 0;
-    for (let turn = 1; turn <= 2; turn += 1) {
-      diagnosisTurns = turn;
-      durationMs += await runTurn(
-        turn === 1
-          ? "Read context/analysis-schema.json, context/mismatch.json, spec.md, and every listed RTL source. Replace analysis.json with one concrete JSON result that exactly obeys the provided schema."
-          : "The previous analysis.json failed validation. Read context/analysis-validation-errors.json and context/analysis-schema.json, then replace only analysis.json with a corrected concrete result.",
-      );
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(
-          await readFile(path.join(workspace, "analysis.json"), "utf8"),
-        ) as unknown;
-        analysis = MismatchAnalysisSchema.safeParse(parsed);
-      } catch {
-        analysis = undefined;
-      }
-      if (analysis?.success === true) break;
-      if (turn === 1) {
-        const issues =
-          analysis === undefined
-            ? [{ path: "<json>", message: "analysis.json is not valid JSON" }]
-            : validationIssues(analysis.error);
-        await writeFile(
-          path.join(workspace, "context", "analysis-validation-errors.json"),
-          `${JSON.stringify({ schemaVersion: 1, issues }, undefined, 2)}\n`,
-          "utf8",
-        );
-      }
-    }
-    if (analysis?.success !== true) {
-      throw new CoreLoopException(
-        "MISMATCH_ANALYSIS_FAILED",
-        "Mismatch diagnosis remained invalid after one bounded schema-repair turn",
-      );
-    }
+  }
+  try {
     await writeFile(
-      path.join(workspace, "analysis-metadata.json"),
+      path.join(workspace, "analysis.json"),
       `${JSON.stringify(
         {
           schemaVersion: 1,
-          model: this.config.providerModel,
-          analyzerAgentDigest: sha256Bytes(agentFile),
-          analyzerPermissionDigest,
-          diagnosisTurns,
-          durationMs,
+          category: "REPLACE_ME",
+          rootCause: "REPLACE_ME with a concrete root-cause hypothesis grounded in the files.",
+          evidence: [
+            {
+              path: rtlSourceFiles[0] ?? "rtl/REPLACE_ME.sv",
+              lineStart: 1,
+              lineEnd: 1,
+              observation: "REPLACE_ME with the relevant candidate RTL observation.",
+            },
+          ],
+          confidence: "REPLACE_ME",
+          limitations: "REPLACE_ME with what cannot be proven without hidden assets.",
         },
         undefined,
         2,
       )}\n`,
       { encoding: "utf8", flag: "wx" },
     );
-    return analysis.data;
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { readonly code?: unknown }).code
+        : undefined;
+    if (code !== "EEXIST") throw error;
+  }
+}
+
+async function analyzeMismatch(
+  rawRequest: MismatchAnalysisRequest,
+  createRuntime: MismatchAnalyzerRuntimeFactory,
+): Promise<MismatchAnalysis> {
+  const request = validateMismatchRequest(rawRequest);
+  const workspace = analyzerWorkspace(request);
+  const existingMetadata = await readFile(
+    path.join(workspace, "analysis-metadata.json"),
+    "utf8",
+  ).catch(() => undefined);
+  if (existingMetadata !== undefined) {
+    try {
+      return MismatchAnalysisSchema.parse(
+        JSON.parse(await readFile(path.join(workspace, "analysis.json"), "utf8")) as unknown,
+      );
+    } catch {
+      throw new CoreLoopException(
+        "MISMATCH_ANALYSIS_FAILED",
+        "Existing mismatch diagnosis evidence is invalid",
+      );
+    }
+  }
+  await prepareMismatchWorkspace(request, workspace);
+  const runtime = await createRuntime({ workspace, request });
+  let analysis: ReturnType<typeof MismatchAnalysisSchema.safeParse> | undefined;
+  let durationMs = 0;
+  let diagnosisTurns = 0;
+  for (let turn = 1; turn <= 2; turn += 1) {
+    diagnosisTurns = turn;
+    durationMs += await runtime.runTurn(
+      turn === 1
+        ? "Read context/analysis-schema.json, context/mismatch.json, spec.md, and every listed RTL source. Replace analysis.json with one concrete JSON result that exactly obeys the provided schema."
+        : "The previous analysis.json failed validation. Read context/analysis-validation-errors.json and context/analysis-schema.json, then replace only analysis.json with a corrected concrete result.",
+    );
+    try {
+      analysis = MismatchAnalysisSchema.safeParse(
+        JSON.parse(await readFile(path.join(workspace, "analysis.json"), "utf8")) as unknown,
+      );
+    } catch {
+      analysis = undefined;
+    }
+    if (analysis?.success === true) break;
+    if (turn === 1) {
+      const issues =
+        analysis === undefined
+          ? [{ path: "<json>", message: "analysis.json is not valid JSON" }]
+          : validationIssues(analysis.error);
+      await writeFile(
+        path.join(workspace, "context", "analysis-validation-errors.json"),
+        `${JSON.stringify({ schemaVersion: 1, issues }, undefined, 2)}\n`,
+        "utf8",
+      );
+    }
+  }
+  if (analysis?.success !== true) {
+    throw new CoreLoopException(
+      "MISMATCH_ANALYSIS_FAILED",
+      "Mismatch diagnosis remained invalid after one bounded schema-repair turn",
+    );
+  }
+  await writeFile(
+    path.join(workspace, "analysis-metadata.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        ...runtime.metadata,
+        diagnosisTurns,
+        durationMs,
+      },
+      undefined,
+      2,
+    )}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
+  return analysis.data;
+}
+
+function cloneOpenCodeConfig(config: OpenCodeExperimentConfig): OpenCodeExperimentConfig {
+  return {
+    ...config,
+    ...(config.executableArgumentsPrefix === undefined
+      ? {}
+      : { executableArgumentsPrefix: [...config.executableArgumentsPrefix] }),
+    workspaceLimits: { ...config.workspaceLimits },
+    ...(config.environment === undefined ? {} : { environment: { ...config.environment } }),
+  };
+}
+
+export class OpenCodeMismatchAnalyzer implements MismatchAnalyzer {
+  private readonly config: OpenCodeExperimentConfig;
+  private readonly environment: NodeJS.ProcessEnv;
+
+  public constructor(config: OpenCodeExperimentConfig) {
+    this.config = cloneOpenCodeConfig(config);
+    this.environment = buildIsolatedOpenCodeEnvironment(this.config);
+  }
+
+  public async analyze(rawRequest: MismatchAnalysisRequest): Promise<MismatchAnalysis> {
+    return analyzeMismatch(rawRequest, async ({ workspace, request }) => {
+      const agentFile = await readFile(
+        path.join(this.config.repositoryRoot, ".opencode", "agents", `${ANALYZER_AGENT_NAME}.md`),
+      );
+      const version = await executeProbeCommand({
+        executable: this.config.executable,
+        arguments: [...(this.config.executableArgumentsPrefix ?? []), "--version"],
+        cwd: this.config.repositoryRoot,
+        environment: this.environment,
+        timeoutMs: Math.min(this.config.timeoutMs, 30_000),
+        terminationGraceMs: this.config.terminationGraceMs,
+      });
+      const permissions = await executeProbeCommand({
+        executable: this.config.executable,
+        arguments: [...(this.config.executableArgumentsPrefix ?? []), "agent", "list"],
+        cwd: this.config.repositoryRoot,
+        environment: this.environment,
+        timeoutMs: Math.min(this.config.timeoutMs, 30_000),
+        terminationGraceMs: this.config.terminationGraceMs,
+      });
+      if (
+        version.exitCode !== 0 ||
+        version.timedOut ||
+        version.terminationFailed ||
+        version.stdout.trim() !== this.config.expectedOpenCodeVersion ||
+        permissions.exitCode !== 0 ||
+        permissions.timedOut ||
+        permissions.terminationFailed
+      ) {
+        throw new CoreLoopException(
+          "MISMATCH_ANALYSIS_FAILED",
+          "Mismatch diagnosis Agent capability probe failed",
+        );
+      }
+      const analyzerPermissionDigest = validateAnalyzerPermissions(permissions.stdout);
+      return {
+        metadata: {
+          backend: "opencode",
+          model: this.config.providerModel,
+          analyzerAgentDigest: sha256Bytes(agentFile),
+          analyzerPermissionDigest,
+        },
+        runTurn: async (instruction: string): Promise<number> => {
+          const before = await immutableManifest(workspace);
+          const processResult = await executeOpenCodeProcess({
+            executable: this.config.executable,
+            arguments: [
+              ...(this.config.executableArgumentsPrefix ?? []),
+              "--pure",
+              "run",
+              "--agent",
+              ANALYZER_AGENT_NAME,
+              "--model",
+              this.config.providerModel,
+              ...(this.config.variant === undefined ? [] : ["--variant", this.config.variant]),
+              "--format",
+              "json",
+              "--dir",
+              workspace,
+              "--title",
+              `mismatch-${request.runId}`,
+              instruction,
+            ],
+            cwd: this.config.repositoryRoot,
+            environment: this.environment,
+            timeoutMs: this.config.timeoutMs,
+            terminationGraceMs: this.config.terminationGraceMs,
+            stderrLimitBytes: this.config.stderrLimitBytes,
+            maximumEvents: this.config.maximumEvents,
+            maximumEventLineBytes: this.config.maximumEventLineBytes,
+          });
+          const after = await immutableManifest(workspace);
+          if (
+            processResult.exitCode !== 0 ||
+            processResult.timedOut ||
+            processResult.terminationFailed ||
+            processResult.spawnError !== undefined ||
+            before.manifestDigest !== after.manifestDigest
+          ) {
+            throw new CoreLoopException(
+              "MISMATCH_ANALYSIS_FAILED",
+              "Mismatch diagnosis Agent failed or changed protected inputs",
+            );
+          }
+          return processResult.durationMs;
+        },
+      };
+    });
+  }
+}
+
+const PI_ANALYZER_TOOLS = ["read", "edit"] as const;
+const PI_ANALYZER_REQUIRED_FLAGS = [
+  "--mode",
+  "--no-session",
+  "--provider",
+  "--model",
+  "--tools",
+  "--no-extensions",
+  "--extension",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--no-context-files",
+  "--no-approve",
+  "--offline",
+] as const;
+const PI_ANALYZER_POLICY = {
+  read: ["spec.md", "context/**", "rtl/**", "analysis.json"],
+  edit: ["analysis.json"],
+  deniedTools: ["write", "bash", "grep", "find", "ls"],
+} as const;
+
+function clonePiConfig(config: PiExperimentConfig): PiExperimentConfig {
+  return {
+    ...config,
+    ...(config.executableArgumentsPrefix === undefined
+      ? {}
+      : { executableArgumentsPrefix: [...config.executableArgumentsPrefix] }),
+    workspaceLimits: { ...config.workspaceLimits },
+    ...(config.environment === undefined ? {} : { environment: { ...config.environment } }),
+  };
+}
+
+function piAnalyzerEnvironment(config: PiExperimentConfig, workspace: string): NodeJS.ProcessEnv {
+  const environment = buildIsolatedPiEnvironment(config);
+  environment.RTL_AGENT_PI_MISMATCH_POLICY_REQUIRED = "1";
+  environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
+  return environment;
+}
+
+async function requirePiAnalyzerFile(hostPath: string, description: string): Promise<Buffer> {
+  try {
+    const stat = await lstat(hostPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0 || stat.size > 65_536) {
+      throw new Error("invalid file");
+    }
+    return await readFile(hostPath);
+  } catch {
+    throw new CoreLoopException("MISMATCH_ANALYSIS_FAILED", `${description} is unavailable`);
+  }
+}
+
+export class PiMismatchAnalyzer implements MismatchAnalyzer {
+  private readonly config: PiExperimentConfig;
+  private readonly extensionFile: string;
+
+  public constructor(config: PiExperimentConfig) {
+    this.config = clonePiConfig(config);
+    this.extensionFile = path.join(
+      this.config.repositoryRoot,
+      ".pi",
+      "extensions",
+      "rtl-mismatch-analyzer-policy.mjs",
+    );
+  }
+
+  public async analyze(rawRequest: MismatchAnalysisRequest): Promise<MismatchAnalysis> {
+    return analyzeMismatch(rawRequest, async ({ workspace }) => {
+      await mkdir(this.config.configDirectory, { recursive: true });
+      const [extensionBytes, initialSemanticConfigManifest, initialRuntimeConfigManifest] =
+        await Promise.all([
+          requirePiAnalyzerFile(this.extensionFile, "Pi mismatch analyzer policy"),
+          createFileManifest(
+            this.config.configDirectory,
+            (logicalPath) => logicalPath !== "auth.json",
+          ),
+          createFileManifest(this.config.configDirectory),
+        ]);
+      const environment = piAnalyzerEnvironment(this.config, workspace);
+      const probe = async (arguments_: readonly string[]) =>
+        executeProbeCommand({
+          executable: this.config.executable,
+          arguments: [...(this.config.executableArgumentsPrefix ?? []), ...arguments_],
+          cwd: this.config.repositoryRoot,
+          environment,
+          timeoutMs: Math.min(this.config.timeoutMs, 30_000),
+          terminationGraceMs: this.config.terminationGraceMs,
+        });
+      const [version, help] = await Promise.all([probe(["--version"]), probe(["--help"])]);
+      const normalizedVersion = version.stdout.trim().replace(/^pi\s+/iu, "");
+      const helpOutput = `${help.stdout}\n${help.stderr}`;
+      if (
+        version.exitCode !== 0 ||
+        version.timedOut ||
+        version.terminationFailed ||
+        version.spawnError !== undefined ||
+        version.stdoutTruncated ||
+        version.stderrTruncated ||
+        normalizedVersion !== this.config.expectedPiVersion ||
+        help.exitCode !== 0 ||
+        help.timedOut ||
+        help.terminationFailed ||
+        help.spawnError !== undefined ||
+        help.stdoutTruncated ||
+        help.stderrTruncated ||
+        PI_ANALYZER_REQUIRED_FLAGS.some((flag) => !helpOutput.includes(flag))
+      ) {
+        throw new CoreLoopException(
+          "MISMATCH_ANALYSIS_FAILED",
+          "Pi mismatch diagnosis capability probe failed",
+        );
+      }
+      const verifyConfigStable = async (): Promise<void> => {
+        if (
+          (await createFileManifest(this.config.configDirectory)).manifestDigest !==
+          initialRuntimeConfigManifest.manifestDigest
+        ) {
+          throw new CoreLoopException(
+            "MISMATCH_ANALYSIS_FAILED",
+            "Shared Pi configuration changed during mismatch diagnosis",
+          );
+        }
+      };
+      return {
+        metadata: {
+          backend: "pi",
+          provider: this.config.provider,
+          model: this.config.model,
+          piVersion: normalizedVersion,
+          resolvedConfigDigest: initialSemanticConfigManifest.manifestDigest,
+          analyzerPolicyDigest: sha256Jcs(PI_ANALYZER_POLICY),
+          extensionFileDigest: sha256Bytes(extensionBytes),
+        },
+        runTurn: async (instruction: string): Promise<number> => {
+          await verifyConfigStable();
+          const before = await immutableManifest(workspace);
+          const processResult = await executeOpenCodeProcess({
+            executable: this.config.executable,
+            arguments: [
+              ...(this.config.executableArgumentsPrefix ?? []),
+              "--mode",
+              "json",
+              "--no-session",
+              "--provider",
+              this.config.provider,
+              "--model",
+              this.config.model,
+              "--tools",
+              PI_ANALYZER_TOOLS.join(","),
+              "--no-extensions",
+              "--extension",
+              this.extensionFile,
+              "--no-skills",
+              "--no-prompt-templates",
+              "--no-themes",
+              "--no-context-files",
+              "--no-approve",
+              "--offline",
+              "--system-prompt",
+              "Read only spec.md, context/**, rtl/**, and analysis.json. Edit only analysis.json. Never change the specification, candidate RTL, or context evidence.",
+              instruction,
+            ],
+            cwd: workspace,
+            environment,
+            timeoutMs: this.config.timeoutMs,
+            terminationGraceMs: this.config.terminationGraceMs,
+            stderrLimitBytes: this.config.stderrLimitBytes,
+            maximumEvents: this.config.maximumEvents,
+            maximumEventLineBytes: this.config.maximumEventLineBytes,
+          });
+          const after = await immutableManifest(workspace);
+          await verifyConfigStable();
+          if (
+            processResult.exitCode !== 0 ||
+            processResult.timedOut ||
+            processResult.terminationFailed ||
+            processResult.spawnError !== undefined ||
+            before.manifestDigest !== after.manifestDigest
+          ) {
+            throw new CoreLoopException(
+              "MISMATCH_ANALYSIS_FAILED",
+              "Pi mismatch diagnosis failed or changed protected inputs",
+            );
+          }
+          return processResult.durationMs;
+        },
+      };
+    });
   }
 }

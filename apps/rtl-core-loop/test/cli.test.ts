@@ -308,19 +308,27 @@ describe("rtl-core-loop CLI boundary", () => {
       );
       const output: string[] = [];
       const errors: string[] = [];
+      let selectedAnalyzerBackend: string | undefined;
       const exitCode = await runRtlCoreLoopCli(
-        ["reanalyze", "--batch", batchId],
+        ["reanalyze", "--batch", batchId, "--analyzer", "pi"],
         undefined,
         (line) => output.push(line),
         (line) => errors.push(line),
         {},
         process.cwd(),
-        { ...dependencies, mismatchAnalyzer: { analyze } },
+        {
+          ...dependencies,
+          mismatchAnalyzerFactory: (backend) => {
+            selectedAnalyzerBackend = backend;
+            return { analyze };
+          },
+        },
       );
 
       expect(exitCode).toBe(0);
       expect(errors).toEqual([]);
       expect(analyze).toHaveBeenCalledTimes(1);
+      expect(selectedAnalyzerBackend).toBe("pi");
       expect(JSON.parse(output[0]!) as unknown).toMatchObject({
         ok: true,
         result: { batchId, status: "ANALYSIS_COMPLETED" },
@@ -328,6 +336,26 @@ describe("rtl-core-loop CLI boundary", () => {
       await expect(
         readFile(path.join(root, "knowledge", "observed-issues.md"), "utf8"),
       ).resolves.toContain("Conclusion [INITIALIZATION_SEMANTICS, MEDIUM]");
+
+      selectedAnalyzerBackend = undefined;
+      expect(
+        await runRtlCoreLoopCli(
+          ["reanalyze", "--batch", batchId],
+          undefined,
+          () => undefined,
+          () => undefined,
+          {},
+          process.cwd(),
+          {
+            ...dependencies,
+            mismatchAnalyzerFactory: (backend) => {
+              selectedAnalyzerBackend = backend;
+              return { analyze };
+            },
+          },
+        ),
+      ).toBe(0);
+      expect(selectedAnalyzerBackend).toBe("opencode");
 
       await rm(path.join(root, "knowledge"), { recursive: true, force: true });
       const warning = await updateObservedIssuesBestEffort({

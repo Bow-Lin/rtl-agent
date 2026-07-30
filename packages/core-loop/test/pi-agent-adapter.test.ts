@@ -21,6 +21,12 @@ const POLICY_EXTENSION = path.join(
   "extensions",
   "rtl-core-loop-policy.mjs",
 );
+const MISMATCH_POLICY_EXTENSION = path.join(
+  REPOSITORY_ROOT,
+  ".pi",
+  "extensions",
+  "rtl-mismatch-analyzer-policy.mjs",
+);
 const roots: string[] = [];
 
 const FAKE_PI_SOURCE = String.raw`
@@ -135,6 +141,7 @@ async function temporaryRoot(): Promise<string> {
 
 afterEach(async () => {
   delete process.env.RTL_AGENT_PI_POLICY_REQUIRED;
+  delete process.env.RTL_AGENT_PI_MISMATCH_POLICY_REQUIRED;
   delete process.env.RTL_AGENT_PI_WORKSPACE_ROOT;
   delete process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
@@ -560,6 +567,45 @@ describe("Pi RTL policy extension", () => {
       "Pi provider request capture count limit exceeded",
     );
     expect((await readFile(capturePath, "utf8")).trim().split("\n")).toHaveLength(2);
+  });
+
+  it("allows mismatch inputs but only permits edits to analysis.json", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    process.env.RTL_AGENT_PI_MISMATCH_POLICY_REQUIRED = "1";
+    process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
+    let toolHandler:
+      ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
+    const extension = (await import(pathToFileURL(MISMATCH_POLICY_EXTENSION).href)) as {
+      default(pi: {
+        on(
+          name: string,
+          callback: (event: { toolName: string; input: unknown }) => Promise<unknown>,
+        ): void;
+      }): void;
+    };
+    extension.default({
+      on: (name, callback) => {
+        if (name === "tool_call") toolHandler = callback;
+      },
+    });
+
+    expect(await toolHandler?.({ toolName: "read", input: { path: "spec.md" } })).toBeUndefined();
+    expect(
+      await toolHandler?.({ toolName: "read", input: { path: "context/mismatch.json" } }),
+    ).toBeUndefined();
+    expect(
+      await toolHandler?.({ toolName: "edit", input: { path: "analysis.json" } }),
+    ).toBeUndefined();
+    await expect(
+      toolHandler?.({ toolName: "edit", input: { path: "rtl/TopModule.sv" } }),
+    ).resolves.toMatchObject({ block: true });
+    await expect(
+      toolHandler?.({ toolName: "read", input: { path: "../.env" } }),
+    ).resolves.toMatchObject({ block: true });
+    await expect(
+      toolHandler?.({ toolName: "write", input: { path: "analysis.json" } }),
+    ).resolves.toMatchObject({ block: true });
   });
 
   it("rejects a provider payload before writing when the byte limit would be exceeded", async () => {

@@ -179,6 +179,7 @@ export function buildIsolatedPiEnvironment(
   delete environment.PI_CODING_AGENT_SESSION_DIR;
   delete environment.PI_PACKAGE_DIR;
   delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
+  delete environment.RTL_AGENT_PI_MISMATCH_POLICY_REQUIRED;
   environment.PI_CODING_AGENT_DIR = config.configDirectory;
   environment.PI_CODING_AGENT_SESSION_DIR = path.join(
     config.repositoryRoot,

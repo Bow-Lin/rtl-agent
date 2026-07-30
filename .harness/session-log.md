@@ -2049,3 +2049,163 @@ atomic no-overwrite behavior during pre-existing and concurrent collisions.
   with the correct integration config then reached the test's old 30-second outer timeout while the
   Runner remained active. The integration-only deadline now allows 150 seconds, exceeding the
   Runner's bounded 120-second process timeout, and the isolated rerun passed.
+
+## Entry: Consolidate the Pi VerilogEval 001–156 Experiment
+
+### Outcome
+
+Added `exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md` from existing ignored runtime
+evidence. The report uses four non-overlapping main batches: `b-20260724-001`,
+`b-20260724-002`, `b-20260729-001`, and `b-20260729-002`. The interrupted
+`b-20260728-001` Prob101–Prob120 run is documented but excluded because the 2026-07-29 rerun
+replaced the full range.
+
+The selected evidence covers Prob001–Prob156 exactly once with no gaps or duplicates. Aggregate
+results are 150 candidate compile passes, 126 functional passes, 23 genuine mismatches, six
+functional not-run outcomes, and one verification-interface invalid result. The report also records
+all mismatch ratios, five compiler failures, one Agent timeout, the persistent Prob099 fixture
+invalidity, and a case-aligned comparison with the 2026-07-23 OpenCode run. No model call, RTL
+generation, simulation, or business-logic change was made.
+
+### Validation
+
+- read-only reconciliation of selection, summary, batch-result, and functional-simulation evidence:
+  156 records, 156 unique cases, Prob001–Prob156 continuous
+- aggregate counts revalidated as compile 150, functional pass 126, mismatch 23, not run 6, and
+  verification invalid 1
+- `corepack pnpm exec prettier --check exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md --ignore-unknown`: passed
+- final Prettier check over the report and handoff files: passed
+- `.harness/session-state.json` parse, `git diff --check`, and `scripts/harness_check.sh`: passed
+
+## Entry: Consolidate the Pi/K3 VerilogEval 001–156 Experiment
+
+### Outcome
+
+Added `exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md` from existing ignored runtime
+evidence. The report uses three continuous, non-overlapping Pi/K3 batches:
+`b-20260729-003`, `b-20260729-004`, and `b-20260730-001`. Their selection records cover
+Prob001–Prob156 exactly once with no gaps or duplicates, and their capability evidence shares the
+same Pi version, K3 model, policy, guidance, and experiment-config digests.
+
+Aggregate results are 148 candidate compile passes, 131 functional passes, 16 genuine mismatches,
+eight candidate compile failures, and one verification-interface invalid result. All eight compile
+failures are Icarus explicit-cast errors in enum/state assignments. The report records each mismatch
+ratio, the persistent Prob099 fixture invalidity, the missing Pi mismatch-analyzer post-processing,
+and a case-aligned comparison with the prior Pi/`kimi-for-coding` full-dataset run. No model call,
+RTL generation, simulation, or business-logic change was made.
+
+### Validation
+
+- read-only reconciliation of selection, capability, summary, batch-result, run, and functional
+  evidence: 156 records, 156 unique cases, Prob001–Prob156 continuous
+- aggregate counts revalidated as compile 148, functional pass 131, mismatch 16, not run 8, and
+  verification invalid 1
+- `corepack pnpm exec prettier --check exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md --ignore-unknown`:
+  passed
+- final Prettier check over the report and handoff files: passed
+- `.harness/session-state.json` parse, `git diff --check`, and `scripts/harness_check.sh`: passed
+
+## Entry: Start the rtl-core-loop Application-Layer Refactor
+
+### Outcome
+
+Reduced `apps/rtl-core-loop/src/index.ts` from 885 to 623 lines without changing CLI behavior.
+Shared named-option parsing and stable JSON error rendering now live in dedicated utilities.
+Coverage execution and existing-batch mismatch reanalysis now have independent command handlers
+that use the public `@rtl-agent/core-loop` boundary. The entry point remains responsible for
+dependency construction, dispatch, process startup, and compatibility exports.
+
+The existing `runRtlCoreLoopCli` signature, dependency injection seams, exit codes, JSON output,
+and `updateObservedIssuesBestEffort` export remain intact. No Provider, profile, Agent, compiler,
+evidence, functional-result, or coverage-result contract changed. Evaluation orchestration remains
+in the entry point for a later bounded extraction.
+
+### Files
+
+- `apps/rtl-core-loop/src/cli-arguments.ts`
+- `apps/rtl-core-loop/src/cli-error.ts`
+- `apps/rtl-core-loop/src/coverage-command.ts`
+- `apps/rtl-core-loop/src/reanalysis-command.ts`
+- `apps/rtl-core-loop/src/index.ts`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- focused application tests: 4 files, 29 tests passed
+- full repository: 36 files passed / 1 skipped; 270 tests passed / 2 skipped
+- lint, typecheck, build, format, and `git diff --check`: passed
+- Harness check: passed after the final handoff update
+
+## Entry: Decouple Mismatch Diagnosis From the Generation Backend
+
+### Outcome
+
+Added `--analyzer opencode|pi` to `evaluate`, `run`, and `reanalyze`. New evaluations default to
+the resolved profile backend, so Pi/K3 mismatches now construct a Pi diagnosis path automatically.
+An explicit analyzer can differ from the generation backend. Historical reanalysis validates the
+persisted `agent-capability.json` against the batch manifest and defaults to that recorded backend.
+
+Added `PiMismatchAnalyzer` behind the existing backend-neutral `MismatchAnalyzer` interface. Both
+backends share request validation, public workspace preparation, at-most-two-turn schema repair,
+protected-input manifests, and analysis evidence. Pi loads a separate
+`.pi/extensions/rtl-mismatch-analyzer-policy.mjs` with only `read,edit`; only `analysis.json` may be
+edited. The existing Pi RTL generation extension and capability policy were not broadened.
+
+### Files
+
+- `.pi/extensions/rtl-mismatch-analyzer-policy.mjs`
+- `apps/rtl-core-loop/src/mismatch-analyzer-selection.ts`
+- `apps/rtl-core-loop/src/index.ts`
+- `apps/rtl-core-loop/src/reanalysis-command.ts`
+- `apps/rtl-core-loop/test/cli.test.ts`
+- `packages/core-loop/src/mismatch-analyzer.ts`
+- `packages/core-loop/src/pi-agent-adapter.ts`
+- `packages/core-loop/test/mismatch-analyzer.test.ts`
+- `packages/core-loop/test/pi-agent-adapter.test.ts`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- focused mismatch/Pi/CLI/journal tests: 4 files, 44 tests passed
+- lint, typecheck, and build: passed
+- first full repository run: 35 files passed / 1 skipped, 272 tests passed / 2 skipped, with one
+  known Windows fake process-tree capability-probe race
+- isolated affected OpenCode adapter test: 1 file, 21 tests passed with one worker
+- independent full repository rerun: 36 files passed / 1 skipped; 273 tests passed / 2 skipped
+- format, diff, JSON, and Harness checks: passed after the final handoff update
+
+## Entry: Guarded Commit Review and Accepted Stable Diagnosis Semantics
+
+### Outcome
+
+Reviewed the complete uncommitted scope before staging. The review identified that an explicit
+`--analyzer` selection is not used after valid analysis metadata already exists. The operator
+accepted this as intended current behavior: each batch/run keeps its first successful diagnosis as
+the stable result and later reanalysis reuses it. Updated the decision, verification, task, and
+handoff documentation so the CLI contract no longer implies that an accepted diagnosis is replaced.
+
+No production logic changed for this clarification. R04 remains in progress and still requires the
+final license disposition and predeclared human review.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- first `corepack pnpm test`: known Windows fake process-tree race reproduced; 272 passed, two
+  skipped, one failed
+- isolated `agent-adapter.test.ts` with one worker: 21 passed
+- independent `corepack pnpm test` rerun: 36 files passed / one skipped; 273 tests passed / two
+  skipped
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `corepack pnpm peers check`: passed
+- Pi `0.81.1` capability probe with K3 configuration: passed
+- final JSON parse, `git diff --check`, and Harness check: passed

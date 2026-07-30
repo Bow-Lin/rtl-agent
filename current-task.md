@@ -133,6 +133,21 @@ successful rerun, 119 of 156 unique cases functionally passed. Two cases are sep
 model outcomes: Prob040 was not executed after the historical classifier stop, and Prob099 has a
 testbench port mismatch against both the public/reference interface and candidate.
 
+The discontinuous Pi/Kimi Prob001–Prob156 run is summarized in
+`exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md`. Four non-overlapping main batches cover all
+156 cases exactly once after replacing the interrupted Prob101–Prob120 attempt with its complete
+2026-07-29 rerun. The aggregate is 126 functional passes, 23 genuine mismatches, six candidates not
+run functionally, and one verification-interface invalid case. This remains exploratory,
+non-authoritative Windows evidence and does not satisfy the required R04 human review.
+
+The complete Pi/K3 Prob001–Prob156 run is summarized in
+`exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md`. Three continuous, non-overlapping batches
+cover all 156 cases exactly once with a common Pi/K3 capability identity. The aggregate is 148
+candidate compile passes, 131 functional passes, 16 genuine mismatches, eight candidate compile
+failures, and the same Prob099 verification-interface invalidity. The observed raw pass rate is
+83.97%, but this remains exploratory, non-authoritative Windows evidence and does not satisfy the
+required R04 human review.
+
 Today's complete OpenCode/Kimi rerun is summarized in
 `exp_result/verilog-eval/07.23-kimi-opencode-001-156.md`. Its five non-overlapping batches cover
 Prob001–Prob156 exactly once: 135/156 functionally pass, 16 are genuine mismatches, four never
@@ -146,6 +161,22 @@ Any verification-invalid result makes the CLI return `INVALID`/`ok: false`. Hist
 without `outputMismatches` or `verificationInvalid` remains readable. The operator accepts direct
 host `vvp` execution for this local non-authoritative benchmark; no production or formal-Gate
 sandbox claim is made.
+
+The first behavior-preserving application-layer refactor has separated shared named-option parsing,
+stable CLI error rendering, the coverage command, and existing-batch mismatch reanalysis from
+`apps/rtl-core-loop/src/index.ts`. The entry point remains the composition root and preserves its
+public `runRtlCoreLoopCli` signature and re-exported test helper. No Provider, profile, Agent,
+compiler, evidence, functional-result, or coverage-result contract changed. The entry file is now
+623 lines instead of 885; evaluation orchestration remains the next high-value extraction boundary.
+
+Mismatch diagnosis is now independent from RTL generation. `evaluate` and `run` accept
+`--analyzer opencode|pi`, defaulting to the resolved profile backend; `reanalyze` validates the
+persisted Agent capability and defaults to the historical batch backend. Pi uses a dedicated
+read/edit-only policy that can edit only `analysis.json`, while the shared analyzer workflow still
+enforces immutable specification, context, and candidate RTL manifests. This fixes automatic
+Pi/K3 mismatch diagnosis for new batches and allows historical Pi batches to be reanalyzed without
+generation or simulation. The first successful diagnosis for each batch/run remains stable and is
+reused by later reanalysis; backend selection does not replace already accepted analysis evidence.
 
 ## Locked Implementation Boundaries
 
@@ -221,6 +252,23 @@ sandbox claim is made.
   typecheck, build, format, diff, Harness, and the real Verilator integration pass. The real integration
   needed 34 seconds, so its enclosing finite test timeout now exceeds the Runner's 120-second
   process bound instead of interrupting cleanup at 30 seconds.
+- the Pi/K3 full-dataset report reconciles `b-20260729-003`, `b-20260729-004`, and
+  `b-20260730-001` as 156 unique continuous cases: 148 compile passes, 131 functional passes, 16
+  mismatches, eight functional-not-run compile failures, and one verification-invalid case. The
+  report evidence assertions, Prettier, diff, session-state JSON, and Harness checks pass; no model
+  call or simulation was made.
+- the first CLI refactor passes 29 focused application tests and the full repository suite: 36 files
+  passed / 1 skipped, 270 tests passed / 2 skipped. Lint, typecheck, build, format, diff, and Harness
+  checks also pass.
+- backend-independent mismatch diagnosis passes 44 focused tests. The final full repository rerun
+  passes 36 files / 1 skipped and 273 tests / 2 skipped, plus lint, typecheck, and build. The first
+  aggregate run hit the documented Windows fake process-tree race; its 21-test isolated rerun and
+  the independent full rerun both passed.
+- guarded commit validation accepted the stable first-successful diagnosis semantics and documented
+  that later analyzer selections reuse existing evidence. Frozen install, lint, typecheck, build,
+  format, peers, Pi capability probe, diff, JSON, and Harness checks pass. The known Windows fake
+  process-tree race reproduced once; its 21-test isolated rerun and the independent 273-test full
+  rerun passed.
 
 These are non-authoritative benchmark mechanics checks. Real Linux execution remains unavailable
 and no formal Gate, production-readiness, full-dataset capability, or checkpoint claim is permitted.
@@ -237,4 +285,4 @@ R04 remains incomplete until a locked dataset profile batch and human review pro
 
 ## Last Updated
 
-2026-07-28T16:57:41+08:00
+2026-07-30T11:25:21+08:00

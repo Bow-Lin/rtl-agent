@@ -1,31 +1,23 @@
 #!/usr/bin/env node
 
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   CHIPBENCH_DATASET_LOCK,
-  BatchEvaluationResultSchema,
-  BatchIdSchema,
-  BatchInputManifestSchema,
   CompileRequestSchema,
   ChipBenchFixtureProvider,
   CoreLoopException,
-  CoreLoopErrorSchema,
   DatasetDescriptorSchema,
   EvaluationProfileSchema,
   FIXED_ICARUS_PROFILE_ID,
   IcarusCompileAdapter,
-  OpenCodeMismatchAnalyzer,
   OpenCodeRtlAgentAdapter,
   PiRtlAgentAdapter,
   VERILOG_EVAL_DATASET_LOCK,
-  VerilogEvalFunctionalResultSchema,
   VerilogEvalFixtureProvider,
-  VerilogEvalCoverageFixtureProvider,
-  VerilatorCoverageRunner,
   chipBenchCacheRoot,
   chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
@@ -38,10 +30,8 @@ import {
   piExperimentConfigFromEnvironment,
   prepareChipBenchDataset,
   prepareVerilogEvalDataset,
-  runCoverageExperiment,
   requireFixtureProvider,
   scanRegularFiles,
-  updateObservedIssues,
   verilogEvalCacheRoot,
   verilogEvalDatasetDirectory,
 } from "@rtl-agent/core-loop";
@@ -51,15 +41,19 @@ import type {
   EvaluationProfile,
   FixtureProvider,
   MismatchAnalyzer,
-  OpenCodeExperimentConfig,
   RtlAgentAdapter,
 } from "@rtl-agent/core-loop";
+import { parseNamedOptions } from "./cli-arguments.js";
+import { executeCliCommand } from "./cli-error.js";
+import { runCoverageCommand, type RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
+import { loadRepositoryEnvironment } from "./environment.js";
 import {
-  loadRepositoryEnvironment,
-  withDefaultWindowsVerilatorEnvironment,
-} from "./environment.js";
+  createMismatchAnalyzer,
+  parseMismatchAnalyzerBackend,
+  type MismatchAnalyzerBackend,
+  type MismatchAnalyzerFactory,
+} from "./mismatch-analyzer-selection.js";
 import {
-  resolveCaseSelector,
   resolveEvaluationProfileSelection,
   type EvaluationCaseSelectionRequest,
 } from "./profile-selection.js";
@@ -69,6 +63,10 @@ import {
   VERILOG_EVAL_KIMI_PROFILE_ID,
   VERILOG_EVAL_KIMI_PI_PROFILE_ID,
 } from "./verilog-eval-profile.js";
+import { runReanalysisCommand, updateObservedIssuesBestEffort } from "./reanalysis-command.js";
+
+export { updateObservedIssuesBestEffort } from "./reanalysis-command.js";
+export type { RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
 
 export type RtlCoreLoopWorkspaceDependency = typeof CoreLoop.packageVersion;
 const DEFAULT_REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -79,6 +77,7 @@ export interface RtlCoreLoopEvaluationDependencies {
   readonly agentAdapter?: RtlAgentAdapter;
   readonly compilerAdapter?: CoreLoopCompilerAdapter;
   readonly mismatchAnalyzer?: MismatchAnalyzer;
+  readonly mismatchAnalyzerFactory?: MismatchAnalyzerFactory;
   readonly batchesRoot?: string;
 }
 
@@ -89,131 +88,14 @@ export interface RtlCoreLoopDatasetDependencies {
   readonly prepareChipBenchDataset?: typeof prepareChipBenchDataset;
 }
 
-export interface RtlCoreLoopCoverageDependencies {
-  readonly agentAdapter?: RtlAgentAdapter;
-  readonly coverageRunner?: CoreLoop.CoverageRoundRunner;
-  readonly runsRoot?: string;
-}
-
 type DatasetName = "verilog-eval" | "chipbench";
 type AgentBackend = "opencode" | "pi";
 
 interface ParsedEvaluationCommand {
   readonly profileId: string;
   readonly agentBackend?: AgentBackend;
+  readonly mismatchAnalyzerBackend?: MismatchAnalyzerBackend;
   readonly selection?: EvaluationCaseSelectionRequest;
-}
-
-interface PostProcessingWarning {
-  readonly code: "MISMATCH_ANALYSIS_FAILED";
-  readonly message: string;
-  readonly retryCommand: string;
-}
-
-function parsedCoreLoopError(error: unknown): CoreLoop.CoreLoopError | undefined {
-  if (error instanceof CoreLoopException) return error.error;
-  if (typeof error !== "object" || error === null || !("error" in error)) return undefined;
-  const parsed = CoreLoopErrorSchema.safeParse((error as { readonly error: unknown }).error);
-  return parsed.success ? parsed.data : undefined;
-}
-
-async function readJsonFile(hostPath: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(hostPath, "utf8")) as unknown;
-  } catch {
-    throw new CoreLoopException(
-      "MISMATCH_ANALYSIS_FAILED",
-      "Existing batch evidence could not be read for mismatch reanalysis",
-    );
-  }
-}
-
-async function loadExistingBatchExecution(
-  batchesRoot: string,
-  rawBatchId: string,
-): Promise<{
-  execution: CoreLoop.CoreLoopBatchExecution;
-  functionalResult: CoreLoop.VerilogEvalFunctionalResult;
-}> {
-  const parsedBatchId = BatchIdSchema.safeParse(rawBatchId);
-  if (!parsedBatchId.success) {
-    throw new CoreLoopException(
-      "EVALUATION_PROFILE_INVALID",
-      "Core Loop reanalyze command requires a valid batch ID",
-    );
-  }
-  const batchId = parsedBatchId.data;
-  const batchDirectory = path.join(path.resolve(batchesRoot), batchId);
-  try {
-    const [inputManifest, result, functionalResult] = await Promise.all([
-      readJsonFile(path.join(batchDirectory, "_internal", "evidence", "batch-input-manifest.json")),
-      readJsonFile(path.join(batchDirectory, "_internal", "evidence", "batch-result.json")),
-      readJsonFile(
-        path.join(batchDirectory, "_internal", "evidence", "functional-simulation-result.json"),
-      ),
-    ]);
-    const parsedInputManifest = BatchInputManifestSchema.parse(inputManifest);
-    const parsedResult = BatchEvaluationResultSchema.parse(result);
-    const parsedFunctional = VerilogEvalFunctionalResultSchema.parse(functionalResult);
-    const materializedByRunId = new Map<
-      string,
-      (typeof parsedInputManifest.materializedCases)[number]
-    >(parsedInputManifest.materializedCases.map((item) => [item.runId, item]));
-    const mismatchIdentityInvalid = parsedFunctional.cases
-      .filter((item) => item.status === "MISMATCH")
-      .some((item) => {
-        const materialized = materializedByRunId.get(item.runId);
-        return (
-          materialized === undefined ||
-          materialized.caseRef.identity.caseId !== item.caseRef.identity.caseId ||
-          materialized.caseRef.caseSourceDigest !== item.caseRef.caseSourceDigest
-        );
-      });
-    if (
-      parsedResult.batchId !== batchId ||
-      parsedFunctional.batchId !== batchId ||
-      parsedResult.batchInputManifestDigest !== parsedInputManifest.manifestDigest ||
-      mismatchIdentityInvalid
-    ) {
-      throw new Error("batch identity mismatch");
-    }
-    return {
-      execution: {
-        batchDirectory,
-        inputManifest: parsedInputManifest,
-        result: parsedResult,
-      },
-      functionalResult: parsedFunctional,
-    };
-  } catch (error) {
-    if (error instanceof CoreLoopException) throw error;
-    throw new CoreLoopException(
-      "MISMATCH_ANALYSIS_FAILED",
-      "Existing batch evidence is missing, invalid, or identity-inconsistent",
-    );
-  }
-}
-
-export async function updateObservedIssuesBestEffort(options: {
-  readonly knowledgeRoot: string;
-  readonly execution: CoreLoop.CoreLoopBatchExecution;
-  readonly functionalResult?: CoreLoop.VerilogEvalFunctionalResult;
-  readonly mismatchAnalyzer?: MismatchAnalyzer;
-}): Promise<PostProcessingWarning | undefined> {
-  try {
-    await updateObservedIssues(options);
-    return undefined;
-  } catch (error) {
-    const parsedError = parsedCoreLoopError(error);
-    if (parsedError?.code === "MISMATCH_ANALYSIS_FAILED") {
-      return {
-        code: "MISMATCH_ANALYSIS_FAILED",
-        message: parsedError.message,
-        retryCommand: `rtl-core-loop reanalyze --batch ${options.execution.result.batchId}`,
-      };
-    }
-    throw error;
-  }
 }
 
 function configuredVerilogEvalCacheRoot(
@@ -250,32 +132,11 @@ function selectedDataset(arguments_: readonly string[]): DatasetName | undefined
   return undefined;
 }
 
-function parseNamedOptions(arguments_: readonly string[]): ReadonlyMap<string, string> {
-  if (arguments_.length % 2 !== 0) {
-    throw new CoreLoopException(
-      "EVALUATION_PROFILE_INVALID",
-      "Core Loop evaluation command arguments are invalid",
-    );
-  }
-  const options = new Map<string, string>();
-  for (let index = 0; index < arguments_.length; index += 2) {
-    const name = arguments_[index]!;
-    const value = arguments_[index + 1]!;
-    if (!name.startsWith("--") || value.length === 0 || options.has(name)) {
-      throw new CoreLoopException(
-        "EVALUATION_PROFILE_INVALID",
-        "Core Loop evaluation command arguments are invalid",
-      );
-    }
-    options.set(name, value);
-  }
-  return options;
-}
-
 function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluationCommand {
   const command = arguments_[0];
   const options = parseNamedOptions(arguments_.slice(1));
   const profileId = options.get("--profile");
+  const mismatchAnalyzerBackend = parseMismatchAnalyzerBackend(options.get("--analyzer"));
   if (profileId === undefined) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
@@ -285,13 +146,22 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
 
   if (command === "run") {
     const caseId = options.get("--case");
-    if (options.size !== 2 || caseId === undefined) {
+    const allowedOptions = new Set(["--profile", "--case", "--analyzer"]);
+    if (
+      caseId === undefined ||
+      [...options.keys()].some((name) => !allowedOptions.has(name)) ||
+      options.size !== (mismatchAnalyzerBackend === undefined ? 2 : 3)
+    ) {
       throw new CoreLoopException(
         "EVALUATION_PROFILE_INVALID",
-        "Core Loop run command requires --profile and --case",
+        "Core Loop run command requires --profile, --case, and optional --analyzer",
       );
     }
-    return { profileId, selection: { kind: "CASES", cases: [caseId] } };
+    return {
+      profileId,
+      ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+      selection: { kind: "CASES", cases: [caseId] },
+    };
   }
 
   if (command !== "evaluate") {
@@ -307,17 +177,32 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       "--agent must be either opencode or pi",
     );
   }
-  const allowedOptions = new Set(["--profile", "--agent", "--begin", "--end", "--cases"]);
+  const allowedOptions = new Set([
+    "--profile",
+    "--agent",
+    "--analyzer",
+    "--begin",
+    "--end",
+    "--cases",
+  ]);
   if ([...options.keys()].some((name) => !allowedOptions.has(name))) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
       "Core Loop evaluation command arguments are invalid",
     );
   }
-  const selectionOptionCount = options.size - 1 - (agentBackend === undefined ? 0 : 1);
+  const selectionOptionCount =
+    options.size -
+    1 -
+    (agentBackend === undefined ? 0 : 1) -
+    (mismatchAnalyzerBackend === undefined ? 0 : 1);
   const parsedBackend = agentBackend as AgentBackend | undefined;
   if (selectionOptionCount === 0) {
-    return { profileId, ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }) };
+    return {
+      profileId,
+      ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
+      ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+    };
   }
 
   const begin = options.get("--begin");
@@ -332,6 +217,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     return {
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
+      ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       selection: { kind: "RANGE", begin, end },
     };
   }
@@ -351,6 +237,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     return {
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
+      ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       selection: { kind: "CASES", cases: selectors },
     };
   }
@@ -462,7 +349,7 @@ export async function runRtlCoreLoopCli(
         arguments_[0] === "pi-agent-probe" ||
         arguments_[0] === "compile-smoke"))
   ) {
-    try {
+    return executeCliCommand(async () => {
       if (arguments_[0] === "dataset-prepare") {
         if (dataset === "chipbench") {
           const cacheRoot = configuredChipBenchCacheRoot(
@@ -522,159 +409,52 @@ export async function runRtlCoreLoopCli(
       );
       writeOutput(JSON.stringify({ ok: true, descriptor, caseCounts }));
       return 0;
-    } catch (error) {
-      const safeError =
-        error instanceof CoreLoopException
-          ? error.error
-          : new CoreLoopException("INTERNAL_ERROR", "An internal error occurred").error;
-      writeError(JSON.stringify({ ok: false, error: safeError }));
-      return 2;
-    }
+    }, writeError);
   }
 
   const command = arguments_[0];
   if (command === "coverage") {
-    try {
-      if (!(provider instanceof VerilogEvalFixtureProvider)) {
-        throw new CoreLoopException(
-          "DATASET_NOT_CONFIGURED",
-          "Coverage experiment requires the locked VerilogEval dataset",
-        );
-      }
-      const options = parseNamedOptions(arguments_.slice(1));
-      const caseId = options.get("--case");
-      const backend = options.get("--agent") ?? "opencode";
-      if (
-        caseId === undefined ||
-        (backend !== "opencode" && backend !== "pi") ||
-        options.size !== (options.has("--agent") ? 2 : 1)
-      ) {
-        throw new CoreLoopException(
-          "EVALUATION_PROFILE_INVALID",
-          "Coverage command requires --case and optional --agent <opencode|pi>",
-        );
-      }
-      const cases = await listFixtureCases(provider, {
-        schemaVersion: 1,
-        split: VERILOG_EVAL_DATASET_LOCK.split,
-      });
-      const resolvedCaseId = resolveCaseSelector(
-        caseId,
-        cases.map((caseRef) => caseRef.identity.caseId),
-      );
-      const caseRef = cases.find((candidate) => candidate.identity.caseId === resolvedCaseId)!;
-      const agentAdapter =
-        coverageDependencies?.agentAdapter ??
-        (backend === "pi"
-          ? new PiRtlAgentAdapter(piExperimentConfigFromEnvironment(environment, repositoryRoot))
-          : new OpenCodeRtlAgentAdapter(
-              openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
-            ));
-      const windowsVerilator = "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe";
-      const windowsCoverage = "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe";
-      const coverageRunner =
-        coverageDependencies?.coverageRunner ??
-        new VerilatorCoverageRunner({
-          verilatorExecutable:
-            environment.RTL_AGENT_VERILATOR_EXECUTABLE ??
-            (process.platform === "win32" ? windowsVerilator : "verilator"),
-          coverageExecutable:
-            environment.RTL_AGENT_VERILATOR_COVERAGE_EXECUTABLE ??
-            (process.platform === "win32" ? windowsCoverage : "verilator_coverage"),
-          environment:
-            process.platform === "win32" && environment.RTL_AGENT_VERILATOR_EXECUTABLE === undefined
-              ? withDefaultWindowsVerilatorEnvironment(environment)
-              : environment,
-          ...(process.platform === "win32" ? { cflags: ["-D_GLIBCXX_USE_CXX11_ABI=0"] } : {}),
-        });
-      const execution = await runCoverageExperiment({
-        provider: new VerilogEvalCoverageFixtureProvider(provider),
-        caseRef,
-        agentAdapter,
-        coverageRunner,
-        runsRoot:
-          coverageDependencies?.runsRoot ??
-          path.join(repositoryRoot, ".rtl-agent", "coverage-runs"),
-      });
-      writeOutput(
-        JSON.stringify({
-          ok: execution.result.status !== "FAILED",
-          result: {
-            ...execution.result,
-            runDirectory: path
-              .relative(repositoryRoot, execution.run.runDirectory)
-              .replaceAll("\\", "/"),
-          },
+    return executeCliCommand(
+      () =>
+        runCoverageCommand({
+          arguments_,
+          provider,
+          writeOutput,
+          environment,
+          repositoryRoot,
+          ...(coverageDependencies === undefined ? {} : { dependencies: coverageDependencies }),
         }),
-      );
-      return execution.result.status === "FAILED" ? 3 : 0;
-    } catch (error) {
-      const safeError =
-        error instanceof CoreLoopException
-          ? error.error
-          : new CoreLoopException("INTERNAL_ERROR", "An internal error occurred").error;
-      writeError(JSON.stringify({ ok: false, error: safeError }));
-      return 2;
-    }
+      writeError,
+    );
   }
   if (command === "reanalyze") {
-    try {
-      const options = parseNamedOptions(arguments_.slice(1));
-      const rawBatchId = options.get("--batch");
-      if (options.size !== 1 || rawBatchId === undefined) {
-        throw new CoreLoopException(
-          "EVALUATION_PROFILE_INVALID",
-          "Core Loop reanalyze command requires --batch",
-        );
-      }
-      const batchesRoot =
-        evaluationDependencies?.batchesRoot ?? path.join(repositoryRoot, ".rtl-agent", "batches");
-      const { execution, functionalResult } = await loadExistingBatchExecution(
-        batchesRoot,
-        rawBatchId,
-      );
-      const hasMismatch = functionalResult.cases.some((item) => item.status === "MISMATCH");
-      const mismatchAnalyzer =
-        evaluationDependencies?.mismatchAnalyzer ??
-        (hasMismatch
-          ? new OpenCodeMismatchAnalyzer(
-              openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
-            )
-          : undefined);
-      await updateObservedIssues({
-        knowledgeRoot: path.join(path.dirname(batchesRoot), "knowledge"),
-        execution,
-        functionalResult,
-        ...(mismatchAnalyzer === undefined ? {} : { mismatchAnalyzer }),
-      });
-      writeOutput(
-        JSON.stringify({
-          ok: true,
-          result: {
-            batchId: execution.result.batchId,
-            status: "ANALYSIS_COMPLETED",
-            mismatchCount: functionalResult.functionalFailed,
-          },
+    return executeCliCommand(
+      () =>
+        runReanalysisCommand({
+          arguments_,
+          writeOutput,
+          environment,
+          repositoryRoot,
+          ...(evaluationDependencies?.batchesRoot === undefined
+            ? {}
+            : { batchesRoot: evaluationDependencies.batchesRoot }),
+          ...(evaluationDependencies?.mismatchAnalyzer === undefined
+            ? {}
+            : { mismatchAnalyzer: evaluationDependencies.mismatchAnalyzer }),
+          ...(evaluationDependencies?.mismatchAnalyzerFactory === undefined
+            ? {}
+            : { mismatchAnalyzerFactory: evaluationDependencies.mismatchAnalyzerFactory }),
         }),
-      );
-      return 0;
-    } catch (error) {
-      const safeError =
-        error instanceof CoreLoopException
-          ? error.error
-          : new CoreLoopException("INTERNAL_ERROR", "An internal error occurred").error;
-      writeError(JSON.stringify({ ok: false, error: safeError }));
-      return 2;
-    }
+      writeError,
+    );
   }
   if (command === "run" || command === "evaluate") {
-    try {
+    return executeCliCommand(async () => {
       const configuredProvider = requireFixtureProvider(provider);
       const parsedCommand = parseEvaluationCommand(arguments_);
       const requestedProfileId = profileIdForAgentBackend(parsedCommand);
       let agentAdapter = evaluationDependencies?.agentAdapter;
       let compilerAdapter = evaluationDependencies?.compilerAdapter;
-      let openCodeConfig: OpenCodeExperimentConfig | undefined;
       let providerImplementationDigest = evaluationDependencies?.providerImplementationDigest;
       let registered = evaluationDependencies?.profiles.find(
         (profile) => profile.evaluationProfileId === requestedProfileId,
@@ -696,8 +476,9 @@ export async function runRtlCoreLoopCli(
             piExperimentConfigFromEnvironment(environment, repositoryRoot),
           );
         } else {
-          openCodeConfig = openCodeExperimentConfigFromEnvironment(environment, repositoryRoot);
-          agentAdapter = new OpenCodeRtlAgentAdapter(openCodeConfig);
+          agentAdapter = new OpenCodeRtlAgentAdapter(
+            openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
+          );
         }
         compilerAdapter = new IcarusCompileAdapter({
           executable: icarusExecutableFromEnvironment(environment),
@@ -752,8 +533,9 @@ export async function runRtlCoreLoopCli(
             piExperimentConfigFromEnvironment(environment, repositoryRoot),
           );
         } else {
-          openCodeConfig = openCodeExperimentConfigFromEnvironment(environment, repositoryRoot);
-          agentAdapter = new OpenCodeRtlAgentAdapter(openCodeConfig);
+          agentAdapter = new OpenCodeRtlAgentAdapter(
+            openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
+          );
         }
       }
       compilerAdapter ??= new IcarusCompileAdapter({
@@ -795,8 +577,11 @@ export async function runRtlCoreLoopCli(
         functionalResult?.cases.some((item) => item.status === "MISMATCH") ?? false;
       const mismatchAnalyzer =
         evaluationDependencies?.mismatchAnalyzer ??
-        (hasMismatch && openCodeConfig !== undefined
-          ? new OpenCodeMismatchAnalyzer(openCodeConfig)
+        (hasMismatch
+          ? (
+              evaluationDependencies?.mismatchAnalyzerFactory ??
+              ((backend) => createMismatchAnalyzer({ backend, environment, repositoryRoot }))
+            )(parsedCommand.mismatchAnalyzerBackend ?? profileAgentBackend(profile))
           : undefined);
       const postProcessingWarning = await updateObservedIssuesBestEffort({
         knowledgeRoot: path.join(path.dirname(batchesRoot), "knowledge"),
@@ -837,17 +622,10 @@ export async function runRtlCoreLoopCli(
         }),
       );
       return finalStatus === "COMPLETED" ? 0 : 3;
-    } catch (error) {
-      const safeError =
-        error instanceof CoreLoopException
-          ? error.error
-          : new CoreLoopException("INTERNAL_ERROR", "An internal error occurred").error;
-      writeError(JSON.stringify({ ok: false, error: safeError }));
-      return 2;
-    }
+    }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|run --profile <id> --case <id>|evaluate --profile <id> [--agent <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id>>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

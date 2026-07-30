@@ -1027,3 +1027,85 @@ case IDs receive a readable sanitized stem plus a digest suffix.
 Operators can browse one case and see its runs in chronological name order. The filesystem directory
 basename is no longer required to equal the internal `runId` for this coverage-only workflow.
 Historical UUID directories remain readable at their existing locations.
+
+## 2026-07-30 - Keep the CLI Entry Point as a Composition Root
+
+### Context
+
+`apps/rtl-core-loop/src/index.ts` had grown to 885 lines and directly contained reusable argument
+parsing, repeated error rendering, coverage orchestration, and mismatch reanalysis. This mixed
+application command handling with process startup and made small CLI changes harder to review. The
+core contracts and orchestration in `packages/core-loop` already have the correct ownership and do
+not need to move.
+
+### Decision
+
+Keep `apps/rtl-core-loop` as the executable composition layer and `packages/core-loop` as the
+reusable domain/runtime library. Extract named-option parsing and stable error rendering into small
+application utilities. Give coverage and existing-batch reanalysis their own command handlers that
+depend only on the public `@rtl-agent/core-loop` surface. Keep `index.ts` responsible for dependency
+construction, command dispatch, process startup, and compatibility re-exports.
+
+Perform the refactor incrementally and preserve the existing `runRtlCoreLoopCli` signature, exit
+codes, JSON output, dependency injection points, and public helper export. Do not combine this
+structural change with Provider, profile, Agent, compiler, evidence, or result-contract changes.
+
+### Alternatives Considered
+
+- Move CLI behavior into `packages/core-loop`: rejected because argument syntax, environment
+  construction, and terminal output are application concerns.
+- Rewrite all commands and process adapters at once: rejected because it would mix independent
+  boundaries and make behavioral regressions difficult to isolate.
+- Leave the large entry file unchanged: rejected because repeated error handling and independent
+  commands already have clear, testable seams.
+
+### Consequences
+
+The entry point is smaller and command-specific logic can evolve behind explicit interfaces while
+the core package remains reusable. Evaluation orchestration is still the largest remaining branch
+and can be extracted in a later behavior-preserving step. Process-lifecycle unification and removal
+of concrete Provider `instanceof` checks remain separate refactors because they affect deeper
+contracts and require their own tests.
+
+## 2026-07-30 - Select Mismatch Diagnosis Independently From RTL Generation
+
+### Context
+
+Mismatch diagnosis was constructed from an OpenCode configuration captured only while creating an
+OpenCode generation adapter. Pi/K3 generation therefore completed functional simulation but did
+not automatically construct a diagnosis backend. The recovery command also hard-coded OpenCode,
+even though historical batch evidence records which Agent capability produced the candidates.
+
+### Decision
+
+Treat mismatch diagnosis as an independent post-processing backend selected by
+`--analyzer opencode|pi`. For `evaluate` and `run`, default to the resolved evaluation profile's
+Agent backend while allowing an explicit cross-backend override. For `reanalyze`, load and validate
+the persisted `agent-capability.json`, bind it to the manifest capability digest, and default to
+that historical backend; an explicit override remains allowed.
+
+Add a Pi-specific `MismatchAnalyzer` implementation that shares the existing workspace,
+input-validation, bounded schema-repair, protected-manifest, and analysis-evidence workflow. Load a
+separate Pi policy extension with only `read,edit`; permit reads of public diagnosis inputs and
+edits only to `analysis.json`. Do not broaden the RTL generation extension or its tool policy.
+
+### Alternatives Considered
+
+- Always diagnose through OpenCode: rejected because it makes Pi availability irrelevant and
+  silently requires a second backend configuration.
+- Always use the generation adapter instance: rejected because diagnosis has a different prompt,
+  output contract, permissions, evidence, and retry lifecycle.
+- Add analysis permissions to the RTL generation extension: rejected because the generation Agent
+  should not gain a new writable path or task mode.
+
+### Consequences
+
+New Pi/K3 evaluations automatically attempt concrete mismatch diagnosis using Pi unless the
+operator selects OpenCode. Historical Pi batches can be repaired with `reanalyze --analyzer pi`
+without regenerating RTL or rerunning simulation. Analysis metadata records its own backend,
+provider/model, policy, and extension identities; it remains recoverable post-processing and does
+not change the evaluation profile or primary batch result. A batch/run keeps its first successful
+diagnosis as the stable result: once valid analysis metadata exists, later reanalysis reuses that
+evidence even if a different `--analyzer` is requested. Cross-backend selection therefore applies
+only before the first successful diagnosis; replacing an accepted diagnosis is intentionally out
+of scope.

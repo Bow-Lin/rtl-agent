@@ -4,8 +4,12 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { FixtureCaseRefSchema, OpenCodeMismatchAnalyzer } from "../src/index.js";
-import type { OpenCodeExperimentConfig } from "../src/index.js";
+import {
+  FixtureCaseRefSchema,
+  OpenCodeMismatchAnalyzer,
+  PiMismatchAnalyzer,
+} from "../src/index.js";
+import type { OpenCodeExperimentConfig, PiExperimentConfig } from "../src/index.js";
 
 const roots: string[] = [];
 
@@ -60,6 +64,7 @@ if (args[0] === "agent" && args[1] === "list") {
   ]));
   process.exit(0);
 }
+
 const workspace = args[args.indexOf("--dir") + 1];
 ${mode === "tamper" ? 'writeFileSync(path.join(workspace, "spec.md"), "tampered\\n");' : ""}
 const needsRepair = existsSync(path.join(workspace, "context", "analysis-validation-errors.json"));
@@ -100,6 +105,80 @@ writeFileSync(path.join(workspace, "analysis.json"), JSON.stringify({
     workspaceLimits: { maximumFiles: 10, maximumFileBytes: 10_000, maximumTotalBytes: 20_000 },
   };
   return { batchDirectory, runId, config };
+}
+
+async function piFixture(mode: "valid" | "tamper") {
+  const root = await mkdtemp(path.join(os.tmpdir(), "rtl-pi-mismatch-analyzer-"));
+  roots.push(root);
+  const batchDirectory = path.join(root, "batches", "b-20260730-010");
+  const runId = "run_223e4567-e89b-42d3-a456-426614174000";
+  const sourceWorkspace = path.join(batchDirectory, "_internal", "runs", runId, "workspace");
+  const configDirectory = path.join(root, "pi-state");
+  const extensionDirectory = path.join(root, ".pi", "extensions");
+  await Promise.all([
+    mkdir(path.join(sourceWorkspace, "rtl"), { recursive: true }),
+    mkdir(configDirectory, { recursive: true }),
+    mkdir(extensionDirectory, { recursive: true }),
+  ]);
+  const argumentsFile = path.join(root, "pi-analyzer-arguments.json");
+  await Promise.all([
+    writeFile(path.join(sourceWorkspace, "spec.md"), "Keep done high for four cycles.\n", "utf8"),
+    writeFile(
+      path.join(sourceWorkspace, "rtl", "TopModule.sv"),
+      "module TopModule; logic [1:0] count; endmodule\n",
+      "utf8",
+    ),
+    writeFile(
+      path.join(extensionDirectory, "rtl-mismatch-analyzer-policy.mjs"),
+      "export default function policy() {}\n",
+      "utf8",
+    ),
+  ]);
+  const script = path.join(root, "fake-pi-analyzer.mjs");
+  await writeFile(
+    script,
+    `import { writeFileSync } from "node:fs";
+import path from "node:path";
+const args = process.argv.slice(2);
+if (args[0] === "--version") { process.stdout.write("pi 0.81.1"); process.exit(0); }
+if (args[0] === "--help") {
+  process.stdout.write("--mode --no-session --provider --model --tools --no-extensions --extension --no-skills --no-prompt-templates --no-themes --no-context-files --no-approve --offline");
+  process.exit(0);
+}
+writeFileSync(process.env.PI_ANALYZER_ARGUMENTS_FILE, JSON.stringify(args));
+const workspace = process.cwd();
+${mode === "tamper" ? 'writeFileSync(path.join(workspace, "spec.md"), "tampered\\n");' : ""}
+writeFileSync(path.join(workspace, "analysis.json"), JSON.stringify({
+  schemaVersion: 1,
+  category: "COUNTER_BOUNDARY",
+  rootCause: "The two-bit counter rolls over before representing the required fourth active cycle.",
+  evidence: [{ path: "rtl/TopModule.sv", lineStart: 1, lineEnd: 1, observation: "The counter has only two bits and no explicit terminal hold state." }],
+  confidence: "MEDIUM",
+  limitations: "The hidden verification assets were not available to the diagnosis."
+}));
+`,
+    "utf8",
+  );
+  const config: PiExperimentConfig = {
+    executable: process.execPath,
+    executableArgumentsPrefix: [script],
+    expectedPiVersion: "0.81.1",
+    repositoryRoot: root,
+    configDirectory,
+    provider: "kimi-coding",
+    model: "k3",
+    capabilityFile: path.join(root, ".pi", "capability.json"),
+    extensionFile: path.join(extensionDirectory, "rtl-core-loop-policy.mjs"),
+    timeoutMs: 5_000,
+    terminationGraceMs: 100,
+    stabilityWindowMs: 10,
+    stderrLimitBytes: 4_096,
+    maximumEvents: 32,
+    maximumEventLineBytes: 4_096,
+    workspaceLimits: { maximumFiles: 10, maximumFileBytes: 10_000, maximumTotalBytes: 20_000 },
+    environment: { PI_ANALYZER_ARGUMENTS_FILE: argumentsFile },
+  };
+  return { batchDirectory, runId, config, argumentsFile };
 }
 
 const caseRef = FixtureCaseRefSchema.parse({
@@ -214,6 +293,56 @@ describe("OpenCode mismatch analyzer", () => {
     const test = await fixture("broad");
     await expect(
       new OpenCodeMismatchAnalyzer(test.config).analyze({
+        batchDirectory: test.batchDirectory,
+        runId: test.runId,
+        caseRef,
+        mismatches: 5,
+        samples: 100,
+        outputMismatches: [{ outputPort: "done", mismatches: 5, firstMismatchTime: 205 }],
+      }),
+    ).rejects.toMatchObject({ error: { code: "MISMATCH_ANALYSIS_FAILED" } });
+  });
+});
+
+describe("Pi mismatch analyzer", () => {
+  it("uses a dedicated read/edit-only policy and records the selected Pi backend", async () => {
+    const test = await piFixture("valid");
+    const result = await new PiMismatchAnalyzer(test.config).analyze({
+      batchDirectory: test.batchDirectory,
+      runId: test.runId,
+      caseRef,
+      mismatches: 5,
+      samples: 100,
+      outputMismatches: [{ outputPort: "done", mismatches: 5, firstMismatchTime: 205 }],
+    });
+
+    expect(result).toMatchObject({ category: "COUNTER_BOUNDARY", confidence: "MEDIUM" });
+    const arguments_ = JSON.parse(await readFile(test.argumentsFile, "utf8")) as string[];
+    expect(
+      arguments_.slice(arguments_.indexOf("--tools"), arguments_.indexOf("--tools") + 2),
+    ).toEqual(["--tools", "read,edit"]);
+    expect(arguments_[arguments_.indexOf("--extension") + 1]).toMatch(
+      /rtl-mismatch-analyzer-policy\.mjs$/u,
+    );
+    const metadata = JSON.parse(
+      await readFile(
+        path.join(
+          test.batchDirectory,
+          "_internal",
+          "mismatch-analysis",
+          test.runId,
+          "analysis-metadata.json",
+        ),
+        "utf8",
+      ),
+    ) as { backend: string; provider: string; model: string };
+    expect(metadata).toMatchObject({ backend: "pi", provider: "kimi-coding", model: "k3" });
+  });
+
+  it("rejects a Pi diagnosis turn that changes a protected input", async () => {
+    const test = await piFixture("tamper");
+    await expect(
+      new PiMismatchAnalyzer(test.config).analyze({
         batchDirectory: test.batchDirectory,
         runId: test.runId,
         caseRef,

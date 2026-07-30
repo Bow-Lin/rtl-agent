@@ -2,7 +2,7 @@
   "task_id": "r04-bounded-repair-loop-and-evaluation",
   "status": "in_progress",
   "current_phase": "implementation_complete_awaiting_acceptance_review",
-  "last_updated": "2026-07-28T16:57:41+08:00",
+  "last_updated": "2026-07-30T11:25:21+08:00",
   "active_plan": [
     "Record the final operator license-review disposition for the pinned dataset sources",
     "Resolve the operator-selected VerilogEval range/list into a concrete capability-bound profile",
@@ -22,15 +22,21 @@
     ".pi/README.md",
     ".pi/capability.json",
     ".pi/extensions/rtl-core-loop-policy.mjs",
+    ".pi/extensions/rtl-mismatch-analyzer-policy.mjs",
     ".pi/skills/README.md",
     ".gitignore",
     ".gitattributes",
     ".harness/session-log.md",
     ".harness/session-state.json",
     "apps/rtl-core-loop/package.json",
+    "apps/rtl-core-loop/src/cli-arguments.ts",
+    "apps/rtl-core-loop/src/cli-error.ts",
+    "apps/rtl-core-loop/src/coverage-command.ts",
     "apps/rtl-core-loop/src/environment.ts",
     "apps/rtl-core-loop/src/index.ts",
+    "apps/rtl-core-loop/src/mismatch-analyzer-selection.ts",
     "apps/rtl-core-loop/src/profile-selection.ts",
+    "apps/rtl-core-loop/src/reanalysis-command.ts",
     "apps/rtl-core-loop/src/verilog-eval-profile.ts",
     "apps/rtl-core-loop/test/cli.test.ts",
     "apps/rtl-core-loop/test/environment.test.ts",
@@ -53,6 +59,8 @@
     "docs/verification.md",
     "exp_result/verilog-eval/07.21-baseline.md",
     "exp_result/verilog-eval/07.23-kimi-opencode-001-156.md",
+    "exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md",
+    "exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md",
     "packages/core-loop/package.json",
     "packages/core-loop/src/agent-adapter.ts",
     "packages/core-loop/src/batch-evaluator.ts",
@@ -328,8 +336,44 @@
       ,"git diff --check"
       ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
       ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"read-only aggregation of b-20260724-001/002 and b-20260729-001/002 selection, summary, batch-result, and functional-simulation evidence"
+      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md --ignore-unknown"
+      ,"git diff --check"
+      ,"read-only aggregation of b-20260729-003/004 and b-20260730-001 selection, capability, batch-result, run, and functional-simulation evidence"
+      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md --ignore-unknown"
+      ,"corepack pnpm exec tsc -p apps/rtl-core-loop/tsconfig.json --noEmit"
+      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts apps/rtl-core-loop/test/profile-selection.test.ts apps/rtl-core-loop/test/environment.test.ts apps/rtl-core-loop/test/verilog-eval-profile.test.ts --config vitest.config.ts"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm test"
+      ,"corepack pnpm format:check"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/mismatch-analyzer.test.ts packages/core-loop/test/pi-agent-adapter.test.ts apps/rtl-core-loop/test/cli.test.ts packages/core-loop/test/observed-issues.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm build"
+      ,"corepack pnpm test (first run: known Windows fake process-tree race)"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm test"
+      ,"corepack pnpm format:check"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"corepack pnpm install --frozen-lockfile"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm test (first run: known Windows fake process-tree race)"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm test"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"corepack pnpm peers check"
+      ,"node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Coverage runs now publish below a readable case directory and lexically sortable local-time run directory while preserving the UUID runId in evidence. Same-millisecond collisions receive a numeric suffix and unsafe case IDs remain portable. Focused tests, 270-test full suite, lint, typecheck, build, format, diff, Harness, and real Verilator integration passed.",
+    "last_result": "Guarded commit review accepted first-successful mismatch analysis as stable per batch/run and documented that later --analyzer selections reuse it. Frozen install, lint, typecheck, build, format, peers, Pi capability probe, diff, JSON, and Harness checks passed. The known Windows fake process-tree race reproduced once; its 21-test isolated rerun and the independent full rerun passed, with 273 tests passed and two skipped.",
     "known_failures": [
       "Final operator MIT/license-review disposition is not yet recorded",
       "No acceptance-qualified R04 profile plus predeclared human-review checkpoint has completed; exploratory real batches exist",
@@ -354,7 +398,7 @@
     "blocked_on": "Final license-review disposition, execution of an operator-selected resolved profile, and the required human review"
   },
   "handoff": {
-    "last_summary": "Coverage evidence now uses <case-id>/run_<local-time> directories with collision suffixes; internal UUID run IDs and all verification behavior remain unchanged.",
-    "resume_from": "Run coverage for any selected case and inspect the reported case/time directory; historical UUID directories remain unchanged."
+    "last_summary": "Mismatch diagnosis is backend-independent before its first successful result; each batch/run then reuses that stable accepted evidence. Guarded Windows validation passed after the documented process-tree race was isolated and rerun.",
+    "resume_from": "Use reanalyze --batch <id> --analyzer pi only when that batch/run has no successful diagnosis evidence yet. R04 still requires final license disposition and predeclared human review."
   }
 }
