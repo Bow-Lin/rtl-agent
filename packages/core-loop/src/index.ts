@@ -27,6 +27,7 @@ export * from "./mismatch-analyzer.js";
 export * from "./observed-issues.js";
 export * from "./output.js";
 export * from "./run-orchestrator.js";
+export * from "./spec-understanding.js";
 export * from "./verilog-eval-lock.js";
 export * from "./verilog-eval-prepare.js";
 export * from "./verilog-eval-provider.js";

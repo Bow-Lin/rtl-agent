@@ -30,6 +30,73 @@ How should future agents avoid repeating it?
 
 ## Known Failure Modes
 
+## 2026-07-30 - Spec-understanding format checking was premature
+
+### Symptom
+
+The initial R05 implementation accumulated a line-oriented Markdown parser, stable issue codes,
+section ownership rules, and completeness checks before any production workflow consumed the
+generated document as structured data. Review then found format-dependent bypass cases and the
+documentation repeatedly drifted from the implementation.
+
+### Root Cause
+
+The design treated a model-facing analysis template as a deterministic interchange format without
+a concrete machine consumer that required that contract. This added parser complexity and made
+presentation choices part of task acceptance.
+
+### Fix
+
+Remove the generated-Markdown Checker and its result/issue API. Keep separate best-effort templates
+and validate only the trusted task kind and Spec/DUT digests supplied before template creation.
+
+### Prevention
+
+Do not introduce a parser for model-authored Markdown until a specific downstream consumer needs a
+defined structure. At that point, prefer an explicit versioned structured result over inferring a
+database or protocol contract from presentation Markdown.
+
+### Related Files
+
+- `packages/core-loop/src/spec-understanding.ts`
+- `packages/core-loop/test/spec-understanding.test.ts`
+- `docs/spec-understanding.md`
+
+## 2026-07-30 - Spec-understanding entries were not scoped to Markdown sections
+
+### Symptom
+
+Guarded review found that a required section could be empty while a syntactically valid `REQ-*`,
+`IMP-*`, or `CHK-*` entry elsewhere in the artifact still satisfied extraction or mapping checks.
+
+### Root Cause
+
+The Checker validated that required second-level headings existed, but its requirement and mapping
+parsers independently scanned every line in the document. It did not carry the enclosing section
+identity into entry validation.
+
+### Fix
+
+Build one second-level-section index for the normalized Markdown and use it in all structural
+checks. Accept Spec Facts requirements only in designated requirement-bearing sections, RTL
+mappings only in `Requirement Implementation Map`, and verification mappings only in
+`Verification Checkpoints`. Misplaced entries emit `ENTRY_OUTSIDE_SECTION` and do not contribute to
+extracted IDs or mapping completeness.
+
+This was an intermediate repair. The operator subsequently chose best-effort model output, so the
+entire generated-Markdown Checker was removed; the preceding entry records the final disposition.
+
+### Prevention
+
+Every structured Markdown parser must test both a valid entry in the expected section and the same
+entry moved to a plausible but invalid section. Heading-presence tests alone do not establish
+section ownership.
+
+### Related Files
+
+- `packages/core-loop/src/spec-understanding.ts`
+- `packages/core-loop/test/spec-understanding.test.ts`
+
 ## 2026-07-28 - Verilator integration test timed out before its process runner
 
 ### Symptom
@@ -389,6 +456,34 @@ source status unless that text still describes the mapped outcome.
 
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
+
+## 2026-07-30 - Spec-understanding host-path regression fixture did not inject its target
+
+### Symptom
+
+The new negative Checker test failed twice because the expected `HOST_PATH_FORBIDDEN` issue was
+absent, while the other intended validation issues were present.
+
+### Root Cause
+
+The first fixture used doubled backslashes rather than a real Windows path token. The second fixture
+attempted to replace text that did not exist in the Markdown sample, so it still never inserted a
+host path. The production sanitizer behaved correctly in a direct probe.
+
+### Fix
+
+Append an unambiguous `C:/secret/spec.md` token directly to the negative artifact and keep host-path
+sanitizer behavior separate from unrelated chained fixture transformations.
+
+### Prevention
+
+For multi-error negative tests, construct or append each independent invalid token explicitly and
+probe shared sanitizers directly before changing production code.
+
+### Related Files
+
+- `packages/core-loop/test/spec-understanding.test.ts`
+- `packages/core-loop/src/spec-understanding.ts`
 
 ## 2026-07-28 - Zero DUT line points were reported as 100% coverage
 

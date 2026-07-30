@@ -2,287 +2,37 @@
 
 ## Goal
 
-Implement R04 as a bounded, non-authoritative Core Loop that composes the completed R01 fixture boundary, R02 restricted Agent turn, and R03 fixed Icarus compile adapter without duplicating or weakening their established contracts.
+Implement R05 as task-aware Spec Understanding Markdown templates. Keep Markdown as the primary
+artifact, give RTL generation and DUT-aware verification different analysis guidance, and let a
+future model produce the completed document on a best-effort basis without format checking.
 
 ## Current Status
 
-R04 is `IN_PROGRESS`.
+R05 is `DONE` as of 2026-07-30.
 
-An explicitly authorized, independent Verilator coverage-Agent MVP is now implemented and locally
-validated. It does not complete or replace R04 acceptance. The new `coverage --case <id>` path uses
-VerilogEval prompt + normalized reference RTL only, never materializes the upstream TB, asks the
-restricted Agent for `tb.sv` and `checker.sv`, enforces an unchanged DUT digest, converts DUT-only
-LCOV into structured uncovered targets, and performs at most two rounds with fixed stop/review
-rules. Results remain `COVERAGE_EXPERIMENT`, non-authoritative, and pending human review.
-The default Windows CLI now supplies the complete matched MSYS2 Verilator environment and allows
-non-fatal lint warnings; genuine Verilator errors still fail the run.
-Verification-asset structural failures are now recoverable: missing TB/checker structure,
-assertions, or `$fatal` paths produce bounded structured feedback for the next Agent attempt instead
-of returning `finalCoverage: null` immediately. Coverage rounds are counted only after Verilator
-runs. Raw Verilator line/toggle types are separated before LCOV conversion; line coverage remains
-primary, while continuous-assignment DUTs with no line point use typed toggle coverage rather than
-an empty 100% result.
-Normal nonzero Verilator compile errors that point to generated `rtl/tb.sv` or `rtl/checker.sv` are
-also recoverable. The runner emits bounded structured compile feedback, uses a unique build directory
-per Agent attempt, and retries without consuming a coverage round. DUT-bound errors and tool,
-timeout, simulation, and coverage failures remain terminal.
+Implemented the template boundary in `packages/core-loop/src/spec-understanding.ts`:
 
-Reusable single-run/batch orchestration, batch preflight, conditional and exclusive evidence, independent final recompile, raw/review-adjusted metrics, human-review publication, and thin CLI behavior are implemented and validated. R02 effective isolation was also narrowed explicitly without changing its established turn protocol.
+- `SPEC_FACTS`, `RTL_GENERATION`, and `VERIFICATION_PLANNING` task kinds
+- visibly different task-specific Markdown guidance
+- trusted task-kind and Spec digest validation before template creation
+- required DUT manifest binding for verification planning only
+- no parser or Checker for the model-generated Markdown
 
-The operator selected NVlabs VerilogEval v2 and ChipBench without submodules. Repository-owned Providers, pinned archive/cache preparation, source/content/implementation digests, MIT license metadata, all 156 VerilogEval `spec-to-rtl` cases, and 223 ChipBench generation/debugging cases are implemented and validated. Ignored local caches contain only allowlisted license/dataset content; reference/testbench files never enter Agent workspaces.
+The focused template suite passes 3/3 tests. The full repository single-worker run passes 37 files
+with one skipped and 276 tests with two skipped. Lint, typecheck, build, format, and peer dependency
+checks pass; session-state JSON, diff, and Harness checks also pass. Model/Agent invocation,
+semantic scoring, completed-Markdown format validation, and direct RTL/assertion/checker/TB
+generation remain out of scope for this MVP.
 
-ChipBench exposes 45 generation cases as `BLANK_GENERATION` and 178 prompt-embedded debugging cases as `PROMPTED_FUNCTIONAL_REPAIR`. The latter remains a separate compile-only metric category: compile success does not prove the timing, assignment, arithmetic, or state-machine bug was functionally repaired.
+R04 remains `DONE`; its accepted evidence and limitations are recorded in the task breakdown and
+checkpoint report. The existing uncommitted R04 completion-record changes are preserved in this
+worktree.
 
-The restricted OpenCode `1.18.2` Agent is now locally configured through
-`RTL_AGENT_OPENCODE_MODEL` such as `kimi-code/kimi-for-coding` or `kimi-code/k3`. The direct CLI safely loads an allowlisted root `.env`/`.env.local`
-configuration and keeps the credential out of inline configuration and capability evidence. Only
-the standard `KIMI_CODE_API_KEY` credential name is accepted. A static probe and one live Kimi
-blank-generation turn passed on Windows. Root `test_connection.ts` provides a minimal direct
-subscription check with sufficient output budget for model reasoning and reports the returned
-answer plus bounded finish/token metadata. It reports HTTP acceptance and non-empty-answer validity
-separately, and exits unsuccessfully when a 2xx response contains no usable answer.
+## Next Boundary
 
-Pi Coding Agent `0.81.1` is now available as a parallel backend without replacing the established
-OpenCode path. Legacy OpenCode capability/profile/turn evidence remains readable, while Pi uses a
-separate capability branch, `pi-agent-probe`, and `verilog-eval-kimi-pi-v1` profile. Pi runs in
-one-shot JSON/ephemeral mode with discovered resources and project trust disabled, only
-`read,write,edit` enabled, and a digest-locked extension that restricts public reads and RTL writes.
-All turns use the same operator-owned `.rtl-agent/pi-state`; its semantic state is capability
-locked, while complete state including authentication is privately checked for drift within one
-adapter/batch without serializing credentials.
-The installed runtime is version-isolated under ignored `.rtl-agent/tools/pi-0.81.1`. Real batch
-`b-20260723-005` passed one Pi/Kimi case end to end: compile 1/1, functional simulation 1/1, and
-post-processing completed.
-
-Pi evaluation turns now retain every actual `before_provider_request` payload and finalized parsed
-Assistant response in ordered, bounded per-attempt evidence at
-`_internal/runs/<run-id>/evidence/attempts/<attempt>/provider-transcript.json`. The hook does not
-modify requests or capture HTTP headers/credentials/raw HTTP bytes. Interrupted final exchanges
-retain `response: null`. These ignored internal files may contain complete specifications, prompts,
-reasoning, tool calls, model context, and usage and must be reviewed before sharing.
-The extension applies a combined 64-request/8-MiB limit without silent truncation.
-Temporary cleanup retries three times; a final failure is a local/evidence warning rather than a
-model or RTL failure.
-
-Pi is now a first-class repository backend layout: `.pi/capability.json` declares the exact tool
-allowlist, `.pi/extensions/rtl-core-loop-policy.mjs` enforces workspace paths, and `.pi/skills/`
-is reserved for explicitly loaded Pi-only skills. Automatic resource discovery remains disabled
-for adapter turns; the policy extension also stays inactive during ordinary manual Pi discovery
-unless the adapter explicitly activates it.
-Shared guidance lives outside both backend directories, while ignored authentication/model state
-lives under `.rtl-agent/pi-state`.
-
-Root `test_pi_connection.ts` now provides an explicit custom-prompt Pi connectivity diagnostic
-outside the dataset/evidence flow. The single file uses Pi's SDK and one in-memory Hook to print
-the actual provider request payload and complete parsed Assistant message. It disables tools and
-resource discovery, never captures credentials or headers, and does not alter either evaluation
-backend.
-
-The direct CLI now registers the generic `verilog-eval-kimi-v1` template. Each invocation must
-select either an inclusive `--begin/--end` range or a `--cases` list. Both forms resolve
-case-insensitive unambiguous prefixes to complete IDs, canonicalize them in the pinned Provider
-order, and derive a concrete profile identity/digest before any model turn. The v1 template uses
-one Agent attempt per case. `evaluate --agent opencode|pi` now selects the generation backend
-explicitly: Pi resolves to its existing distinct evidence profile, while legacy profile-only
-commands remain compatible. Each case entering the Agent/compile loop is reported to stderr as
-`正在处理 <case-id>... (<current>/<total>)`; stdout remains one final JSON object and records the
-resolved `agentBackend`.
-
-A real local generation and functional-simulation batch can now run from an explicit VerilogEval
-range/list. The same `evaluate` command performs generation, candidate compilation, hidden
-reference/testbench compilation, `vvp` simulation, and mismatch classification. New batches use
-short daily IDs, publish generated modules under `rtl/<case-id>/`, and keep detailed evidence/runs
-under `_internal/`. A checkpoint claim remains blocked until the operator records the final
-license-review disposition, executes the resolved profile, and completes its predeclared human
-review.
-
-Stable RTL generation advice now lives in the backend-neutral versioned
-`config/agents/rtl-core-loop/common-guidance.md` checklist. Both adapters inject the full
-Compile/Logic/Safety guidance into every generation or repair prompt and lock its digest into the
-Agent capability and per-turn evidence. The guide is methodology-only and contains no case-specific
-reference or hidden testbench information.
-
-Every dataset evaluation now appends its observed compile, functional, infrastructure, and not-run
-outcomes to ignored runtime knowledge at `.rtl-agent/knowledge/observed-issues.md`. A functional
-mismatch triggers an additional restricted Kimi diagnosis turn using only the public specification,
-candidate RTL, total mismatch count, and parsed public-output mismatch counts/first times. The
-diagnosis must select a concrete root-cause category, cite candidate/specification lines, and state
-confidence and limitations; hidden reference/testbench assets remain unavailable. Complete analysis
-stays under `_internal/mismatch-analysis/`; `observed-issues.md` retains only one category/confidence/
-root-cause conclusion per mismatched case. `common-guidance.md` is never updated by this workflow and
-changes only after an explicit operator request to promote observations into guidance.
-
-Mismatch diagnosis now receives its complete machine-readable category/confidence/evidence
-contract. One invalid response may consume one bounded correction turn using private structured
-validation issues. Diagnosis and journal publication are recoverable post-processing: they cannot
-replace an already published batch result, and `reanalyze --batch <batch-id>` reuses validated
-existing evidence without regenerating candidates. Batch `b-20260723-002` was recovered through
-this path; its `Prob034_dff8` conclusion is `INITIALIZATION_SEMANTICS` with medium confidence.
-
-The journal now expands every `functionalNotRun` total into a `Not Run Details` list. Each selected
-case records its stable run outcome or validation status. `MAX_ATTEMPTS` includes the latest
-structured compile error when available, while later timeout or tool failures retain their own
-final stage reason instead of inheriting an earlier attempt's compiler message. Missing compile
-units and cases never reached by the batch are distinguished as `NO_COMPILE_UNIT` and
-`NOT_EXECUTED`. A valid baseline is not treated as the reason for a later not-executed outcome;
-stopped batches receive an explicit stopped-before-functional-simulation reason.
-
-The first complete local Prob001–Prob156 Kimi run is summarized in
-`exp_result/verilog-eval/07.21-baseline.md`. After replacing the interrupted Prob071–Prob100 segment with its
-successful rerun, 119 of 156 unique cases functionally passed. Two cases are separated from ordinary
-model outcomes: Prob040 was not executed after the historical classifier stop, and Prob099 has a
-testbench port mismatch against both the public/reference interface and candidate.
-
-The discontinuous Pi/Kimi Prob001–Prob156 run is summarized in
-`exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md`. Four non-overlapping main batches cover all
-156 cases exactly once after replacing the interrupted Prob101–Prob120 attempt with its complete
-2026-07-29 rerun. The aggregate is 126 functional passes, 23 genuine mismatches, six candidates not
-run functionally, and one verification-interface invalid case. This remains exploratory,
-non-authoritative Windows evidence and does not satisfy the required R04 human review.
-
-The complete Pi/K3 Prob001–Prob156 run is summarized in
-`exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md`. Three continuous, non-overlapping batches
-cover all 156 cases exactly once with a common Pi/K3 capability identity. The aggregate is 148
-candidate compile passes, 131 functional passes, 16 genuine mismatches, eight candidate compile
-failures, and the same Prob099 verification-interface invalidity. The observed raw pass rate is
-83.97%, but this remains exploratory, non-authoritative Windows evidence and does not satisfy the
-required R04 human review.
-
-Today's complete OpenCode/Kimi rerun is summarized in
-`exp_result/verilog-eval/07.23-kimi-opencode-001-156.md`. Its five non-overlapping batches cover
-Prob001–Prob156 exactly once: 135/156 functionally pass, 16 are genuine mismatches, four never
-produce a compile-eligible candidate, and Prob099 remains verification-interface invalid. Ten of
-the 16 mismatches have schema-valid restricted diagnoses; the report leaves the other six
-unclassified instead of inferring unsupported root causes.
-
-Functional summaries now reserve `functionalFailed` for genuine nonzero simulated mismatches and
-report verification compile/process/timeout/output failures separately as `verificationInvalid`.
-Any verification-invalid result makes the CLI return `INVALID`/`ok: false`. Historical evidence
-without `outputMismatches` or `verificationInvalid` remains readable. The operator accepts direct
-host `vvp` execution for this local non-authoritative benchmark; no production or formal-Gate
-sandbox claim is made.
-
-The first behavior-preserving application-layer refactor has separated shared named-option parsing,
-stable CLI error rendering, the coverage command, and existing-batch mismatch reanalysis from
-`apps/rtl-core-loop/src/index.ts`. The entry point remains the composition root and preserves its
-public `runRtlCoreLoopCli` signature and re-exported test helper. No Provider, profile, Agent,
-compiler, evidence, functional-result, or coverage-result contract changed. The entry file is now
-623 lines instead of 885; evaluation orchestration remains the next high-value extraction boundary.
-
-Mismatch diagnosis is now independent from RTL generation. `evaluate` and `run` accept
-`--analyzer opencode|pi`, defaulting to the resolved profile backend; `reanalyze` validates the
-persisted Agent capability and defaults to the historical batch backend. Pi uses a dedicated
-read/edit-only policy that can edit only `analysis.json`, while the shared analyzer workflow still
-enforces immutable specification, context, and candidate RTL manifests. This fixes automatic
-Pi/K3 mismatch diagnosis for new batches and allows historical Pi batches to be reanalyzed without
-generation or simulation. The first successful diagnosis for each batch/run remains stable and is
-reused by later reanalysis; backend selection does not replace already accepted analysis evidence.
-
-## Locked Implementation Boundaries
-
-- `maxAttempts` is total Agent turns; baseline is attempt zero.
-- only R02 `RTL_CHANGED` is compile-eligible.
-- only R03 `COMPILE_ERROR` can start another Agent turn.
-- raw OpenCode JSONL, reasoning, full Assistant text, and tool payloads are never R04 evidence.
-- Pi provider request/parsed-response transcripts are the explicit internal-diagnostics exception;
-  they remain ignored per-attempt evidence and are never copied into public summaries or generated
-  RTL.
-- every compile preparation is evidence; compile results exist only when the compiler was invoked.
-- strict `FinalResult` is written last only for evidence-complete runs with a trustworthy final RTL manifest.
-- invalid fixtures and incomplete runs remain batch-level records rather than new R01 final outcomes.
-- strict per-run results remain `authoritative: false` / `COMPILE_ONLY`; VerilogEval adds a separate
-  non-authoritative `FUNCTIONAL_SIMULATION` batch result without claiming a formal Gate.
-
-## Validation Baseline
-
-- lint, typecheck, build, format, peer dependency, frozen-install, package, and full-repository checks pass.
-- Core Loop ordinary tests: 13 files passed / 1 skipped; 92 tests passed / 2 skipped.
-- thin CLI/profile-selection tests: 3 files and 18 tests passed.
-- full repository: 34 files passed / 1 skipped; 249 tests passed / 2 skipped.
-- real Icarus integration: 2 files and 6 tests passed, including synthetic R04 baseline/repair/final-recompile composition.
-- real OpenCode 1.18.2 static probe and two live restricted-Agent smoke tests pass.
-- Kimi Code `kimi-for-coding` static probe and one live restricted-Agent blank-generation turn pass
-  with the key loaded only from ignored local environment files.
-- Pi Coding Agent `0.81.1` static probe and real `verilog-eval-kimi-pi-v1` batch
-  `b-20260723-005` pass with one compile/functional pass and no verification invalidity.
-- standalone Pi connectivity diagnostic passed one real Kimi request with custom input, one
-  captured provider payload, one parsed Assistant response, and exit status zero.
-- Pi provider diagnostics now persist per-attempt `provider-transcript.json` with paired request and
-  parsed Assistant response data. Focused Pi tests, full repository tests, lint, typecheck, and
-  build pass. A real `corepack pnpm core-loop:evaluate:pi --cases Prob101` run produced batch
-  `b-20260727-002` with a valid transcript and exposed Kimi `403 usage limit` as the reason no RTL
-  compile unit was generated.
-- VerilogEval Kimi profile construction now locks the model reported by the selected backend
-  capability instead of requiring `kimi-for-coding`; OpenCode accepts `kimi-code/<model>` and Pi
-  accepts `kimi-coding` plus `RTL_AGENT_PI_MODEL`, so switching to `k3` is an `.env.local` change.
-  Focused profile/CLI/environment tests, lint, typecheck, build, format, diff check, Harness check,
-  and the full repository test suite pass. The full suite is now 35 files passed / 1 skipped and
-  258 tests passed / 2 skipped.
-- the pinned VerilogEval archive prepared successfully; `fixtures-check` validates the locked manifest and reports 156 `spec-to-rtl` cases.
-- real Icarus/vvp checks against existing Kimi-generated Prob001 and Prob002 candidates passed with
-  `0/20` and `0/100` mismatched samples respectively; no model request was made.
-- source-bound Icarus errors such as Prob071's invalid procedural assignment now classify as
-  `COMPILE_ERROR`; real-Icarus and batch-continuation regressions prove they no longer stop later
-  cases as infrastructure-invalid.
-- deterministic Agent tests prove the complete common-guidance guide is present in every turn prompt
-  and that guide changes alter the locked capability digest.
-- the pinned ChipBench archive prepared successfully; its check validates the 683-file manifest and reports 45 generation plus 178 debugging cases across 11 splits.
-- Windows checkout now keeps `.mjs` configuration files at LF, so the same Prettier check is stable on `windows-latest`.
-- local MSYS2 UCRT64 Verilator `5.050` is installed for future Agent-driven Windows experiments.
-  A synthetic `--binary --coverage --timing` smoke compiled and simulated successfully and produced
-  `coverage.dat`, LCOV output, and a summary after applying the required GCC 16 compatibility flag
-  `-CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0`. This is local tooling evidence only and does not satisfy a
-  Linux formal compile, simulation, or coverage Gate.
-- verification-asset auto-repair tests pass, including a first checker missing both assertion and
-  fatal failure handling; the repair attempt does not consume a coverage round.
-- final full repository validation: 36 files passed / 1 skipped; 268 tests passed / 2 skipped;
-  lint, typecheck, build, format, diff, real Verilator integration, and Harness check pass.
-- real Pi run `run_1e59e739-92ba-43d5-8aa8-f03cb1cf2edb` generated a correct exhaustive Prob101 TB,
-  checker, and assertion and completed Verilator. Its initial zero-line-point result exposed the
-  empty-coverage scoring bug; the corrected continuous-assignment integration now proves typed
-  toggle fallback and rejects reports with no DUT coverage points.
-- real Pi run `run_4f1fc7c8-6ce3-4345-aa87-a6681c1ade99` completed Prob131 in two coverage rounds and
-  reached typed toggle coverage 6/6 (100%). A real Verilator recheck of retained failed run
-  `run_70f67eaf-722e-4a9a-9bbb-aa74e1383338` parsed its five `checker` keyword syntax errors into
-  bounded repairable TB diagnostics.
-- new coverage runs are grouped as
-  `.rtl-agent/coverage-runs/<case-id>/run_<YYYYMMDD-HHmmss-SSS>/`; the timestamp is local and
-  lexically sortable, same-millisecond collisions receive `-001`/`-002`, and the UUID `runId`
-  remains the internal evidence identity. Path/collision tests, the 270-test full suite, lint,
-  typecheck, build, format, diff, Harness, and the real Verilator integration pass. The real integration
-  needed 34 seconds, so its enclosing finite test timeout now exceeds the Runner's 120-second
-  process bound instead of interrupting cleanup at 30 seconds.
-- the Pi/K3 full-dataset report reconciles `b-20260729-003`, `b-20260729-004`, and
-  `b-20260730-001` as 156 unique continuous cases: 148 compile passes, 131 functional passes, 16
-  mismatches, eight functional-not-run compile failures, and one verification-invalid case. The
-  report evidence assertions, Prettier, diff, session-state JSON, and Harness checks pass; no model
-  call or simulation was made.
-- the first CLI refactor passes 29 focused application tests and the full repository suite: 36 files
-  passed / 1 skipped, 270 tests passed / 2 skipped. Lint, typecheck, build, format, diff, and Harness
-  checks also pass.
-- backend-independent mismatch diagnosis passes 44 focused tests. The final full repository rerun
-  passes 36 files / 1 skipped and 273 tests / 2 skipped, plus lint, typecheck, and build. The first
-  aggregate run hit the documented Windows fake process-tree race; its 21-test isolated rerun and
-  the independent full rerun both passed.
-- guarded commit validation accepted the stable first-successful diagnosis semantics and documented
-  that later analyzer selections reuse existing evidence. Frozen install, lint, typecheck, build,
-  format, peers, Pi capability probe, diff, JSON, and Harness checks pass. The known Windows fake
-  process-tree race reproduced once; its 21-test isolated rerun and the independent 273-test full
-  rerun passed.
-
-These are non-authoritative benchmark mechanics checks. Real Linux execution remains unavailable
-and no formal Gate, production-readiness, full-dataset capability, or checkpoint claim is permitted.
-
-## Current Plan
-
-1. Choose a VerilogEval range/list and record the operator's final MIT/license-review disposition.
-2. Resolve the operator's requested `verilog-eval-kimi-v1` range/list and inspect the derived profile evidence.
-3. Execute the real batch, complete the predeclared human review, fill the report, and record exactly one checkpoint recommendation.
-
-## External Completion Requirement
-
-R04 remains incomplete until a locked dataset profile batch and human review produce the required report and checkpoint recommendation. Provider/cache validation, synthetic tests, the R02 live smoke, and the R04 real-Icarus composition test must not supply those metrics.
+Wait for explicit operator direction before selecting an Agent/model integration, defining derived
+assertion/checker/TB generation contracts, or connecting these artifacts to the durable workflow.
 
 ## Last Updated
 
-2026-07-30T11:25:21+08:00
+2026-07-30T17:25:08+08:00

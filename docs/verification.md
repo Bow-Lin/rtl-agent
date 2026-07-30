@@ -50,6 +50,20 @@ corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test
 corepack pnpm core-loop:fixtures:check
 ```
 
+R05 Spec Understanding Markdown template checks are:
+
+```powershell
+corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm test
+```
+
+The R05 focused suite is deterministic and makes no model, compiler, simulation, dataset, or
+network call. It validates task-specific template selection and the trusted task/Spec/DUT inputs
+used before generation. It deliberately does not parse or validate the model's completed Markdown
+format, headings, traceability, completeness, or semantic correctness.
+
 The first two commands use only temporary synthetic mechanics inputs. Prepare the selected pinned VerilogEval dataset once with:
 
 ```powershell

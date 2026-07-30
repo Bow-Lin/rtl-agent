@@ -1109,3 +1109,62 @@ diagnosis as the stable result: once valid analysis metadata exists, later reana
 evidence even if a different `--analyzer` is requested. Cross-backend selection therefore applies
 only before the first successful diagnosis; replacing an accepted diagnosis is intentionally out
 of scope.
+
+## 2026-07-30 - Close R04 Using the Existing Full-Dataset Evidence
+
+### Context
+
+R04 mechanics, dataset boundaries, multiple real batches, functional simulation summaries, and
+failure classifications were complete, but the task remained `IN_PROGRESS` because the original
+acceptance plan required a newly predeclared profile, a separate human-review sample, and an
+explicit checkpoint report. The operator reviewed the status and directed that R04 be considered
+complete using the evidence already produced.
+
+### Decision
+
+Accept the three capability-consistent Pi/K3 batches covering Prob001–Prob156 and their aggregate
+report as the R04 checkpoint evidence. Accept the pinned MIT metadata for this checkpoint and retain
+all documented Windows, direct-host-vvp, non-authoritative, and no-formal-Gate limitations. Record
+the checkpoint recommendation as `PROCEED_TO_FUNCTIONAL_VALIDATION`, mark R04 `DONE`, and stop until
+the operator explicitly selects the next work item.
+
+This operator disposition intentionally replaces the earlier requirement to run a newly declared
+acceptance profile and separate review sample. It does not retroactively make the batches
+authoritative or satisfy Linux and production Gate requirements.
+
+### Consequences
+
+R04 and the M0 Core Loop capability checkpoint are complete. A04 remains `NOT_STARTED`; neither it
+nor a new Core Loop/functional-validation task begins automatically. Future work must preserve the
+accepted evidence and its stated limitations.
+
+## 2026-07-30 - Use Best-Effort Markdown Templates for the Spec Understanding MVP
+
+### Context
+
+RTL generation needs an implementation-oriented interpretation of a Spec, while assertion,
+checker, and testbench generation need a verification-oriented analysis that also considers an
+immutable DUT. A single free-form summary would blur these purposes. A complete JSON domain model,
+however, would force natural-language requirements into a premature structure and duplicate the
+human-facing artifact.
+
+### Decision
+
+Use Markdown as the primary Spec Understanding artifact. Produce separate `SPEC_FACTS`,
+`RTL_GENERATION`, and `VERIFICATION_PLANNING` templates so each future model call receives guidance
+appropriate to its task. Verification planning binds a DUT manifest, while the other templates bind
+only the Spec.
+
+Validate the task kind and Spec/DUT digests supplied by the trusted caller before creating a
+template. Treat the completed model-generated Markdown as best effort: do not parse or reject it
+based on frontmatter shape, headings, requirement IDs, citations, mappings, or completeness. The
+template is prompt guidance rather than an acceptance grammar.
+
+### Consequences
+
+Humans and Agents can review the same flexible artifact without maintaining a premature Markdown
+parser. The current module proves only template selection and trusted input binding; it does not
+claim that a generated document is well formatted, complete, traceable, or semantically correct.
+Model integration remains later work. If a concrete downstream workflow later needs deterministic
+machine consumption, add an explicitly versioned structured result or validator designed for that
+consumer instead of silently treating this Markdown as validated data.

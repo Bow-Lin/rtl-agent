@@ -129,17 +129,19 @@ Core Loop 是 A03 后的产品能力检查点，不是正式工作流的 M1/M2�
 
 ### R04 — 实现有限修复循环与 Core Loop 评测
 
-**状态**：`IN_PROGRESS`；通用编排、preflight、证据、指标、人工复核结果与薄 CLI 已实现并验证；NVlabs VerilogEval v2 与 ChipBench generation/debugging Provider 和固定缓存已接入，真实 batch 和 checkpoint 仍等待最终 license-review disposition 与 versioned evaluation profile。
+**状态**：`DONE`（2026-07-30）；用户接受现有完整 VerilogEval 批次、汇总报告和已声明限制作为 R04 checkpoint 证据，并要求结束任务。结果仍为本地 Windows、非权威证据，不构成 Linux、生产或正式 RTL Gate 声明。
 
 **实现文档**：[R04 — Bounded Repair Loop and Evaluation](tasks/R04-bounded-repair-loop-and-evaluation.md)
 
-**验收证据**：机械实现已通过 Core Loop 12 files passed / 1 skipped、88 tests passed / 2 skipped，薄 CLI 1 file / 5 tests passed，全仓 26 files passed / 1 skipped、194 tests passed / 2 skipped；在把共享 Vitest case timeout 明确锁定为有限 15 秒后，全仓测试连续 3 次独立运行均通过，生产 Agent/compiler timeout 未改动。真实 Icarus integration 2 files / 6 tests passed，其中 R04 合成测试覆盖 seeded baseline、fake Agent 修复、真实 compile 和独立真实 recompile；固定 CLI compile smoke 通过；真实 OpenCode `1.18.2` static probe 与 2 项允许/拒绝 live smoke 复跑通过。Windows Actions 的 `.mjs` CRLF checkout 差异已通过 `.gitattributes` 的显式 LF 规则修复。未注册 Provider 时 `fixtures-check` 按设计以 `DATASET_NOT_CONFIGURED` 退出。以上均为 mechanics/synthetic evidence，不是 R04 dataset 评测证据；`docs/experiments/spec-to-rtl-core-loop-report.md` 保持 `NOT_EXECUTED`，尚无 checkpoint 建议。
+**验收证据**：机械实现已通过 Core Loop 12 files passed / 1 skipped、88 tests passed / 2 skipped，薄 CLI 1 file / 5 tests passed，全仓 26 files passed / 1 skipped、194 tests passed / 2 skipped；在把共享 Vitest case timeout 明确锁定为有限 15 秒后，全仓测试连续 3 次独立运行均通过，生产 Agent/compiler timeout 未改动。真实 Icarus integration 2 files / 6 tests passed，其中 R04 合成测试覆盖 seeded baseline、fake Agent 修复、真实 compile 和独立真实 recompile；固定 CLI compile smoke 通过；真实 OpenCode `1.18.2` static probe 与 2 项允许/拒绝 live smoke 复跑通过。Windows Actions 的 `.mjs` CRLF checkout 差异已通过 `.gitattributes` 的显式 LF 规则修复。未注册 Provider 时 `fixtures-check` 按设计以 `DATASET_NOT_CONFIGURED` 退出。这些 mechanics/synthetic checks 由后续真实全量批次补充；最终 checkpoint 结果、限制与建议记录在 `docs/experiments/spec-to-rtl-core-loop-report.md`。
 
 **Dataset 接入进展**：2026-07-20 选择 NVlabs VerilogEval v2 `spec-to-rtl`，不使用 submodule。固定提交 `c498220d0a52248f8e3fdffe279075215bde2da6`、archive SHA-256、472-file content manifest、156-case ordered catalog、MIT license reference 和 Provider source digest 已锁定。TypeScript preparation 仅提取 `LICENSE` 与 dataset 到 ignored cache，Provider 仅向 Agent 物化 prompt；reference/testbench 保持隐藏。真实 archive prepare 与 `fixtures-check` 通过并报告 156 cases。接入后 Core Loop 13 files passed / 1 skipped、92 tests passed / 2 skipped；薄 CLI 1 file / 6 tests passed；全仓 27 files passed / 1 skipped、199 tests passed / 2 skipped；真实 Icarus 2 files / 6 tests passed。这些仍是 dataset mechanics evidence，不是 capability metric。
 
 **ChipBench 接入进展**：固定 commit `74fe7d283225ae030ef59326a06111c9d372b48e`、archive SHA-256、683-file extracted manifest、223-case catalog、MIT reference 和 Provider source digest。生成集 45 题分类为 `BLANK_GENERATION`；8 个调试 split 共 178 题分类为 `PROMPTED_FUNCTIONAL_REPAIR`，不会伪装为 `SEEDED_COMPILE_REPAIR`，其 compile pass 也不代表功能修复。真实 prepare/check 已通过，最终全仓验证结果见 Session Log。
 
 **诊断恢复进展**：2026-07-23 修复了 Agent 不可见严格 Schema 导致的 `MISMATCH_ANALYSIS_FAILED`。诊断输入现在包含完整枚举和 evidence 结构，允许一次受限 Schema 修复；诊断失败只产生可重试 warning，不覆盖已发布 batch 状态。`reanalyze --batch` 可复用现有证据。真实批次 `b-20260723-002` 的 `Prob034_dff8` 已在不重新生成 30 个 case 的情况下成功恢复为 `INITIALIZATION_SEMANTICS` 结论。
+
+**完成裁决**：2026-07-30，用户接受 Pi/K3 的三个 capability 一致、范围连续且无重复的批次 `b-20260729-003`、`b-20260729-004`、`b-20260730-001` 作为 checkpoint 主证据：156 题中 148 题候选编译通过、131 题功能通过、16 题 mismatch、8 题候选编译失败、1 题 verification-interface invalid。原始功能通过率为 83.97%。用户同时接受已锁定的 MIT metadata 和报告中的限制，并明确要求标记 `DONE`。该裁决事后接受现有分段 profile，替代了原计划重新预声明 acceptance profile 和单独人工抽样的要求。最终建议为 `PROCEED_TO_FUNCTIONAL_VALIDATION`，但按停止规则不自动启动后续任务。
 
 **依赖**：R01、R02、R03。
 
@@ -149,11 +151,27 @@ Core Loop 是 A03 后的产品能力检查点，不是正式工作流的 M1/M2�
 
 **验收**：对用户选定并锁定的 dataset/provider/evaluation profile 执行真实 batch；case count 与阈值在运行前登记；0 越界写；只有 compile error 进入下一轮；所有 pass 独立 recompile；报告给出 provenance、分子/分母、失败分类和 `PROCEED_TO_FUNCTIONAL_VALIDATION | REFINE_CORE_LOOP_ONCE | STOP_OR_RETHINK` 建议。R04 后必须等待用户决定。
 
+### R05 — Spec Understanding Markdown Template MVP
+
+**状态**：`DONE`（2026-07-30）；三类 best-effort Markdown 模板和可信输入绑定已实现并通过 Windows 验证。
+
+**实现文档**：[R05 — Spec Understanding Markdown Contract MVP](tasks/R05-spec-understanding-markdown-contract.md)
+
+**依赖**：R04。
+
+**目标**：以 Markdown 作为主要产物，为公共 Spec Facts、RTL 生成分析和结合 DUT 的验证计划提供不同提示结构，让后续大模型按任务尽力生成分析。
+
+**交付物**：`spec-understanding.ts`、三类任务模板、可信 task/Spec/DUT 输入校验、设计文档与专项测试。
+
+**验收**：Markdown 不依赖重复 JSON；三类任务得到不同的分析提示；所有模板绑定有效 Spec digest；verification 必须绑定 DUT manifest，而另外两类任务不接受 DUT；不对模型完成后的 Markdown 章节、格式、追踪或完整性做机器校验；统一验证命令和 Harness 通过。
+
+**验收证据**：专项 3/3 tests 通过；单 worker 全仓 37 files passed / 1 skipped、276 tests passed / 2 skipped；lint、typecheck、build、format 和 peer 检查通过，最终 diff、JSON 与 Harness 结果记录在 `.harness/session-log.md`。当前只证明模板分流和调用方可信输入边界，不包含模型生成、Markdown 格式或自然语言语义正确性声明。
+
 ## 4. Phase A（续）：持久化、常驻服务与审核边界
 
 ### A04 — 建立 SQLite Schema 与 Migration 框架
 
-**状态**：`NOT_STARTED`；A03 已完成，但按当前决策延期到 R04 checkpoint 之后。
+**状态**：`NOT_STARTED`；R04 checkpoint 已完成，等待用户明确决定是否恢复正式路线。
 
 **实现文档**：[A04 — SQLite Storage](tasks/A04-sqlite-storage.md)
 

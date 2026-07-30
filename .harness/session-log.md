@@ -1844,6 +1844,7 @@ still fail profile construction before any Agent turn.
 - `corepack pnpm format:check`: passed
 - `git diff --check`: passed
 - Harness check: passed
+
 - full repository: 35 files passed / 1 skipped; 258 tests passed / 2 skipped
 
 No live model request was made for this change. The behavior is covered by deterministic capability
@@ -2209,3 +2210,126 @@ final license disposition and predeclared human review.
 - `corepack pnpm peers check`: passed
 - Pi `0.81.1` capability probe with K3 configuration: passed
 - final JSON parse, `git diff --check`, and Harness check: passed
+
+## Entry: Mark R04 Complete by Operator Acceptance
+
+### Outcome
+
+The operator reviewed the R04 status and explicitly directed that the task be marked complete.
+Accepted the existing Pi/K3 full-dataset evidence as the checkpoint result: 156 continuous unique
+cases, 148 candidate compile passes, 131 functional passes, 16 functional mismatches, eight
+candidate compile failures, and one verification-interface invalid case. The raw end-to-end
+functional pass rate is 83.97%.
+
+Updated the canonical task breakdown, current task, checkpoint report, decision record, and session
+state. The report records `PROCEED_TO_FUNCTIONAL_VALIDATION` as the single checkpoint recommendation
+and preserves the non-authoritative Windows, direct-host-vvp, no-Linux, and no-formal-Gate
+limitations. No model call, RTL generation, simulation, or production code change was made. Per the
+checkpoint stop rule, A04 remains `NOT_STARTED` and no later work starts automatically.
+
+### Validation
+
+- Markdown format check: passed
+- `.harness/session-state.json` parse: passed
+- `git diff --check`: passed
+- Harness check: passed
+
+## Entry: Implement R05 Spec Understanding Markdown Contract
+
+### Outcome
+
+Implemented the first Spec Understanding module as a contracted Markdown boundary rather than a
+duplicate JSON fact model. Added fixed templates for common `SPEC_FACTS`, implementation-oriented
+`RTL_GENERATION`, and immutable-DUT-aware `VERIFICATION_PLANNING`. The verification template keeps
+DUT observations separate from Spec requirements and provides shared checkpoints for later
+assertion, checker, and testbench generation.
+
+The deterministic Checker validates a strict five-field scalar frontmatter, Spec/DUT digests,
+mandatory task sections, stable requirement IDs, logical `spec.md` source lines, confidence,
+complete requirement mappings, artifact size, and host-path safety. Empty templates cannot become
+valid by changing only `DRAFT` to `READY`. Unknown requirements, duplicate IDs, missing mappings,
+and identity drift fail with stable issue codes. No model call, compiler, simulation, dataset access,
+or production workflow mutation was added.
+
+### Files
+
+- `packages/core-loop/src/spec-understanding.ts`
+- `packages/core-loop/src/index.ts`
+- `packages/core-loop/test/spec-understanding.test.ts`
+- `docs/spec-understanding.md`
+- `docs/tasks/R05-spec-understanding-markdown-contract.md`
+- `docs/task-breakdown.md`
+- `docs/decisions.md`
+- `docs/error-journal.md`
+- `docs/verification.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- focused Spec Understanding suite: 8/8 passed
+- lint and typecheck: passed
+- first two standard aggregate runs: 280 passed / two skipped, with the same unrelated documented
+  Windows fake process-tree timeout-classification race
+- isolated affected Agent adapter file: 21/21 passed
+- full repository with one worker: 37 files passed / one skipped; 281 tests passed / two skipped
+- final standard full repository run: 37 files passed / one skipped; 281 tests passed / two skipped
+- build, format, peer dependency, diff, JSON, and Harness checks: passed
+
+## Entry: Scope Spec Understanding Entries to Their Required Sections
+
+### Outcome
+
+Repaired the P2 found during guarded R05 review. The Checker now indexes each line by its enclosing
+second-level Markdown section before validating structured entries. Spec Facts `REQ-*` bullets are
+accepted only in the designated requirement-bearing sections; RTL `IMP-*` rows only in
+`Requirement Implementation Map`; and verification `CHK-*` rows only in
+`Verification Checkpoints`. A misplaced entry emits `ENTRY_OUTSIDE_SECTION`, is excluded from
+extracted/mapped IDs, and cannot hide missing or unmapped requirements.
+
+Added regressions that move a valid requirement into `Ambiguities` and move complete RTL and
+verification mapping tables into their input-description sections. No model, compiler, simulation,
+dataset, or workflow integration was invoked.
+
+### Validation
+
+- focused Spec Understanding suite: 10/10 passed
+- lint: passed
+- typecheck: passed after explicitly normalizing a strict indexed lookup's possible `undefined` to
+  the existing no-section `null` case
+- first standard full run reproduced documented Windows process/scheduling races in unrelated Agent
+  adapter and batch tests; 281 passed / 2 skipped / 2 failed
+- isolated batch/Agent diagnostic: batch file passed; the Agent race persisted when both files ran
+  together
+- isolated Agent adapter file: 21/21 passed
+- full repository with one worker: 37 files passed / one skipped; 283 tests passed / two skipped
+- build and format: passed
+- a second standard concurrent full run reproduced the same documented host contention and one
+  additional unrelated compiler-adapter 15-second timeout; 280 passed / 2 skipped / 3 failed
+- isolated compiler adapter: 9/9 passed
+- peer dependency, JSON, diff, and Harness checks: passed
+- final format, JSON, diff, and Harness checks were rerun after the handoff update
+
+## Entry: Remove Spec Understanding Markdown Format Checking
+
+### Outcome
+
+The operator chose to let the model generate Spec Understanding Markdown on a best-effort basis
+without checking the completed document's format. Removed the line-oriented Markdown Checker,
+requirement/mapping extraction, issue/result API, and seven format-oriented tests. Kept three
+task-specific templates plus trusted caller validation for the task kind, Spec digest, and the DUT
+manifest digest required by verification planning.
+
+Updated the R05 design, task breakdown, verification guidance, decision record, error journal, and
+handoff state. The template headings and frontmatter are now explicitly prompt guidance rather than
+an acceptance grammar. Model invocation, semantic review, and downstream RTL/assertion/checker/TB
+generation remain outside R05.
+
+### Validation
+
+- focused Spec Understanding template suite: 3/3 passed
+- lint and typecheck: passed
+- full repository with one worker: 37 files passed / one skipped; 276 tests passed / two skipped
+- build, format, and peer dependency checks: passed
+- final JSON, diff, and Harness checks: passed after this handoff update

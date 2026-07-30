@@ -1,19 +1,15 @@
 {
-  "task_id": "r04-bounded-repair-loop-and-evaluation",
-  "status": "in_progress",
-  "current_phase": "implementation_complete_awaiting_acceptance_review",
-  "last_updated": "2026-07-30T11:25:21+08:00",
+  "task_id": "r05-spec-understanding-markdown-contract",
+  "status": "complete",
+  "current_phase": "r05_best_effort_templates_complete_awaiting_agent_integration_direction",
+  "last_updated": "2026-07-30T17:25:08+08:00",
   "active_plan": [
-    "Record the final operator license-review disposition for the pinned dataset sources",
-    "Resolve the operator-selected VerilogEval range/list into a concrete capability-bound profile",
-    "Use the existing functional evidence or run an acceptance-qualified profile without repeating exploratory work",
-    "Execute the real batch and predeclared human review",
-    "Complete the report and record one checkpoint recommendation"
+    "R05 best-effort templates complete; wait for explicit operator direction before Agent/model or workflow integration"
   ],
   "next_3_steps": [
-    "Confirm the MIT/license-review disposition and choose a VerilogEval range or sparse case list",
-    "Select the acceptance-qualified evidence/profile and inspect its locked selection evidence",
-    "Complete human review, report metrics, and choose the checkpoint recommendation"
+    "Choose whether a restricted Agent should fill the best-effort Markdown templates",
+    "Define derived assertion/checker/testbench generation contracts if requested",
+    "Integrate with the durable workflow only after an explicit operator decision"
   ],
   "changed_files": [
     ".opencode/agents/rtl-core-loop.md",
@@ -51,11 +47,13 @@
     "docs/decisions.md",
     "docs/error-journal.md",
     "docs/experiments/spec-to-rtl-core-loop-report.md",
+    "docs/spec-understanding.md",
     "docs/task-breakdown.md",
     "docs/tasks/R01-core-loop-contract-and-fixtures.md",
     "docs/tasks/R02-opencode-rtl-agent-protocol.md",
     "docs/tasks/R03-fixed-non-authoritative-compile-adapter.md",
     "docs/tasks/R04-bounded-repair-loop-and-evaluation.md",
+    "docs/tasks/R05-spec-understanding-markdown-contract.md",
     "docs/verification.md",
     "exp_result/verilog-eval/07.21-baseline.md",
     "exp_result/verilog-eval/07.23-kimi-opencode-001-156.md",
@@ -87,6 +85,7 @@
     "packages/core-loop/src/output.ts",
     "packages/core-loop/src/pi-agent-adapter.ts",
     "packages/core-loop/src/run-orchestrator.ts",
+    "packages/core-loop/src/spec-understanding.ts",
     "packages/core-loop/src/verilog-eval-lock.ts",
     "packages/core-loop/src/verilog-eval-prepare.ts",
     "packages/core-loop/src/verilog-eval-provider.ts",
@@ -109,6 +108,7 @@
     "packages/core-loop/test/pi-agent-adapter.test.ts",
     "packages/core-loop/test/r04-iverilog.integration.test.ts",
     "packages/core-loop/test/run-orchestrator.test.ts",
+    "packages/core-loop/test/spec-understanding.test.ts",
     "packages/core-loop/test/verilog-eval-provider.test.ts",
     "packages/core-loop/test/verilator-coverage.integration.test.ts",
     "packages/core-loop/test/verilog-eval-simulation.test.ts",
@@ -372,18 +372,55 @@
       ,"node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe"
       ,"git diff --check"
       ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm test (first and second runs: documented Windows fake process-tree race)"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm test"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"corepack pnpm peers check"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1 (10 passed)"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm test (documented Windows Agent/batch process scheduling races)"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/batch-evaluator.test.ts --config vitest.config.ts --maxWorkers=1"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1 (21 passed)"
+      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1 (283 passed, 2 skipped)"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"corepack pnpm test (second run: documented Windows Agent/batch/compiler scheduling races)"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/compiler-adapter.test.ts --config vitest.config.ts --maxWorkers=1 (9 passed)"
+      ,"corepack pnpm peers check"
+      ,"node -e session-state JSON parse"
+      ,"git diff --check"
+      ,"corepack pnpm format:check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1 (3 passed)"
+      ,"corepack pnpm lint"
+      ,"corepack pnpm typecheck"
+      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1 (276 passed, 2 skipped)"
+      ,"corepack pnpm build"
+      ,"corepack pnpm format:check"
+      ,"corepack pnpm peers check"
+      ,"node -e session-state JSON parse"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Guarded commit review accepted first-successful mismatch analysis as stable per batch/run and documented that later --analyzer selections reuse it. Frozen install, lint, typecheck, build, format, peers, Pi capability probe, diff, JSON, and Harness checks passed. The known Windows fake process-tree race reproduced once; its 21-test isolated rerun and the independent full rerun passed, with 273 tests passed and two skipped.",
+    "last_result": "R05 now provides three best-effort Markdown templates and validates only trusted task/Spec/DUT inputs. The generated-Markdown Checker and its issue/result API were removed. Focused 3/3 and full single-worker 276 passed / 2 skipped; lint, typecheck, build, format, peers, diff, JSON, and Harness passed.",
     "known_failures": [
-      "Final operator MIT/license-review disposition is not yet recorded",
-      "No acceptance-qualified R04 profile plus predeclared human-review checkpoint has completed; exploratory real batches exist",
       "Direct host vvp execution is an explicitly accepted local benchmark risk and is not suitable for a formal Gate or production claim",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
       ,"Coverage-Agent results require semantic human review; structural coverage does not establish functional correctness"
+      ,"Spec Understanding MVP does not validate generated Markdown format, completeness, traceability, or semantics; model generation also remains unimplemented"
     ]
   },
   "cognitive_state": {
-    "failure_count": 5,
+    "failure_count": 7,
     "current_mode": "handoff",
     "tried_approaches": [
       "Composed existing strict R02/R03 outcomes instead of duplicating their policy",
@@ -395,10 +432,10 @@
       "Traced the Windows-only Prettier failure to missing MJS LF classification and fixed the checkout boundary in .gitattributes",
       "Derived the new package-scoped lock-parity test root from import.meta.url after pnpm cwd exposed the relative-path assumption"
     ],
-    "blocked_on": "Final license-review disposition, execution of an operator-selected resolved profile, and the required human review"
+    "blocked_on": "None for R05; waiting for explicit direction on Agent/model and downstream artifact generation"
   },
   "handoff": {
-    "last_summary": "Mismatch diagnosis is backend-independent before its first successful result; each batch/run then reuses that stable accepted evidence. Guarded Windows validation passed after the documented process-tree race was isolated and rerun.",
-    "resume_from": "Use reanalyze --batch <id> --analyzer pi only when that batch/run has no successful diagnosis evidence yet. R04 still requires final license disposition and predeclared human review."
+    "last_summary": "R05 remains DONE with three task-specific best-effort Markdown templates; generated output is no longer format-checked, while trusted task/Spec/DUT inputs remain validated.",
+    "resume_from": "Choose whether to add a restricted Agent that fills the templates or first split the verification plan into assertion, checker, and testbench generation briefs."
   }
 }
