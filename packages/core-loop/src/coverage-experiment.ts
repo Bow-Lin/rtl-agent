@@ -135,6 +135,8 @@ export interface VerilatorCoverageConfig {
   readonly environment: NodeJS.ProcessEnv;
   readonly timeoutMs?: number;
   readonly cflags?: readonly string[];
+  readonly dutSourcePaths?: readonly string[];
+  readonly includeDirectories?: readonly string[];
 }
 
 export interface CoverageRoundRunner {
@@ -145,12 +147,38 @@ function percent(hit: number, found: number): number {
   return found === 0 ? 100 : Math.round((hit / found) * 10_000) / 100;
 }
 
+function normalizedDutSourcePaths(sourcePaths: readonly string[] | undefined): readonly string[] {
+  const paths = (sourcePaths ?? ["rtl/dut.sv"]).map((sourcePath) =>
+    LogicalPathSchema.parse(sourcePath),
+  );
+  if (paths.length === 0 || new Set(paths).size !== paths.length) {
+    throw new CoreLoopException(
+      "COVERAGE_EXPERIMENT_FAILED",
+      "DUT coverage source paths must be non-empty and unique",
+    );
+  }
+  return paths;
+}
+
+function matchDutSource(
+  rawSource: string | undefined,
+  dutSourcePaths: readonly string[],
+): string | undefined {
+  if (rawSource === undefined) return undefined;
+  const normalized = rawSource.replaceAll("\\", "/").replace(/^\.\//, "");
+  return dutSourcePaths.find(
+    (sourcePath) => normalized === sourcePath || normalized.endsWith(`/${sourcePath}`),
+  );
+}
+
 export function parseLcovCoverage(
   content: string,
   runId: RunId,
   round: number,
   previousScore: number | undefined,
+  dutSources?: readonly string[],
 ): CoverageFeedback {
+  const dutSourcePaths = normalizedDutSourcePaths(dutSources);
   const targets: z.infer<typeof CoverageTargetSchema>[] = [];
   let activeSource: string | undefined;
   let lineFound = 0;
@@ -159,11 +187,7 @@ export function parseLcovCoverage(
   let branchHit = 0;
   for (const rawLine of content.replace(/\r\n?/g, "\n").split("\n")) {
     if (rawLine.startsWith("SF:")) {
-      const normalized = rawLine.slice(3).replaceAll("\\", "/");
-      activeSource =
-        normalized.endsWith("/rtl/dut.sv") || normalized === "rtl/dut.sv"
-          ? "rtl/dut.sv"
-          : undefined;
+      activeSource = matchDutSource(rawLine.slice(3), dutSourcePaths);
       continue;
     }
     if (activeSource === undefined) continue;
@@ -183,10 +207,10 @@ export function parseLcovCoverage(
       else
         targets.push({
           kind: "LINE",
-          sourcePath: LogicalPathSchema.parse("rtl/dut.sv"),
+          sourcePath: LogicalPathSchema.parse(activeSource),
           line,
           hitCount,
-          description: `Execute DUT line ${String(line)}`,
+          description: `Execute ${activeSource} line ${String(line)}`,
         });
       continue;
     }
@@ -208,12 +232,12 @@ export function parseLcovCoverage(
       else
         targets.push({
           kind: "BRANCH",
-          sourcePath: LogicalPathSchema.parse("rtl/dut.sv"),
+          sourcePath: LogicalPathSchema.parse(activeSource),
           line,
           block,
           branch,
           hitCount,
-          description: `Exercise DUT branch ${String(branch)} on line ${String(line)}`,
+          description: `Exercise ${activeSource} branch ${String(branch)} on line ${String(line)}`,
         });
     }
   }
@@ -275,18 +299,24 @@ function coverageDataForType(
   return `${[header, ...selected].join("\n")}\n`;
 }
 
-export function parseVerilatorToggleCoverage(content: string): {
+export function parseVerilatorToggleCoverage(
+  content: string,
+  dutSources?: readonly string[],
+): {
   readonly metric: CoverageFeedback["toggle"];
   readonly uncoveredTargets: CoverageFeedback["uncoveredTargets"];
 } {
-  const records = parseVerilatorCoverageRecords(content).filter((record) => {
-    const source = record.metadata.f?.replaceAll("\\", "/");
-    return record.metadata.t === "toggle" && source === "rtl/dut.sv";
+  const dutSourcePaths = normalizedDutSourcePaths(dutSources);
+  const records = parseVerilatorCoverageRecords(content).flatMap((record) => {
+    const sourcePath = matchDutSource(record.metadata.f, dutSourcePaths);
+    return record.metadata.t === "toggle" && sourcePath !== undefined
+      ? [{ record, sourcePath }]
+      : [];
   });
-  const hit = records.filter((record) => record.hitCount > 0).length;
+  const hit = records.filter(({ record }) => record.hitCount > 0).length;
   const uncoveredTargets = records
-    .filter((record) => record.hitCount === 0)
-    .flatMap((record) => {
+    .filter(({ record }) => record.hitCount === 0)
+    .flatMap(({ record, sourcePath }) => {
       const line = Number(record.metadata.l);
       const operation = record.metadata.o;
       const operationMatch = operation === undefined ? null : /^(.+):(.+->.+)$/.exec(operation);
@@ -296,7 +326,7 @@ export function parseVerilatorToggleCoverage(content: string): {
       return [
         CoverageTargetSchema.parse({
           kind: "TOGGLE",
-          sourcePath: "rtl/dut.sv",
+          sourcePath,
           line,
           signal,
           transition,
@@ -372,6 +402,10 @@ export class VerilatorCoverageRunner implements CoverageRoundRunner {
       .map((file) => `rtl/${file.logicalPath}`)
       .filter((file) => /\.(?:sv|v)$/i.test(file))
       .sort();
+    const dutSourcePaths = normalizedDutSourcePaths(this.config.dutSourcePaths);
+    const includeArguments = (this.config.includeDirectories ?? []).map(
+      (directory) => `-I${LogicalPathSchema.parse(directory)}`,
+    );
     const executableName = process.platform === "win32" ? "sim.exe" : "sim";
     const common = {
       environment: this.config.environment,
@@ -400,6 +434,7 @@ export class VerilatorCoverageRunner implements CoverageRoundRunner {
         ...(this.config.cflags === undefined
           ? []
           : this.config.cflags.flatMap((flag) => ["-CFLAGS", flag])),
+        ...includeArguments,
         ...sources,
       ],
       cwd: run.workspaceDirectory,
@@ -492,8 +527,9 @@ export class VerilatorCoverageRunner implements CoverageRoundRunner {
       run.runId,
       round,
       undefined,
+      dutSourcePaths,
     );
-    const toggleFeedback = parseVerilatorToggleCoverage(rawCoverage);
+    const toggleFeedback = parseVerilatorToggleCoverage(rawCoverage, dutSourcePaths);
     if (lineFeedback.line.found === 0 && toggleFeedback.metric.found === 0) {
       throw new CoreLoopException(
         "COVERAGE_EXPERIMENT_FAILED",
@@ -569,7 +605,7 @@ export function coverageRunDirectoryName(startedAt: Date, collisionIndex = 0): s
   return `run_${timestamp}${collisionIndex === 0 ? "" : `-${padDatePart(collisionIndex, 3)}`}`;
 }
 
-async function missingVerificationAssetRequirements(
+export async function missingVerificationAssetRequirements(
   run: CoreLoopRun,
 ): Promise<readonly VerificationAssetRequirement[]> {
   const tbPath = path.join(run.workspaceDirectory, "rtl", "tb.sv");

@@ -2,35 +2,32 @@
 
 ## Goal
 
-Create a shorter common-guidance v2 candidate from the original-guidance and v1 Pi/K3 VerilogEval
-results and their mismatch/compile analyses, without activating the candidate or rerunning models.
+Connect the locked FreeCores I2C baseline to an Agent-driven coverage-improvement flow through a
+new command, without changing the existing `core-loop:coverage` command.
 
 ## Current Status
 
-R05 is `DONE` as of 2026-07-30.
+Implementation and scoped validation are complete. The new command is
+`corepack pnpm core-loop:i2c-coverage --agent <pi|opencode>`. It validates and normalizes the exact
+seven-file baseline, measures the unchanged baseline in round one, and permits at most two Agent
+turns that may edit only `rtl/tb.sv` and `rtl/checker.sv`.
 
-The inactive `config/agents/rtl-core-loop/common-guidance_v2.md` candidate is complete. It is based
-on the original run's 131/156 result and v1's 130/156 result, including the 10 improvements, 11
-regressions, 15 v1 mismatches, and 10 repeated Icarus enum/state compile failures.
+The normalized baseline completed a real Windows Verilator round at 78.16% aggregate coverage
+(359/443 lines, 20/28 branches, and 553/740 toggles). No real Agent refinement run was performed,
+so no Agent coverage-gain claim is made. Results remain non-authoritative and require semantic
+human review.
 
-v2 keeps timing, Moore/Mealy, exact index/width, FSM transition, bit mapping, and counter-boundary
-checks. It replaces v1's mandatory pre-coding process with conditional analysis, prefers the
-smallest specification-faithful implementation, forbids unrequested latency/state/reset behavior,
-and defaults FSM encodings to `logic` plus `localparam logic`. At 98 lines and 915 words it is
-shorter than v1's 123 lines and 1,188 words.
-
-The active `config/agents/rtl-core-loop/common-guidance.md` is v1. The latest full-dataset
-experiment explicitly activated that content and recorded one consistent v1 guidance digest across
-all three batches and v1 content in all 156 generation transcripts. Creating v2 did not change the
-active v1 guidance and made no additional model call, RTL generation, compile, or simulation.
-Scoped content assertions, Prettier, session-state JSON parsing, `git diff --check`, and the Harness
-check pass. R04 and R05 remain `DONE`.
+The latest completed full-dataset VerilogEval guidance experiment ran on common-guidance v1. The
+I2C workflow is a separate experiment and does not alter that historical identity. An unrelated
+user-owned worktree edit currently changes active `common-guidance.md` to v2; it is outside this
+task and must not be included silently in the I2C commit.
 
 ## Next Boundary
 
-Review and explicitly activate v2 only if an experiment is intended. Then run separately identified,
-preferably repeated A/B trials or held-out cases before making a general capability claim.
+Complete the guarded commit-main review and land only the reviewed I2C implementation and handoff
+files. Later, run the new command with a selected Agent and perform semantic human review if a real
+coverage-improvement experiment is intended.
 
 ## Last Updated
 
-2026-08-03T10:40:31+08:00
+2026-08-03T11:40:00+08:00

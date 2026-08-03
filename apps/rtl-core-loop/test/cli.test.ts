@@ -150,6 +150,24 @@ describe("rtl-core-loop CLI boundary", () => {
     });
   });
 
+  it("routes the independent I2C coverage command and rejects unsupported agents", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      ["i2c-coverage", "--agent", "unsupported"],
+      undefined,
+      (line) => output.push(line),
+      (line) => errors.push(line),
+      {},
+    );
+    expect(exitCode).toBe(2);
+    expect(output).toEqual([]);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      ok: false,
+      error: { code: "EVALUATION_PROFILE_INVALID", retryable: false },
+    });
+  });
+
   it("recognizes compile-smoke and fails closed when Icarus is unavailable", async () => {
     const output: string[] = [];
     const errors: string[] = [];

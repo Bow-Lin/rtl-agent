@@ -92,6 +92,17 @@ describe("Core Loop contracts", () => {
     expect(
       AgentAttemptInputSchema.safeParse({
         ...seededAgentInput,
+        attempt: 3,
+        rtlSourceFiles: ["rtl/dut/i2c.v", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        protectedRtlPaths: ["rtl/dut/i2c.v"],
+        mutableRtlPaths: ["rtl/checker.sv", "rtl/tb.sv"],
+        verificationFeedbackPath: "context/verification-feedback-attempt-2.json",
+      }).success,
+    ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
         rtlSourceFiles: ["rtl/readme.txt"],
       }).success,
     ).toBe(false);
@@ -104,6 +115,28 @@ describe("Core Loop contracts", () => {
         verilatorCompileFeedbackPath: "context/verilator-compile-feedback-attempt-1.json",
       }).success,
     ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 2,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut/i2c.v", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        protectedRtlPaths: ["rtl/dut/i2c.v"],
+        mutableRtlPaths: ["rtl/checker.sv", "rtl/tb.sv"],
+        coverageFeedbackPath: "context/coverage-round-1.json",
+      }).success,
+    ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 2,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut/i2c.v", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        protectedRtlPaths: ["rtl/dut/i2c.v"],
+        mutableRtlPaths: ["rtl/dut/i2c.v", "rtl/tb.sv"],
+        coverageFeedbackPath: "context/coverage-round-1.json",
+      }).success,
+    ).toBe(false);
     expect(
       AgentAttemptInputSchema.safeParse({
         ...seededAgentInput,

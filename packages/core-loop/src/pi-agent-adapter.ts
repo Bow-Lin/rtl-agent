@@ -277,7 +277,7 @@ function fixedPrompt(guidance: string): string {
     "Read context/agent-input.json and execute exactly one bounded RTL or verification-asset editing attempt.",
     "The case specification is authoritative.",
     "Only read spec.md, context/**, and rtl/**. Only write or edit RTL files under rtl/.",
-    "In VERIFICATION_ASSET_GENERATION mode, keep rtl/dut.sv unchanged and create or improve rtl/tb.sv and rtl/checker.sv.",
+    "In VERIFICATION_ASSET_GENERATION mode, obey protectedRtlPaths and mutableRtlPaths when present; otherwise keep rtl/dut.sv unchanged and create or improve rtl/tb.sv and rtl/checker.sv.",
     "Read coverageFeedbackPath, verificationFeedbackPath, or verilatorCompileFeedbackPath when present and repair every listed requirement; assertion failures must call $fatal.",
     "Do not claim compilation or functional verification.",
     "",

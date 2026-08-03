@@ -32,7 +32,7 @@ import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.
 
 const AGENT_NAME = "rtl-core-loop" as const;
 const FIXED_PROMPT =
-  "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one bounded RTL or verification-asset editing attempt.";
+  "Load the rtl-core-loop skill, read context/agent-input.json, obey any explicit protectedRtlPaths and mutableRtlPaths, and execute exactly one bounded RTL or verification-asset editing attempt.";
 const GUIDANCE_FILE_NAME = "common-guidance.md" as const;
 const MAXIMUM_GUIDANCE_BYTES = 16_384;
 const REQUIRED_RUN_FLAGS = [

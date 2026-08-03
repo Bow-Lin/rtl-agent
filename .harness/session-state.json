@@ -1,466 +1,72 @@
 {
-  "task_id": "verilog-eval-k3-guidance-v2-candidate",
+  "task_id": "freecores-i2c-coverage-command",
   "status": "complete",
-  "current_phase": "guidance_v2_candidate_complete",
-  "last_updated": "2026-08-03T10:40:31+08:00",
+  "current_phase": "implementation_validated_pending_commit",
+  "last_updated": "2026-08-03T11:40:00+08:00",
   "active_plan": [
-    "Shorter common-guidance v2 candidate complete and inactive; wait for explicit activation or experiment direction"
+    "Land the independently reviewed I2C coverage command without including unrelated active-guidance edits"
   ],
   "next_3_steps": [
-    "Review whether to activate common-guidance_v2.md as common-guidance.md",
-    "If requested, run repeated original/v2 A/B trials with separately locked identities",
-    "Use held-out cases before making a general capability claim"
+    "Run corepack pnpm core-loop:i2c-coverage --agent pi when a real Agent experiment is intended",
+    "Perform the required semantic human review of the resulting checker and residual targets",
+    "Keep future I2C results separate from the latest completed full-dataset common-guidance v1 experiment"
   ],
   "changed_files": [
-    ".opencode/agents/rtl-core-loop.md",
-    ".opencode/agents/rtl-mismatch-analyzer.md",
-    ".opencode/skills/rtl-core-loop/SKILL.md",
-    ".pi/README.md",
-    ".pi/capability.json",
-    ".pi/extensions/rtl-core-loop-policy.mjs",
-    ".pi/extensions/rtl-mismatch-analyzer-policy.mjs",
-    ".pi/skills/README.md",
-    ".gitignore",
-    ".gitattributes",
     ".harness/session-log.md",
     ".harness/session-state.json",
     "apps/rtl-core-loop/package.json",
-    "apps/rtl-core-loop/src/cli-arguments.ts",
-    "apps/rtl-core-loop/src/cli-error.ts",
-    "apps/rtl-core-loop/src/coverage-command.ts",
     "apps/rtl-core-loop/src/environment.ts",
+    "apps/rtl-core-loop/src/i2c-coverage-command.ts",
     "apps/rtl-core-loop/src/index.ts",
-    "apps/rtl-core-loop/src/mismatch-analyzer-selection.ts",
-    "apps/rtl-core-loop/src/profile-selection.ts",
-    "apps/rtl-core-loop/src/reanalysis-command.ts",
-    "apps/rtl-core-loop/src/verilog-eval-profile.ts",
     "apps/rtl-core-loop/test/cli.test.ts",
-    "apps/rtl-core-loop/test/environment.test.ts",
-    "apps/rtl-core-loop/test/profile-selection.test.ts",
-    "config/agents/rtl-core-loop/common-guidance.md",
-    "config/agents/rtl-core-loop/common-guidance_v0.md",
-    "config/agents/rtl-core-loop/common-guidance_v1.md",
-    "config/agents/rtl-core-loop/common-guidance_v2.md",
-    "core-loop/fixtures/chipbench.lock.json",
-    "core-loop/fixtures/README.md",
-    "core-loop/fixtures/verilog-eval-v2.lock.json",
     "current-task.md",
-    "docs/architecture.md",
     "docs/coverage-experiment.md",
     "docs/decisions.md",
-    "docs/error-journal.md",
-    "docs/experiments/spec-to-rtl-core-loop-report.md",
-    "docs/spec-understanding.md",
-    "docs/task-breakdown.md",
-    "docs/tasks/R01-core-loop-contract-and-fixtures.md",
-    "docs/tasks/R02-opencode-rtl-agent-protocol.md",
-    "docs/tasks/R03-fixed-non-authoritative-compile-adapter.md",
-    "docs/tasks/R04-bounded-repair-loop-and-evaluation.md",
-    "docs/tasks/R05-spec-understanding-markdown-contract.md",
+    "docs/i2c-coverage-experiment.md",
     "docs/verification.md",
-    "exp_result/verilog-eval/07.21-baseline.md",
-    "exp_result/verilog-eval/07.23-kimi-opencode-001-156.md",
-    "exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md",
-    "exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md",
-    "exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md",
-    "packages/core-loop/package.json",
+    "package.json",
     "packages/core-loop/src/agent-adapter.ts",
-    "packages/core-loop/src/batch-evaluator.ts",
-    "packages/core-loop/src/chipbench-lock.ts",
-    "packages/core-loop/src/chipbench-prepare.ts",
-    "packages/core-loop/src/chipbench-provider.ts",
-    "packages/core-loop/src/compile-preparation.ts",
-    "packages/core-loop/src/compiler-adapter.ts",
-    "packages/core-loop/src/compiler-contracts.ts",
-    "packages/core-loop/src/compiler-diagnostics.ts",
-    "packages/core-loop/src/compiler-process.ts",
-    "packages/core-loop/src/compiler-profile.ts",
     "packages/core-loop/src/contracts.ts",
     "packages/core-loop/src/coverage-experiment.ts",
-    "packages/core-loop/src/errors.ts",
-    "packages/core-loop/src/evaluation-contracts.ts",
-    "packages/core-loop/src/evaluation-metrics.ts",
-    "packages/core-loop/src/evidence.ts",
-    "packages/core-loop/src/include-scanner.ts",
+    "packages/core-loop/src/i2c-coverage-experiment.ts",
+    "packages/core-loop/src/i2c-coverage-lock.ts",
+    "packages/core-loop/src/i2c-coverage-provider.ts",
     "packages/core-loop/src/index.ts",
-    "packages/core-loop/src/materialize.ts",
-    "packages/core-loop/src/mismatch-analyzer.ts",
-    "packages/core-loop/src/observed-issues.ts",
-    "packages/core-loop/src/output.ts",
     "packages/core-loop/src/pi-agent-adapter.ts",
-    "packages/core-loop/src/run-orchestrator.ts",
-    "packages/core-loop/src/spec-understanding.ts",
-    "packages/core-loop/src/verilog-eval-lock.ts",
-    "packages/core-loop/src/verilog-eval-prepare.ts",
-    "packages/core-loop/src/verilog-eval-provider.ts",
-    "packages/core-loop/src/verilog-eval-simulation.ts",
-    "packages/core-loop/test/agent-adapter.test.ts",
-    "packages/core-loop/test/batch-evaluator.test.ts",
-    "packages/core-loop/test/chipbench-provider.test.ts",
-    "packages/core-loop/test/compile-preparation.test.ts",
-    "packages/core-loop/test/compiler-adapter.test.ts",
-    "packages/core-loop/test/compiler-diagnostics.test.ts",
-    "packages/core-loop/test/compiler-process.test.ts",
-    "packages/core-loop/test/compiler-test-fixtures.ts",
     "packages/core-loop/test/contracts.test.ts",
     "packages/core-loop/test/coverage-experiment.test.ts",
-    "packages/core-loop/test/evaluation-test-fixtures.ts",
-    "packages/core-loop/test/iverilog.integration.test.ts",
-    "packages/core-loop/test/materialize.test.ts",
-    "packages/core-loop/test/mismatch-analyzer.test.ts",
-    "packages/core-loop/test/observed-issues.test.ts",
-    "packages/core-loop/test/pi-agent-adapter.test.ts",
-    "packages/core-loop/test/r04-iverilog.integration.test.ts",
-    "packages/core-loop/test/run-orchestrator.test.ts",
-    "packages/core-loop/test/spec-understanding.test.ts",
-    "packages/core-loop/test/verilog-eval-provider.test.ts",
-    "packages/core-loop/test/verilator-coverage.integration.test.ts",
-    "packages/core-loop/test/verilog-eval-simulation.test.ts",
-    "package.json",
-    "pnpm-lock.yaml",
-    "test_pi_connection.ts",
-    "test_connection.ts",
-    "vitest.config.ts",
-    "vitest.iverilog.config.ts"
+    "packages/core-loop/test/i2c-coverage.test.ts"
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm install --frozen-lockfile",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm --filter @rtl-agent/core-loop --fail-if-no-match test",
-      "corepack pnpm --filter @rtl-agent/rtl-core-loop --fail-if-no-match test",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "corepack pnpm peers check",
-      "corepack pnpm --filter @rtl-agent/core-loop test:integration:iverilog",
-      "corepack pnpm --filter @rtl-agent/rtl-core-loop compile:smoke",
-      "corepack pnpm core-loop:agent:probe",
-      "CORE_LOOP_REAL_AGENT_TEST=1 corepack pnpm core-loop:agent:smoke",
-      "corepack pnpm core-loop:dataset:prepare",
-      "corepack pnpm core-loop:fixtures:check",
-      "corepack pnpm core-loop:dataset:prepare:chipbench",
-      "corepack pnpm core-loop:fixtures:check:chipbench",
-      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts apps/rtl-core-loop/test/environment.test.ts --config vitest.config.ts",
-      "corepack pnpm core-loop:agent:probe (Kimi Code)",
-      "CORE_LOOP_REAL_AGENT_TEST=1 vitest -t 'performs one explicit test-only blank-generation turn' (Kimi Code)",
-      "corepack pnpm format:check",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "node test_connection.ts",
-      "static createVerilogEvalKimiBaseProfile + range/list resolution against the real pinned cache",
-      "node apps/rtl-core-loop/dist/index.js evaluate --profile verilog-eval-kimi-v1 --begin Prob010 --end Prob001",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "npm run build",
-      "npm run lint",
-      "npm test -- --run",
-      "real iverilog + vvp against existing Prob001/Prob002 generated candidates",
-      "source-bound Icarus l-value classification and batch-continuation regressions",
-      "automatic observed-issue journaling and restricted concrete mismatch diagnosis regressions",
-      "corepack pnpm exec vitest run packages/core-loop/test/verilog-eval-simulation.test.ts packages/core-loop/test/observed-issues.test.ts packages/core-loop/test/mismatch-analyzer.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm build",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/observed-issues.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/observed-issues.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/observed-issues.test.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm test",
-      "corepack pnpm exec vitest run packages/core-loop/test/batch-evaluator.test.ts packages/core-loop/test/agent-adapter.test.ts",
-      "corepack pnpm test",
-      "corepack pnpm exec prettier --write packages/core-loop/src/observed-issues.ts",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/mismatch-analyzer.test.ts packages/core-loop/test/observed-issues.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts",
-      "corepack pnpm build",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js reanalyze --batch b-20260723-002",
-      "corepack pnpm test",
       "corepack pnpm typecheck",
       "corepack pnpm lint",
       "corepack pnpm build",
       "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts",
-      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/run-orchestrator.test.ts packages/core-loop/test/batch-evaluator.test.ts --config vitest.config.ts",
-      "corepack pnpm build",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm format:check",
-      "corepack pnpm test",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js evaluate --profile verilog-eval-kimi-pi-v1 --cases Prob001",
-      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm exec eslint packages/core-loop/src/agent-contracts.ts packages/core-loop/src/run-orchestrator.ts packages/core-loop/src/pi-agent-adapter.ts packages/core-loop/test/pi-agent-adapter.test.ts",
-      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts",
-      "corepack pnpm test",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe",
-      "read-only aggregation assertions over b-20260723-001/002/003/004/006 functional-simulation-result.json",
-      "corepack pnpm exec prettier --check exp_result/verilog-eval/07.23-kimi-opencode-001-156.md --ignore-unknown",
-      "corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts apps/rtl-core-loop/test/profile-selection.test.ts packages/core-loop/test/batch-evaluator.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm lint",
-      "corepack pnpm build",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js evaluate --profile verilog-eval-kimi-v1 --agent unsupported --cases Prob001",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "node test_pi_connection.ts",
-      "node test_pi_connection.ts --prompt \"仅回复 PI_OK\" --timeout-ms 120000",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm build",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "node test_pi_connection.ts \"仅回复 PI_OK\"",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/observed-issues.test.ts --config vitest.config.ts",
-      "corepack pnpm typecheck",
-      "corepack pnpm build",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe",
-      "node .\\test_pi_connection.ts \"仅回复 PI_OK\"",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js agent-probe",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "corepack pnpm exec vitest run packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm build",
-      "node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe",
-      "corepack pnpm test",
-      "corepack pnpm core-loop:evaluate:pi --cases NotARealCase",
-      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm test",
-      "corepack pnpm format:check",
-      "git diff --check",
-      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh",
-      "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe --version",
-      "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe -CFLAGS -D_GLIBCXX_USE_CXX11_ABI=0 --binary --coverage --timing --top-module tb tb.sv --Mdir obj_dir_abi0 -o sim.exe",
-      "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe --report summary --annotate annotate-min1 --annotate-min 1 coverage.dat"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/verilog-eval-provider.test.ts --config vitest.config.ts"
-      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"node apps/rtl-core-loop/dist/index.js coverage --case Prob001_zero --agent opencode"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm test"
-      ,"scoped eslint/prettier checks for coverage experiment files"
-      ,"git diff --check"
-      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/profile-selection.test.ts --config vitest.config.ts"
-      ,"scoped eslint/prettier checks for coverage case-prefix selection"
-      ,"real Verilator compile/simulation/LCOV recheck of run_e3b8f3cf-1d68-4d38-a373-351b8eb0583e assets"
-      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
-      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/environment.test.ts apps/rtl-core-loop/test/profile-selection.test.ts packages/core-loop/test/coverage-experiment.test.ts --config vitest.config.ts"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/pi-agent-adapter.test.ts"
-      ,"corepack pnpm test"
-      ,"corepack pnpm core-loop:coverage --case Prob101 --agent pi"
-      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/contracts.test.ts packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/pi-agent-adapter.test.ts"
-      ,"real Verilator recheck of run_70f67eaf-722e-4a9a-9bbb-aa74e1383338 generated five repairable TB diagnostics"
-      ,"corepack pnpm core-loop:coverage --case Prob131 --agent pi"
-      ,"corepack pnpm test"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm format:check"
-      ,"git diff --check"
-      ,"corepack pnpm exec vitest run --config vitest.config.ts packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/materialize.test.ts"
-      ,"corepack pnpm test"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"git diff --check"
-      ,"RUN_VERILATOR_COVERAGE=1 corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"read-only aggregation of b-20260724-001/002 and b-20260729-001/002 selection, summary, batch-result, and functional-simulation evidence"
-      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md --ignore-unknown"
-      ,"git diff --check"
-      ,"read-only aggregation of b-20260729-003/004 and b-20260730-001 selection, capability, batch-result, run, and functional-simulation evidence"
-      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md --ignore-unknown"
-      ,"corepack pnpm exec tsc -p apps/rtl-core-loop/tsconfig.json --noEmit"
-      ,"corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts apps/rtl-core-loop/test/profile-selection.test.ts apps/rtl-core-loop/test/environment.test.ts apps/rtl-core-loop/test/verilog-eval-profile.test.ts --config vitest.config.ts"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm test"
-      ,"corepack pnpm format:check"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/mismatch-analyzer.test.ts packages/core-loop/test/pi-agent-adapter.test.ts apps/rtl-core-loop/test/cli.test.ts packages/core-loop/test/observed-issues.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm build"
-      ,"corepack pnpm test (first run: known Windows fake process-tree race)"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm test"
-      ,"corepack pnpm format:check"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"corepack pnpm install --frozen-lockfile"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm test (first run: known Windows fake process-tree race)"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm test"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"corepack pnpm peers check"
-      ,"node .\\apps\\rtl-core-loop\\dist\\index.js pi-agent-probe"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm test (first and second runs: documented Windows fake process-tree race)"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm test"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"corepack pnpm peers check"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1 (10 passed)"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm test (documented Windows Agent/batch process scheduling races)"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts packages/core-loop/test/batch-evaluator.test.ts --config vitest.config.ts --maxWorkers=1"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1 (21 passed)"
-      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1 (283 passed, 2 skipped)"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"corepack pnpm test (second run: documented Windows Agent/batch/compiler scheduling races)"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/compiler-adapter.test.ts --config vitest.config.ts --maxWorkers=1 (9 passed)"
-      ,"corepack pnpm peers check"
-      ,"node -e session-state JSON parse"
-      ,"git diff --check"
-      ,"corepack pnpm format:check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"corepack pnpm exec vitest run packages/core-loop/test/spec-understanding.test.ts --config vitest.config.ts --maxWorkers=1 (3 passed)"
-      ,"corepack pnpm lint"
-      ,"corepack pnpm typecheck"
-      ,"corepack pnpm exec vitest run --config vitest.config.ts --maxWorkers=1 (276 passed, 2 skipped)"
-      ,"corepack pnpm build"
-      ,"corepack pnpm format:check"
-      ,"corepack pnpm peers check"
-      ,"node -e session-state JSON parse"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"read-only reconciliation of all 16 K3 mismatch analyses across b-20260729-003/004 and b-20260730-001"
-      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance_v1.md docs/decisions.md --ignore-unknown"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"read-only reconciliation of b-20260803-002, b-20260731-002, and b-20260803-001 selection, capability, transcript, batch-result, functional-simulation, and mismatch-analysis evidence"
-      ,"case-aligned comparison with b-20260729-003, b-20260729-004, and b-20260730-001"
-      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md --ignore-unknown"
-      ,"node/PowerShell session-state JSON parse"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"common-guidance v2 content assertions including active-guidance digest stability"
-      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance_v2.md docs/decisions.md current-task.md .harness/session-state.json .harness/session-log.md --ignore-unknown"
-      ,"PowerShell session-state JSON parse"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
-      ,"v0/original, active/v1, and three-batch historical guidance identity assertions"
-      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance.md config/agents/rtl-core-loop/common-guidance_v0.md config/agents/rtl-core-loop/common-guidance_v1.md config/agents/rtl-core-loop/common-guidance_v2.md docs/decisions.md current-task.md .harness/session-state.json .harness/session-log.md --ignore-unknown"
-      ,"PowerShell session-state JSON parse"
-      ,"git diff --check"
-      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      "corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts packages/core-loop/test/contracts.test.ts packages/core-loop/test/i2c-coverage.test.ts packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1",
+      "real Windows Verilator baseline round on normalized locked I2C sources"
     ],
-    "last_result": "The latest full-dataset experiment explicitly ran with active common-guidance v1 and recorded one v1 guidance digest across all three batches plus v1 content in all 156 transcripts. Created inactive v2 without changing the active v1 guidance; v2 is 98 lines and 915 words.",
+    "last_result": "I2C-focused validation passed (56 tests); real baseline score 78.16 with 359/443 lines, 20/28 branches, and 553/740 toggles hit.",
     "known_failures": [
-      "Direct host vvp execution is an explicitly accepted local benchmark risk and is not suitable for a formal Gate or production claim",
+      "The full Agent adapter test currently has one unrelated v1-text assertion failure because the user-owned active common-guidance.md worktree edit contains v2",
+      "No real Agent I2C refinement run was performed; the real evidence validates baseline ingestion, compilation, simulation, and measurement only",
+      "The I2C result remains non-authoritative and requires semantic human review",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
-      ,"Coverage-Agent results require semantic human review; structural coverage does not establish functional correctness"
-      ,"Spec Understanding MVP does not validate generated Markdown format, completeness, traceability, or semantics; model generation also remains unimplemented"
-      ,"The v1 experiment is test-set-informed and uses one nondeterministic sample per case; observed deltas do not establish causal guidance impact"
     ]
   },
   "cognitive_state": {
-    "failure_count": 7,
-    "current_mode": "handoff",
+    "failure_count": 1,
+    "current_mode": "review",
     "tried_approaches": [
-      "Composed existing strict R02/R03 outcomes instead of duplicating their policy",
-      "Locked complete batch inputs before any Agent turn and stopped on infrastructure drift",
-      "Kept raw compiler metrics separate from human-review-adjusted checkpoint metrics",
-      "Published evidence atomically and wrote final-result.json only as the last completion marker",
-      "Diagnosed parallel validation timeouts with an isolated single-worker run before rerunning supported full commands",
-      "Raised only the shared finite Vitest case timeout to 15 seconds after an isolated aggregate run reproduced host-scheduling contention",
-      "Traced the Windows-only Prettier failure to missing MJS LF classification and fixed the checkout boundary in .gitattributes",
-      "Derived the new package-scoped lock-parity test root from import.meta.url after pnpm cwd exposed the relative-path assumption"
+      "Kept core-loop:coverage unchanged and added a separate command",
+      "Normalized the legacy open-drain bus model for the locked Verilator runner",
+      "Measured the unchanged baseline before any Agent turn",
+      "Protected every DUT/helper path in both the Agent contract and post-turn digest check"
     ],
-    "blocked_on": "None; waiting for explicit direction on v2 activation or repeated A/B evaluation"
+    "blocked_on": "None"
   },
   "handoff": {
-    "last_summary": "The latest full-dataset experiment ran with active common-guidance v1. Created a shorter inactive v2 candidate without changing active v1.",
-    "resume_from": "Review v2, then explicitly activate it only for a separately identified repeated A/B or held-out evaluation."
+    "last_summary": "Independent I2C coverage command implemented and validated; latest completed full-dataset experiment is explicitly recorded as v1.",
+    "resume_from": "Run a separately identified real I2C Agent experiment only when desired, then complete semantic human review."
   }
 }

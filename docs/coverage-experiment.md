@@ -1,5 +1,9 @@
 # Verilator Coverage Agent Experiment
 
+This document describes the existing single-case VerilogEval command. The FreeCores I2C baseline
+uses the separate `core-loop:i2c-coverage` command documented in
+`docs/i2c-coverage-experiment.md`; the existing command and its case semantics are unchanged.
+
 This is a minimal, non-authoritative verification loop for one locked VerilogEval case. It uses the
 case prompt as `spec.md` and the case reference model as `rtl/dut.sv`. The Provider deterministically
 renames the dataset's `RefModule` declaration to the spec-facing `TopModule`. The upstream

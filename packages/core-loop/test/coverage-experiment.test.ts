@@ -190,6 +190,31 @@ describe("coverage experiment", () => {
     ]);
   });
 
+  it("aggregates coverage across an explicit multi-file DUT allowlist", () => {
+    const feedback = parseLcovCoverage(
+      [
+        "SF:rtl/dut/first.v",
+        "DA:2,1",
+        "end_of_record",
+        "SF:rtl/dut/second.v",
+        "DA:7,0",
+        "end_of_record",
+        "SF:rtl/tb.sv",
+        "DA:1,0",
+        "end_of_record",
+      ].join("\n"),
+      "run_00000000-0000-4000-8000-000000000000" as never,
+      1,
+      undefined,
+      ["rtl/dut/first.v", "rtl/dut/second.v"],
+    );
+
+    expect(feedback.line).toEqual({ found: 2, hit: 1, percent: 50 });
+    expect(feedback.uncoveredTargets).toEqual([
+      expect.objectContaining({ sourcePath: "rtl/dut/second.v", line: 7 }),
+    ]);
+  });
+
   it("preserves DUT toggle targets from Verilator coverage metadata", () => {
     const toggle = parseVerilatorToggleCoverage(
       [

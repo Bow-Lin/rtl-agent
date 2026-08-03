@@ -46,6 +46,10 @@ import type {
 import { parseNamedOptions } from "./cli-arguments.js";
 import { executeCliCommand } from "./cli-error.js";
 import { runCoverageCommand, type RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
+import {
+  runI2cCoverageCommand,
+  type RtlCoreLoopI2cCoverageDependencies,
+} from "./i2c-coverage-command.js";
 import { loadRepositoryEnvironment } from "./environment.js";
 import {
   createMismatchAnalyzer,
@@ -67,6 +71,7 @@ import { runReanalysisCommand, updateObservedIssuesBestEffort } from "./reanalys
 
 export { updateObservedIssuesBestEffort } from "./reanalysis-command.js";
 export type { RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
+export type { RtlCoreLoopI2cCoverageDependencies } from "./i2c-coverage-command.js";
 
 export type RtlCoreLoopWorkspaceDependency = typeof CoreLoop.packageVersion;
 const DEFAULT_REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -336,6 +341,7 @@ export async function runRtlCoreLoopCli(
   evaluationDependencies?: RtlCoreLoopEvaluationDependencies,
   datasetDependencies?: RtlCoreLoopDatasetDependencies,
   coverageDependencies?: RtlCoreLoopCoverageDependencies,
+  i2cCoverageDependencies?: RtlCoreLoopI2cCoverageDependencies,
 ): Promise<number> {
   const dataset =
     arguments_[0] === "fixtures-check" || arguments_[0] === "dataset-prepare"
@@ -413,6 +419,21 @@ export async function runRtlCoreLoopCli(
   }
 
   const command = arguments_[0];
+  if (command === "i2c-coverage") {
+    return executeCliCommand(
+      () =>
+        runI2cCoverageCommand({
+          arguments_,
+          writeOutput,
+          environment,
+          repositoryRoot,
+          ...(i2cCoverageDependencies === undefined
+            ? {}
+            : { dependencies: i2cCoverageDependencies }),
+        }),
+      writeError,
+    );
+  }
   if (command === "coverage") {
     return executeCliCommand(
       () =>
@@ -625,7 +646,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

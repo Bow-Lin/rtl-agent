@@ -11,6 +11,7 @@
     "agent:probe:pi": "node dist/index.js pi-agent-probe",
     "compile:smoke": "node dist/index.js compile-smoke",
     "coverage": "node dist/index.js coverage",
+    "i2c-coverage": "node dist/index.js i2c-coverage",
     "dataset:prepare": "node dist/index.js dataset-prepare",
     "dataset:prepare:chipbench": "node dist/index.js dataset-prepare --dataset chipbench",
     "fixtures:check": "node dist/index.js fixtures-check",

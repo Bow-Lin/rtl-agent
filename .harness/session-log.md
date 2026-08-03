@@ -2483,3 +2483,32 @@ used by the Windows experiment. Future runs must probe their actual guidance dig
 - `.harness/session-state.json` parse: passed
 - `git diff --check`: passed
 - Harness check: passed
+
+## Entry: Add an Independent FreeCores I2C Coverage Command
+
+### Outcome
+
+Added `core-loop:i2c-coverage` without changing the existing `core-loop:coverage` command. The new
+Provider locks seven FreeCores source files, normalizes the legacy multi-file DUT and regression
+bench, and measures the baseline before any Agent action. At most two Agent turns may modify only
+`rtl/tb.sv` and `rtl/checker.sv`; DUT and support-model changes are rejected by explicit Agent path
+permissions and post-turn digest comparison.
+
+The normalized baseline completed a real Windows Verilator round at 78.16% aggregate coverage:
+81.04% line (359/443), 71.43% branch (20/28), and 74.73% toggle (553/740). No real Agent refinement
+run was performed. The result claim remains non-authoritative and requires semantic human review.
+
+The latest completed full-dataset VerilogEval guidance experiment is explicitly retained as v1.
+The I2C flow is separate. The user-owned active-guidance v2 worktree edit was not modified for this
+task and must remain outside the I2C commit.
+
+### Validation
+
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- focused CLI/contracts/I2C/legacy-coverage/Pi tests: 56 passed
+- real normalized I2C Verilator baseline round: passed at 78.16%
+- full Agent adapter test: one unrelated stale v1-guidance text assertion fails against the
+  user-owned active v2 worktree edit

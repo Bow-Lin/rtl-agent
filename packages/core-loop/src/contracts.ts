@@ -275,6 +275,16 @@ export const AgentAttemptInputSchema = z
       "Previous compile result must stay below context/",
     ).optional(),
     taskKind: z.literal("VERIFICATION_ASSET_GENERATION").optional(),
+    protectedRtlPaths: z
+      .array(LogicalPathSchema)
+      .max(256)
+      .refine(sortedUnique, "Protected RTL paths must be sorted and unique")
+      .optional(),
+    mutableRtlPaths: z
+      .array(LogicalPathSchema)
+      .max(8)
+      .refine(sortedUnique, "Mutable RTL paths must be sorted and unique")
+      .optional(),
     coverageFeedbackPath: LogicalPathSchema.refine(
       (value) => value.startsWith("context/"),
       "Coverage feedback must stay below context/",
@@ -289,6 +299,53 @@ export const AgentAttemptInputSchema = z
     ).optional(),
   })
   .superRefine((value, context) => {
+    if (
+      value.taskKind === undefined &&
+      (value.protectedRtlPaths !== undefined || value.mutableRtlPaths !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["protectedRtlPaths"],
+        message: "RTL path permissions are only valid for verification asset generation",
+      });
+    }
+    if ((value.protectedRtlPaths === undefined) !== (value.mutableRtlPaths === undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["mutableRtlPaths"],
+        message: "Protected and mutable RTL paths must be supplied together",
+      });
+    }
+    const sourceFileSet = new Set(value.rtlSourceFiles);
+    const protectedPathSet = new Set(value.protectedRtlPaths ?? []);
+    for (const [field, paths] of [
+      ["protectedRtlPaths", value.protectedRtlPaths ?? []],
+      ["mutableRtlPaths", value.mutableRtlPaths ?? []],
+    ] as const) {
+      paths.forEach((logicalPath, index) => {
+        if (
+          !logicalPath.startsWith("rtl/") ||
+          !/\.(?:sv|svh|v|vh)$/i.test(logicalPath) ||
+          (field === "protectedRtlPaths" && !sourceFileSet.has(logicalPath))
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: [field, index],
+            message:
+              field === "protectedRtlPaths"
+                ? "Protected RTL paths must reference an input RTL source file"
+                : "Mutable RTL paths must use an allowed extension below rtl/",
+          });
+        }
+        if (field === "mutableRtlPaths" && protectedPathSet.has(logicalPath)) {
+          context.addIssue({
+            code: "custom",
+            path: [field, index],
+            message: "Protected and mutable RTL paths must be disjoint",
+          });
+        }
+      });
+    }
     if (
       value.taskKind === undefined &&
       (value.coverageFeedbackPath !== undefined ||

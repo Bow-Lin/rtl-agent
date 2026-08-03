@@ -1288,3 +1288,16 @@ The v2 candidate is 98 lines and 915 words, compared with v1's 123 lines and 1,1
 shorter and less procedural, but remains test-set-informed prompt advice. Its effect must be
 measured with a separately identified run; repeated A/B trials or held-out cases are required
 before making a general capability claim.
+
+## 2026-08-03 - Keep I2C coverage separate from the VerilogEval coverage command
+
+Add `core-loop:i2c-coverage` instead of extending `core-loop:coverage`. The new command consumes a
+locked seven-file FreeCores I2C baseline, normalizes it into an isolated multi-file workspace, runs
+the unchanged baseline as coverage round one, and permits at most two Agent turns to improve only
+`rtl/tb.sv` and `rtl/checker.sv`. Every DUT and helper-model path is supplied to the Agent as
+protected and is independently digest-checked after each turn.
+
+The result claim is `I2C_COVERAGE_EXPERIMENT`, remains non-authoritative, and requires semantic
+human review. This experiment does not change the existing VerilogEval command, dataset selection,
+or result claim. The latest completed full-dataset guidance experiment ran on common-guidance v1;
+the I2C command is a separate baseline-coverage workflow and does not reinterpret that experiment.
