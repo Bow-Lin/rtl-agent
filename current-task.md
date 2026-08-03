@@ -2,37 +2,35 @@
 
 ## Goal
 
-Implement R05 as task-aware Spec Understanding Markdown templates. Keep Markdown as the primary
-artifact, give RTL generation and DUT-aware verification different analysis guidance, and let a
-future model produce the completed document on a best-effort basis without format checking.
+Create a shorter common-guidance v2 candidate from the original-guidance and v1 Pi/K3 VerilogEval
+results and their mismatch/compile analyses, without activating the candidate or rerunning models.
 
 ## Current Status
 
 R05 is `DONE` as of 2026-07-30.
 
-Implemented the template boundary in `packages/core-loop/src/spec-understanding.ts`:
+The inactive `config/agents/rtl-core-loop/common-guidance_v2.md` candidate is complete. It is based
+on the original run's 131/156 result and v1's 130/156 result, including the 10 improvements, 11
+regressions, 15 v1 mismatches, and 10 repeated Icarus enum/state compile failures.
 
-- `SPEC_FACTS`, `RTL_GENERATION`, and `VERIFICATION_PLANNING` task kinds
-- visibly different task-specific Markdown guidance
-- trusted task-kind and Spec digest validation before template creation
-- required DUT manifest binding for verification planning only
-- no parser or Checker for the model-generated Markdown
+v2 keeps timing, Moore/Mealy, exact index/width, FSM transition, bit mapping, and counter-boundary
+checks. It replaces v1's mandatory pre-coding process with conditional analysis, prefers the
+smallest specification-faithful implementation, forbids unrequested latency/state/reset behavior,
+and defaults FSM encodings to `logic` plus `localparam logic`. At 98 lines and 915 words it is
+shorter than v1's 123 lines and 1,188 words.
 
-The focused template suite passes 3/3 tests. The full repository single-worker run passes 37 files
-with one skipped and 276 tests with two skipped. Lint, typecheck, build, format, and peer dependency
-checks pass; session-state JSON, diff, and Harness checks also pass. Model/Agent invocation,
-semantic scoring, completed-Markdown format validation, and direct RTL/assertion/checker/TB
-generation remain out of scope for this MVP.
-
-R04 remains `DONE`; its accepted evidence and limitations are recorded in the task breakdown and
-checkpoint report. The existing uncommitted R04 completion-record changes are preserved in this
-worktree.
+The active `config/agents/rtl-core-loop/common-guidance.md` is v1. The latest full-dataset
+experiment explicitly activated that content and recorded one consistent v1 guidance digest across
+all three batches and v1 content in all 156 generation transcripts. Creating v2 did not change the
+active v1 guidance and made no additional model call, RTL generation, compile, or simulation.
+Scoped content assertions, Prettier, session-state JSON parsing, `git diff --check`, and the Harness
+check pass. R04 and R05 remain `DONE`.
 
 ## Next Boundary
 
-Wait for explicit operator direction before selecting an Agent/model integration, defining derived
-assertion/checker/TB generation contracts, or connecting these artifacts to the durable workflow.
+Review and explicitly activate v2 only if an experiment is intended. Then run separately identified,
+preferably repeated A/B trials or held-out cases before making a general capability claim.
 
 ## Last Updated
 
-2026-07-30T17:25:08+08:00
+2026-08-03T10:40:31+08:00

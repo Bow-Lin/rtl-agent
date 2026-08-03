@@ -2333,3 +2333,153 @@ generation remain outside R05.
 - full repository with one worker: 37 files passed / one skipped; 276 tests passed / two skipped
 - build, format, and peer dependency checks: passed
 - final JSON, diff, and Harness checks: passed after this handoff update
+
+## Entry: Create Common Guidance v1 From Completed K3 Mismatch Analyses
+
+### Outcome
+
+Reviewed all 16 functional mismatches from Pi/K3 batches `b-20260729-003`,
+`b-20260729-004`, and `b-20260730-001`. Every mismatch has a complete Pi/K3 diagnosis with at
+least one cited evidence item and a concrete root cause. The recurring categories were four
+initialization/reset-semantic cases, three sequential-timing cases, two FSM-transition cases, two
+width/signedness cases, two Spec/reference ambiguities, and one each for bit ordering, counter
+boundary, and another localized Spec violation.
+
+Created `config/agents/rtl-core-loop/common-guidance_v1.md` as a complete but inactive candidate.
+It preserves the existing rules and adds concrete pre-coding methods: an exact port ledger,
+edge-relative cycle table, Moore/Mealy classification, FSM transition/output table, storage/reset
+inventory, threshold tracing, and full truth-table/Karnaugh-map verification. Case IDs, hidden
+reference behavior, and inferred expected values were not promoted. In particular, analyses
+involving unspecified startup, don't-care, or invalid-input behavior were recorded as ambiguity
+rather than turned into rules that overfit the benchmark.
+
+The active `common-guidance.md` and the adapter's fixed guidance path are unchanged. Current
+OpenCode/Pi capability and experiment identities therefore remain unchanged; v1 requires a later
+explicit activation decision.
+
+### Files
+
+- `config/agents/rtl-core-loop/common-guidance_v1.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- K3 mismatch evidence reconciliation: 16 mismatches and 16 complete Pi/K3 analyses passed
+- scoped Prettier check: passed
+- `git diff --check`: passed
+- `.harness/session-state.json` parse: passed
+- Harness check: passed
+
+## Entry: Consolidate the Pi/K3 Common-Guidance v1 VerilogEval Experiment
+
+### Outcome
+
+Explicitly activated the reviewed v1 candidate by preserving the original guidance as
+`config/agents/rtl-core-loop/common-guidance_v0.md` and copying v1 to the adapter's active
+`config/agents/rtl-core-loop/common-guidance.md` path. This intentionally changed the recorded
+Agent capability and evaluation-profile identity before the v1 batches ran.
+
+Added `exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md` from
+existing ignored runtime evidence. The report uses three continuous, non-overlapping v1 batches:
+`b-20260803-002`, `b-20260731-002`, and `b-20260803-001`. Their selections cover
+Prob001–Prob156 exactly once, their Agent and compiler capability evidence is consistent, and all
+156 provider transcripts contain the v1 guidance title and `Before Coding` section.
+
+Aggregate results are 146 candidate compile passes, 130 functional passes, 15 functional
+mismatches, 10 candidate compile failures, and one verification-interface invalid result. All 10
+compile failures are the recurring Icarus explicit-cast error. All 15 mismatches have restricted
+Pi/K3 diagnoses; the report labels those root causes as model hypotheses rather than hidden-Oracle
+facts.
+
+The case-aligned comparison with the original-guidance K3 run found 120 both-pass cases, 10
+improvements, 11 regressions, and 15 both-nonpass cases. Raw end-to-end pass rate moved from 83.97%
+to 83.33%, while conditional pass rate among valid simulations moved from 89.12% to 89.66%. The
+report also records same-guidance rerun variability, the 57.2% increase in first provider-request
+size, and the test-set-informed/single-sample boundary. No model call, RTL generation, simulation,
+or production logic change was made.
+
+### Files
+
+- `config/agents/rtl-core-loop/common-guidance_v0.md`
+- `config/agents/rtl-core-loop/common-guidance.md`
+- `exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- evidence assertions: 156 continuous unique cases; totals 146/130/15/10/1; one Agent and compiler
+  capability; 156/156 v1 transcripts
+- report Prettier check: passed
+- `.harness/session-state.json` parse: passed
+- `git diff --check`: passed
+- Harness check: passed
+
+## Entry: Create a Shorter Common Guidance v2 Candidate
+
+### Outcome
+
+Created `config/agents/rtl-core-loop/common-guidance_v2.md` from the original-guidance and v1
+Pi/K3 full-dataset reports and their compile/mismatch analyses. The original run passed 131/156 and
+v1 passed 130/156; v1 reduced functional mismatches from 16 to 15 but increased recurring Icarus
+enum/state compile failures from 8 to 10. The case-aligned comparison contained 10 improvements and
+11 regressions.
+
+v2 retains the guidance areas aligned with observed improvements: cycle alignment, Moore/Mealy
+classification, exact ranges and widths, directional FSM inputs, and counter boundaries. It makes
+tables, ledgers, and cycle sketches conditional instead of mandatory, requires the smallest
+specification-faithful structure, and prohibits unrequested pipeline stages, state, reset, and
+defensive protocol behavior. It also strengthens controls for the observed regressions: use
+Icarus-compatible `logic`/`localparam logic` FSM encodings, compare one-hot equations with their
+transition table, trace shift direction explicitly, avoid reset assumptions, and prefer direct
+`case` logic over uncertain Boolean simplification.
+
+The candidate is 98 lines and 915 words, versus v1's 123 lines and 1,188 words. It contains no case
+IDs, hidden-reference behavior, inferred expected outputs, or dataset-specific answers. The active
+`common-guidance.md` remains on v1, so creating v2 caused no further capability or experiment
+identity change. No additional model call, RTL generation, compile, or simulation was run.
+
+### Files
+
+- `config/agents/rtl-core-loop/common-guidance_v2.md`
+- `docs/decisions.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- v2 content assertions passed, including required concepts, no case IDs, shorter content than v1,
+  and unchanged active-guidance SHA-256
+- scoped Prettier check: passed
+- `.harness/session-state.json` parse: passed
+- `git diff --check`: passed
+- Harness check: passed
+
+## Entry: Reconcile Common Guidance v1 Activation Before Commit
+
+### Outcome
+
+The guarded commit review found that the active `common-guidance.md` contained v1 while the handoff
+text still described it as unchanged. The operator confirmed that the latest full-dataset
+experiment explicitly ran on v1. Updated the decision and handoff records to preserve the actual
+sequence: create inactive v1, activate v1 with a new recorded capability identity, run the three
+v1 batches, then create inactive v2 without changing active v1.
+
+Preserved the original guidance as `common-guidance_v0.md`. Normalized the committed active v1 file
+to repository-required LF and documented that its digest differs from the historical CRLF bytes
+used by the Windows experiment. Future runs must probe their actual guidance digest.
+
+### Validation
+
+- v0 text equals the original active guidance from `HEAD`
+- active guidance bytes equal the versioned LF v1 file
+- all three v1 batches retain the recorded historical CRLF guidance digest
+- scoped Prettier check: passed
+- `.harness/session-state.json` parse: passed
+- `git diff --check`: passed
+- Harness check: passed

@@ -1168,3 +1168,123 @@ claim that a generated document is well formatted, complete, traceable, or seman
 Model integration remains later work. If a concrete downstream workflow later needs deterministic
 machine consumption, add an explicitly versioned structured result or validator designed for that
 consumer instead of silently treating this Markdown as validated data.
+
+## 2026-07-31 - Create an Inactive Common Guidance v1 Candidate
+
+### Context
+
+The three Pi/K3 VerilogEval batches now have complete mismatch analyses for all 16 functional
+mismatches. Repeated categories include initialization/reset semantics, sequential cycle alignment,
+FSM transitions, width/index errors, and boundary conditions. The existing common guidance names
+most of those topics but does not give the Agent a concrete pre-coding method for resolving cycle
+phrases, Moore/Mealy behavior, unusual vector ranges, transition tables, nonzero reset encodings, or
+Karnaugh-map transcription.
+
+Several analyses also identify behavior that the public Spec leaves undefined, such as startup
+values, don't-care inputs, or invalid input encodings. Those observations are useful for identifying
+dataset ambiguity but are not valid case-specific rules for future generation.
+
+### Decision
+
+Add `config/agents/rtl-core-loop/common-guidance_v1.md` as a complete, versioned candidate. Preserve
+the existing compile, verification-asset, logic, safety, and self-check rules while adding:
+
+- a port ledger with exact index ranges
+- an edge-relative cycle table for sequential behavior
+- explicit Moore/Mealy and registered/combinational output classification
+- a per-state transition/output table
+- exact reset/state-encoding and counter-boundary checks
+- full truth-table/Karnaugh-map transcription and verification
+- an explicit boundary between required behavior and don't-care or unspecified behavior
+
+Do not copy case IDs, hidden-reference assumptions, or inferred expected outputs into the guide. Do
+not change `common-guidance.md` or the adapter's fixed guidance path in this task.
+
+### Alternatives Considered
+
+- Overwrite the active `common-guidance.md`: rejected because that would immediately change Agent
+  capability/profile identity without a separate activation decision and comparison.
+- Add each mismatch's proposed fix: rejected because several are case-specific or depend on
+  ambiguous hidden-reference behavior.
+- Leave the guide unchanged: rejected because the recurring timing and interpretation failures show
+  concrete gaps in the existing checklist's method, even where it already names the broad topic.
+
+### Consequences
+
+The candidate can be reviewed and diffed independently. Current OpenCode and Pi runs still load
+`common-guidance.md`; no experiment identity changes until the operator explicitly activates v1.
+The new guidance can reduce recurring interpretation errors, but it remains prompt advice rather
+than a deterministic checker or proof of correctness.
+
+## 2026-07-31 - Activate Common Guidance v1 for a Separately Identified Experiment
+
+### Context
+
+The v1 candidate required a real comparison against the original guidance. The adapters load the
+fixed `config/agents/rtl-core-loop/common-guidance.md` path, and the guidance digest participates in
+the recorded Agent capability and evaluation-profile identity.
+
+### Decision
+
+Preserve the original active content as `config/agents/rtl-core-loop/common-guidance_v0.md`, copy
+the reviewed v1 candidate to the active `common-guidance.md`, and run the next full-dataset
+experiment with that changed capability identity. Keep `common-guidance_v1.md` as the versioned LF
+source corresponding textually to the CRLF active-file bytes used by the Windows experiment.
+
+The v1 result consists of batches `b-20260803-002`, `b-20260731-002`, and `b-20260803-001`. All
+three record guidance digest
+`sha256:7a64195deb6929dd2f5731eb82a776c9d26295102f2c5f7b29ddb2b073c972f6`, and all 156 generation
+transcripts contain the v1 title and `Before Coding` section. Do not combine
+`b-20260731-001`, which used the original guidance, into the v1 result.
+
+The committed active file follows the repository's LF policy and is textually identical to
+`common-guidance_v1.md`; its byte digest therefore differs from the historical Windows CRLF digest.
+Any future run must probe and record its actual guidance digest rather than reuse the historical
+experiment identity.
+
+### Consequences
+
+v1 is now the active guidance rather than an inactive candidate. Its 130/156 result is a
+test-set-informed, single-sample comparison and does not prove a causal or general improvement.
+Any later candidate, including v2, remains inactive until another explicit activation changes the
+active file and produces a separately recorded capability identity.
+
+## 2026-08-03 - Create a Shorter Common Guidance v2 Candidate
+
+### Context
+
+The original-guidance Pi/K3 run passed 131 of 156 VerilogEval cases. The v1 run passed 130: valid
+simulation mismatch decreased from 16 to 15, but Icarus enum/state compile failures increased from
+8 to 10. Ten cases improved and eleven regressed. Several improvements align with v1's timing,
+Moore/Mealy, index, directional-event, and counter-boundary checks, while new failures include
+shift-direction reversal, unnecessary reset behavior, an added pipeline stage, inconsistent
+one-hot equations, and Boolean simplification errors. The first provider request also grew by
+57.2%, and the single-sample experiment cannot separate guidance effects from model variability.
+
+### Decision
+
+Add `config/agents/rtl-core-loop/common-guidance_v2.md` as an inactive candidate. Keep the useful
+v1 topics, but make tables, ledgers, and cycle sketches conditional on actual complexity or
+ambiguity. Establish the smallest specification-faithful synthesizable design as the default and
+forbid unrequested latency, pipeline stages, state, resets, and defensive protocol behavior.
+
+Strengthen recurring failure controls by:
+
+- preferring explicitly sized `logic` plus `localparam logic` FSM encodings instead of enum state
+  storage under the Icarus profile
+- checking final one-hot equations against their transition table
+- tracing bit movement before choosing a shift or concatenation
+- limiting reset behavior to the specification and preserving unspecified startup semantics
+- preferring a direct `case` over uncertain truth-table or Karnaugh-map simplification
+
+Preserve the shared verification-asset and safety requirements. Do not add case IDs, hidden
+reference behavior, inferred expected outputs, or dataset-specific answer patterns. Leave the
+active v1 `common-guidance.md` unchanged so creating v2 does not silently alter capability or
+experiment identity.
+
+### Consequences
+
+The v2 candidate is 98 lines and 915 words, compared with v1's 123 lines and 1,188 words. It is
+shorter and less procedural, but remains test-set-informed prompt advice. Its effect must be
+measured with a separately identified run; repeated A/B trials or held-out cases are required
+before making a general capability claim.

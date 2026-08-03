@@ -1,15 +1,15 @@
 {
-  "task_id": "r05-spec-understanding-markdown-contract",
+  "task_id": "verilog-eval-k3-guidance-v2-candidate",
   "status": "complete",
-  "current_phase": "r05_best_effort_templates_complete_awaiting_agent_integration_direction",
-  "last_updated": "2026-07-30T17:25:08+08:00",
+  "current_phase": "guidance_v2_candidate_complete",
+  "last_updated": "2026-08-03T10:40:31+08:00",
   "active_plan": [
-    "R05 best-effort templates complete; wait for explicit operator direction before Agent/model or workflow integration"
+    "Shorter common-guidance v2 candidate complete and inactive; wait for explicit activation or experiment direction"
   ],
   "next_3_steps": [
-    "Choose whether a restricted Agent should fill the best-effort Markdown templates",
-    "Define derived assertion/checker/testbench generation contracts if requested",
-    "Integrate with the durable workflow only after an explicit operator decision"
+    "Review whether to activate common-guidance_v2.md as common-guidance.md",
+    "If requested, run repeated original/v2 A/B trials with separately locked identities",
+    "Use held-out cases before making a general capability claim"
   ],
   "changed_files": [
     ".opencode/agents/rtl-core-loop.md",
@@ -38,6 +38,9 @@
     "apps/rtl-core-loop/test/environment.test.ts",
     "apps/rtl-core-loop/test/profile-selection.test.ts",
     "config/agents/rtl-core-loop/common-guidance.md",
+    "config/agents/rtl-core-loop/common-guidance_v0.md",
+    "config/agents/rtl-core-loop/common-guidance_v1.md",
+    "config/agents/rtl-core-loop/common-guidance_v2.md",
     "core-loop/fixtures/chipbench.lock.json",
     "core-loop/fixtures/README.md",
     "core-loop/fixtures/verilog-eval-v2.lock.json",
@@ -59,6 +62,7 @@
     "exp_result/verilog-eval/07.23-kimi-opencode-001-156.md",
     "exp_result/verilog-eval/07.24-07.29-kimi-pi-001-156.md",
     "exp_result/verilog-eval/07.29-07.30-k3-pi-001-156.md",
+    "exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md",
     "packages/core-loop/package.json",
     "packages/core-loop/src/agent-adapter.ts",
     "packages/core-loop/src/batch-evaluator.ts",
@@ -410,13 +414,34 @@
       ,"node -e session-state JSON parse"
       ,"git diff --check"
       ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"read-only reconciliation of all 16 K3 mismatch analyses across b-20260729-003/004 and b-20260730-001"
+      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance_v1.md docs/decisions.md --ignore-unknown"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"read-only reconciliation of b-20260803-002, b-20260731-002, and b-20260803-001 selection, capability, transcript, batch-result, functional-simulation, and mismatch-analysis evidence"
+      ,"case-aligned comparison with b-20260729-003, b-20260729-004, and b-20260730-001"
+      ,"corepack pnpm exec prettier --check exp_result/verilog-eval/07.31-08.03-k3-pi-common-guidance-v1-001-156.md --ignore-unknown"
+      ,"node/PowerShell session-state JSON parse"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"common-guidance v2 content assertions including active-guidance digest stability"
+      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance_v2.md docs/decisions.md current-task.md .harness/session-state.json .harness/session-log.md --ignore-unknown"
+      ,"PowerShell session-state JSON parse"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
+      ,"v0/original, active/v1, and three-batch historical guidance identity assertions"
+      ,"corepack pnpm exec prettier --check config/agents/rtl-core-loop/common-guidance.md config/agents/rtl-core-loop/common-guidance_v0.md config/agents/rtl-core-loop/common-guidance_v1.md config/agents/rtl-core-loop/common-guidance_v2.md docs/decisions.md current-task.md .harness/session-state.json .harness/session-log.md --ignore-unknown"
+      ,"PowerShell session-state JSON parse"
+      ,"git diff --check"
+      ,"C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "R05 now provides three best-effort Markdown templates and validates only trusted task/Spec/DUT inputs. The generated-Markdown Checker and its issue/result API were removed. Focused 3/3 and full single-worker 276 passed / 2 skipped; lint, typecheck, build, format, peers, diff, JSON, and Harness passed.",
+    "last_result": "The latest full-dataset experiment explicitly ran with active common-guidance v1 and recorded one v1 guidance digest across all three batches plus v1 content in all 156 transcripts. Created inactive v2 without changing the active v1 guidance; v2 is 98 lines and 915 words.",
     "known_failures": [
       "Direct host vvp execution is an explicitly accepted local benchmark risk and is not suitable for a formal Gate or production claim",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
       ,"Coverage-Agent results require semantic human review; structural coverage does not establish functional correctness"
       ,"Spec Understanding MVP does not validate generated Markdown format, completeness, traceability, or semantics; model generation also remains unimplemented"
+      ,"The v1 experiment is test-set-informed and uses one nondeterministic sample per case; observed deltas do not establish causal guidance impact"
     ]
   },
   "cognitive_state": {
@@ -432,10 +457,10 @@
       "Traced the Windows-only Prettier failure to missing MJS LF classification and fixed the checkout boundary in .gitattributes",
       "Derived the new package-scoped lock-parity test root from import.meta.url after pnpm cwd exposed the relative-path assumption"
     ],
-    "blocked_on": "None for R05; waiting for explicit direction on Agent/model and downstream artifact generation"
+    "blocked_on": "None; waiting for explicit direction on v2 activation or repeated A/B evaluation"
   },
   "handoff": {
-    "last_summary": "R05 remains DONE with three task-specific best-effort Markdown templates; generated output is no longer format-checked, while trusted task/Spec/DUT inputs remain validated.",
-    "resume_from": "Choose whether to add a restricted Agent that fills the templates or first split the verification plan into assertion, checker, and testbench generation briefs."
+    "last_summary": "The latest full-dataset experiment ran with active common-guidance v1. Created a shorter inactive v2 candidate without changing active v1.",
+    "resume_from": "Review v2, then explicitly activate it only for a separately identified repeated A/B or held-out evaluation."
   }
 }
