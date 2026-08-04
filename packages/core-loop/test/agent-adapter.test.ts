@@ -360,10 +360,7 @@ describe("OpenCode RTL Agent adapter", () => {
     expect(turn).not.toContain("--fork");
     expect(turn).not.toContain("--attach");
     const prompt = turn.at(-1)!;
-    expect(prompt).toContain("# RTL Generation Common Guidance");
-    expect(prompt).toContain("## Compile");
-    expect(prompt).toContain("## Logic");
-    expect(prompt).toContain("Avoid ternary expressions that assign directly to an enum variable");
+    expect(prompt).toContain(guidanceBytes.toString("utf8").trim());
   });
 
   it("changes the experiment digest when executable prefix arguments change", async () => {
@@ -443,7 +440,7 @@ describe("OpenCode RTL Agent adapter", () => {
     const result = await new OpenCodeRtlAgentAdapter(
       config(fake, "timeout", {
         timeoutMs: 500,
-        terminationGraceMs: 250,
+        terminationGraceMs: 1_000,
       }),
     ).runTurn(inputFor(run, ["rtl/dut.sv"]), run);
     expect(result).toMatchObject({

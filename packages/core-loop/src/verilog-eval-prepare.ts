@@ -1,11 +1,12 @@
-import { lstat, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { LogicalPathSchema } from "@rtl-agent/contracts";
 import { x as extractTar } from "tar";
 
 import type { DatasetDescriptor } from "./contracts.js";
 import { CoreLoopException } from "./errors.js";
-import { sha256Bytes } from "./filesystem.js";
+import { resolveLogicalPath, sha256Bytes } from "./filesystem.js";
 import { VERILOG_EVAL_DATASET_LOCK, type VerilogEvalDatasetLock } from "./verilog-eval-lock.js";
 import { VerilogEvalFixtureProvider } from "./verilog-eval-provider.js";
 
@@ -63,6 +64,58 @@ function archiveEntryAllowed(entryPath: string, lock: VerilogEvalDatasetLock): b
     entryPath === `${dataset}/` ||
     entryPath.startsWith(`${dataset}/`)
   );
+}
+
+function countLiteralOccurrences(value: string, target: string): number {
+  if (target.length === 0) return 0;
+  return value.split(target).length - 1;
+}
+
+async function applyPreparationPatches(
+  extractedRoot: string,
+  lock: VerilogEvalDatasetLock,
+): Promise<void> {
+  for (const patch of lock.preparationPatches) {
+    const logicalPath = LogicalPathSchema.parse(patch.logicalPath);
+    const targetPath = resolveLogicalPath(extractedRoot, logicalPath);
+    const source = await readFile(targetPath).catch(() => {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        `VerilogEval preparation patch source is unavailable: ${patch.patchId}`,
+      );
+    });
+    if (sha256Bytes(source) !== patch.sourceDigest) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        `VerilogEval preparation patch source does not match its lock: ${patch.patchId}`,
+      );
+    }
+
+    let normalized = source.toString("utf8");
+    for (const replacement of patch.replacements) {
+      if (
+        replacement.from.length === 0 ||
+        replacement.from === replacement.to ||
+        replacement.expectedOccurrences <= 0 ||
+        countLiteralOccurrences(normalized, replacement.from) !== replacement.expectedOccurrences
+      ) {
+        throw new CoreLoopException(
+          "DATASET_PROVENANCE_INVALID",
+          `VerilogEval preparation patch shape does not match its lock: ${patch.patchId}`,
+        );
+      }
+      normalized = normalized.replaceAll(replacement.from, replacement.to);
+    }
+
+    const result = Buffer.from(normalized, "utf8");
+    if (sha256Bytes(result) !== patch.resultDigest) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        `VerilogEval preparation patch result does not match its lock: ${patch.patchId}`,
+      );
+    }
+    await writeFile(targetPath, result, { flag: "w" });
+  }
 }
 
 async function existingDatasetResult(
@@ -123,6 +176,7 @@ export async function prepareVerilogEvalDataset(
       strict: true,
       strip: 1,
     });
+    await applyPreparationPatches(extracted, lock);
     const descriptor = await new VerilogEvalFixtureProvider(extracted, lock).describe();
     await rm(archivePath, { force: true });
     try {

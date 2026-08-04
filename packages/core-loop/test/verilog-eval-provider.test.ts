@@ -57,6 +57,7 @@ async function createSyntheticDataset(root: string): Promise<VerilogEvalDatasetL
     contentManifestDigest: manifest.manifestDigest,
     expectedFileCount: manifest.entries.length,
     expectedCaseCount: cases.length,
+    preparationPatches: [],
   };
 }
 
@@ -170,6 +171,11 @@ describe("VerilogEval pinned dataset Provider", () => {
     const archiveRoot = path.join(sourceParent, "verilog-eval-test");
     const contentRoot = path.join(root, "content-for-lock");
     const baseLock = await createSyntheticDataset(contentRoot);
+    const patchedLogicalPath = "dataset_spec-to-rtl/Prob001_zero_test.sv";
+    const archiveTestbench = Buffer.from("module tb_raw; endmodule\n", "utf8");
+    const preparedTestbench = await readFile(
+      path.join(contentRoot, ...patchedLogicalPath.split("/")),
+    );
     await mkdir(sourceParent, { recursive: true });
     await mkdir(archiveRoot);
     await writeFile(path.join(archiveRoot, "ignored-script.sh"), "must not be extracted\n");
@@ -178,7 +184,10 @@ describe("VerilogEval pinned dataset Provider", () => {
       const sourcePath = path.join(contentRoot, ...entry.path.split("/"));
       const targetPath = path.join(archiveRoot, ...entry.path.split("/"));
       await mkdir(path.dirname(targetPath), { recursive: true });
-      await writeFile(targetPath, await readFile(sourcePath));
+      await writeFile(
+        targetPath,
+        entry.path === patchedLogicalPath ? archiveTestbench : await readFile(sourcePath),
+      );
     }
     const archivePath = path.join(root, "source.tar.gz");
     await createTar({ cwd: sourceParent, file: archivePath, gzip: true }, ["verilog-eval-test"]);
@@ -186,6 +195,15 @@ describe("VerilogEval pinned dataset Provider", () => {
     const lock: VerilogEvalDatasetLock = {
       ...baseLock,
       archiveDigest: sha256Bytes(archiveBytes),
+      preparationPatches: [
+        {
+          patchId: "synthetic-testbench-normalization-v1",
+          logicalPath: patchedLogicalPath,
+          sourceDigest: sha256Bytes(archiveTestbench),
+          resultDigest: sha256Bytes(preparedTestbench),
+          replacements: [{ from: "tb_raw", to: "tb", expectedOccurrences: 1 }],
+        },
+      ],
     };
     const destination = path.join(root, "cache", lock.datasetVersion);
     const first = await prepareVerilogEvalDataset({
@@ -195,6 +213,9 @@ describe("VerilogEval pinned dataset Provider", () => {
     });
     expect(first.reused).toBe(false);
     expect(first.expectedCaseCount).toBe(2);
+    await expect(
+      readFile(path.join(destination, ...patchedLogicalPath.split("/"))),
+    ).resolves.toEqual(preparedTestbench);
     await expect(readFile(path.join(destination, "ignored-script.sh"))).rejects.toThrow();
 
     const second = await prepareVerilogEvalDataset({
@@ -205,6 +226,24 @@ describe("VerilogEval pinned dataset Provider", () => {
       },
     });
     expect(second.reused).toBe(true);
+
+    const invalidPatchLock: VerilogEvalDatasetLock = {
+      ...lock,
+      datasetVersion: "v2-test-invalid-patch",
+      preparationPatches: [
+        {
+          ...lock.preparationPatches[0]!,
+          sourceDigest: sha256Bytes(Buffer.from("unexpected source", "utf8")),
+        },
+      ],
+    };
+    await expect(
+      prepareVerilogEvalDataset({
+        destinationDirectory: path.join(root, "cache", invalidPatchLock.datasetVersion),
+        lock: invalidPatchLock,
+        downloadArchive: async () => archiveBytes,
+      }),
+    ).rejects.toMatchObject({ error: { code: "DATASET_PROVENANCE_INVALID" } });
 
     await writeFile(path.join(destination, "LICENSE"), "tampered\n");
     await expect(

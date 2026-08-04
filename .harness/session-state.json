@@ -1,41 +1,30 @@
 {
-  "task_id": "freecores-i2c-coverage-command",
+  "task_id": "verilog-eval-prob099-preparation-patch",
   "status": "complete",
-  "current_phase": "implementation_validated_pending_commit",
-  "last_updated": "2026-08-03T11:40:00+08:00",
+  "current_phase": "implementation_and_real_validation_complete",
+  "last_updated": "2026-08-04T08:42:01+08:00",
   "active_plan": [
-    "Land the independently reviewed I2C coverage command without including unrelated active-guidance edits"
+    "Prob099 preparation-time testbench repair implemented and validated; wait for future evaluation or supplemental historical adjudication"
   ],
   "next_3_steps": [
-    "Run corepack pnpm core-loop:i2c-coverage --agent pi when a real Agent experiment is intended",
-    "Perform the required semantic human review of the resulting checker and residual targets",
-    "Keep future I2C results separate from the latest completed full-dataset common-guidance v1 experiment"
+    "Use dataset version v2-c498220d-prob099fix1 for future VerilogEval runs",
+    "Optionally re-simulate historical Prob099 candidates without mutating original batch evidence",
+    "Keep future dataset and guidance identities separately recorded"
   ],
   "changed_files": [
     ".harness/session-log.md",
     ".harness/session-state.json",
-    "apps/rtl-core-loop/package.json",
-    "apps/rtl-core-loop/src/environment.ts",
-    "apps/rtl-core-loop/src/i2c-coverage-command.ts",
-    "apps/rtl-core-loop/src/index.ts",
     "apps/rtl-core-loop/test/cli.test.ts",
+    "config/agents/rtl-core-loop/common-guidance.md",
+    "core-loop/fixtures/verilog-eval-v2.lock.json",
     "current-task.md",
-    "docs/coverage-experiment.md",
     "docs/decisions.md",
-    "docs/i2c-coverage-experiment.md",
+    "docs/error-journal.md",
     "docs/verification.md",
-    "package.json",
-    "packages/core-loop/src/agent-adapter.ts",
-    "packages/core-loop/src/contracts.ts",
-    "packages/core-loop/src/coverage-experiment.ts",
-    "packages/core-loop/src/i2c-coverage-experiment.ts",
-    "packages/core-loop/src/i2c-coverage-lock.ts",
-    "packages/core-loop/src/i2c-coverage-provider.ts",
-    "packages/core-loop/src/index.ts",
-    "packages/core-loop/src/pi-agent-adapter.ts",
-    "packages/core-loop/test/contracts.test.ts",
-    "packages/core-loop/test/coverage-experiment.test.ts",
-    "packages/core-loop/test/i2c-coverage.test.ts"
+    "packages/core-loop/src/verilog-eval-lock.ts",
+    "packages/core-loop/src/verilog-eval-prepare.ts",
+    "packages/core-loop/test/agent-adapter.test.ts",
+    "packages/core-loop/test/verilog-eval-provider.test.ts"
   ],
   "validation": {
     "last_commands": [
@@ -43,30 +32,39 @@
       "corepack pnpm lint",
       "corepack pnpm build",
       "corepack pnpm format:check",
-      "corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts packages/core-loop/test/contracts.test.ts packages/core-loop/test/i2c-coverage.test.ts packages/core-loop/test/coverage-experiment.test.ts packages/core-loop/test/pi-agent-adapter.test.ts --config vitest.config.ts --maxWorkers=1",
-      "real Windows Verilator baseline round on normalized locked I2C sources"
+      "corepack pnpm exec vitest run packages/core-loop/test/verilog-eval-provider.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm core-loop:dataset:prepare (reused false, then true)",
+      "corepack pnpm core-loop:fixtures:check",
+      "real Icarus/vvp Prob099 historical-candidate simulation against repaired fixture",
+      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts (21 passed)",
+      "corepack pnpm test (281 passed, 2 skipped)",
+      "real repaired dataset SHA/content/manifest assertions",
+      "scoped Prettier check",
+      "PowerShell session-state JSON parse",
+      "git diff --check",
+      "equivalent Windows harness file and session-state JSON checks"
     ],
-    "last_result": "I2C-focused validation passed (56 tests); real baseline score 78.16 with 359/443 lines, 20/28 branches, and 553/740 toggles hit.",
+    "last_result": "Prob099 repaired dataset cold-prepared and reused successfully; 156 fixtures validated and a historical Pi/K3 candidate passed 200/200 samples against the repaired testbench.",
     "known_failures": [
-      "The full Agent adapter test currently has one unrelated v1-text assertion failure because the user-owned active common-guidance.md worktree edit contains v2",
-      "No real Agent I2C refinement run was performed; the real evidence validates baseline ingestion, compilation, simulation, and measurement only",
-      "The I2C result remains non-authoritative and requires semantic human review",
+      "Historical VerilogEval batches retain their original dataset identity and Prob099 invalid result",
       "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
     ]
   },
   "cognitive_state": {
-    "failure_count": 1,
-    "current_mode": "review",
+    "failure_count": 3,
+    "current_mode": "handoff",
     "tried_approaches": [
-      "Kept core-loop:coverage unchanged and added a separate command",
-      "Normalized the legacy open-drain bus model for the locked Verilator runner",
-      "Measured the unchanged baseline before any Agent turn",
-      "Protected every DUT/helper path in both the Agent contract and post-turn digest check"
+      "Kept the upstream archive and archive digest unchanged",
+      "Declared the preparation patch in the lock with source/result digests and exact occurrence counts",
+      "Published a new dataset version rather than mutating historical batch evidence",
+      "Validated both cold preparation and cache reuse",
+      "Reused a historical candidate for real Prob099 functional confirmation without a model call",
+      "Made Agent guidance injection tests independent of revision-specific wording"
     ],
     "blocked_on": "None"
   },
   "handoff": {
-    "last_summary": "Independent I2C coverage command implemented and validated; latest completed full-dataset experiment is explicitly recorded as v1.",
-    "resume_from": "Run a separately identified real I2C Agent experiment only when desired, then complete semantic human review."
+    "last_summary": "Prob099 testbench is now repaired during VerilogEval preparation under a new locked dataset identity; real historical-candidate simulation passed 200/200 samples.",
+    "resume_from": "Use v2-c498220d-prob099fix1 for future runs or produce supplemental historical Prob099 adjudication if requested."
   }
 }

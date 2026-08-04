@@ -2,32 +2,38 @@
 
 ## Goal
 
-Connect the locked FreeCores I2C baseline to an Agent-driven coverage-improvement flow through a
-new command, without changing the existing `core-loop:coverage` command.
+Repair the locked VerilogEval Prob099 verification testbench during dataset preparation while
+preserving upstream archive provenance and cold-start reproducibility.
 
 ## Current Status
 
-Implementation and scoped validation are complete. The new command is
-`corepack pnpm core-loop:i2c-coverage --agent <pi|opencode>`. It validates and normalizes the exact
-seven-file baseline, measures the unchanged baseline in round one, and permits at most two Agent
-turns that may edit only `rtl/tb.sv` and `rtl/checker.sv`.
+Implementation and validation are complete. VerilogEval preparation now applies lock-declared
+patches after archive SHA validation and safe extraction but before the repaired content manifest
+is validated. Each patch locks its logical path, source SHA, literal replacement counts, and result
+SHA.
 
-The normalized baseline completed a real Windows Verilator round at 78.16% aggregate coverage
-(359/443 lines, 20/28 branches, and 553/740 toggles). No real Agent refinement run was performed,
-so no Agent coverage-gain claim is made. Results remain non-authoritative and require semantic
-human review.
+The production patch changes all 27 `Y2` tokens to `Y1` and all 27 `Y4` tokens to `Y3` only in
+`Prob099_m2014_q6c_test.sv`. The pinned upstream archive and archive SHA remain unchanged. The
+repaired dataset is identified as `v2-c498220d-prob099fix1` with manifest digest
+`sha256:403633924c1491de25b7cc896cedd1500594930ef0c00a174adc1040d476d210`.
 
-The latest completed full-dataset VerilogEval guidance experiment ran on common-guidance v1. The
-I2C workflow is a separate experiment and does not alter that historical identity. An unrelated
-user-owned worktree edit currently changes active `common-guidance.md` to v2; it is outside this
-task and must not be included silently in the I2C commit.
+A real cold preparation completed with `reused: false`; a second run reused the valid cache, and
+`fixtures-check` reported 156 cases. The repaired file has its locked result SHA and contains no
+`Y2`/`Y4`. Historical Pi/K3 candidate `b-20260731-002` compiled and simulated against the repaired
+fixture with 0 mismatches in 200 samples. Historical batch evidence remains unchanged.
+
+Typecheck, lint, build, focused Provider/CLI tests, and real preparation/simulation passed. The
+Agent-adapter regression now verifies dynamic injection of the selected guidance instead of
+requiring v1-specific headings or wording, so operators may switch guidance revisions without
+editing source tests. The ordinary full suite passes 281 tests with two skipped. Prettier, session
+JSON, repaired-dataset assertions, `git diff --check`, and the equivalent Windows Harness check
+also pass.
 
 ## Next Boundary
 
-Complete the guarded commit-main review and land only the reviewed I2C implementation and handoff
-files. Later, run the new command with a selected Agent and perform semantic human review if a real
-coverage-improvement experiment is intended.
+Use the repaired dataset identity for future VerilogEval batches. If desired, re-simulate historical
+Prob099 candidates as supplemental evidence without mutating their original batch results.
 
 ## Last Updated
 
-2026-08-03T11:40:00+08:00
+2026-08-04T08:42:01+08:00

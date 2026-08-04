@@ -1301,3 +1301,56 @@ The result claim is `I2C_COVERAGE_EXPERIMENT`, remains non-authoritative, and re
 human review. This experiment does not change the existing VerilogEval command, dataset selection,
 or result claim. The latest completed full-dataset guidance experiment ran on common-guidance v1;
 the I2C command is a separate baseline-coverage workflow and does not reinterpret that experiment.
+
+## 2026-08-03 - Repair the Prob099 Testbench During Dataset Preparation
+
+### Context
+
+Every completed VerilogEval experiment classified `Prob099_m2014_q6c` as verification-invalid.
+Its public interface and `RefModule` expose `Y1` and `Y3`, while the upstream testbench connects
+nonexistent `Y2` and `Y4` ports to both reference and candidate. Editing only the ignored local
+cache and changing the manifest would make the current machine pass, but a clean environment would
+extract the original archive and fail the new manifest check.
+
+### Decision
+
+Keep the pinned upstream commit, archive URL, and archive SHA-256 unchanged. After safe extraction
+and before Provider manifest validation, apply preparation patches declared by the repository lock.
+Each patch fixes one validated logical path and locks its source digest, ordered literal
+replacements with exact occurrence counts, and result digest.
+
+The first patch rewrites all 27 `Y2` tokens to `Y1` and all 27 `Y4` tokens to `Y3` in
+`Prob099_m2014_q6c_test.sv`. It does not alter the prompt, reference, or any other case. Publish the
+result as dataset version `v2-c498220d-prob099fix1`, adapter version `v1.1.0`, normalization
+`spec-prompt-plus-prob099-testbench-y1-y3-v2`, and repaired manifest digest
+`sha256:403633924c1491de25b7cc896cedd1500594930ef0c00a174adc1040d476d210`.
+
+### Consequences
+
+Cold preparation and cache reuse now produce the same repaired 472-file dataset while preserving
+upstream archive provenance. Unexpected archive content, replacement shape, or normalized output
+fails as `DATASET_PROVENANCE_INVALID`. Historical batches retain their original dataset identity
+and invalid result; future evaluations use the new descriptor and profile identity. A historical
+Pi/K3 Prob099 candidate compiled and simulated against the repaired fixture with 0 mismatches in
+200 samples, confirming that the former invalidity came from the testbench interface.
+
+## 2026-08-04 - Keep Active RTL Guidance Operator-Selectable
+
+### Context
+
+The active `config/agents/rtl-core-loop/common-guidance.md` may be switched between guidance
+revisions for experiments. An adapter regression test asserted headings and one recommendation
+from v1, so selecting v2 made the ordinary test suite fail even though the adapter loaded and
+hashed the selected file correctly.
+
+### Decision
+
+Treat the active guidance text as operator-selected configuration. Adapter tests verify that the
+current file is loaded into the prompt and that its digest participates in the locked capability;
+they do not require revision-specific headings, wording, or recommendations.
+
+### Consequences
+
+Switching the active guidance no longer requires changing source tests. Each run still records the
+actual guidance digest, so experiments using different text remain distinguishable and mid-turn
+guidance changes continue to fail closed.

@@ -71,7 +71,19 @@ corepack pnpm core-loop:dataset:prepare
 corepack pnpm core-loop:fixtures:check
 ```
 
-The preparation command downloads the fixed commit archive, checks its transport SHA-256, extracts only `LICENSE` and `dataset_spec-to-rtl/**`, validates the 472-file content manifest, and atomically publishes it below ignored `.rtl-agent/datasets/`. `fixtures-check` must then report the locked descriptor and 156 cases. Set `RTL_AGENT_VERILOG_EVAL_CACHE_ROOT` to an operator-owned absolute cache root when the repository-local ignored cache is unsuitable. If no cache/Provider is configured, the library/CLI injection boundary still fails closed with `DATASET_NOT_CONFIGURED`; an existing invalid cache fails with `DATASET_PROVENANCE_INVALID` and is never overwritten. R01 filesystem contract tests should run on Windows and Linux because case sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing command/evidence and do not claim Linux readiness.
+The preparation command downloads the fixed commit archive, checks its transport SHA-256, and
+extracts only `LICENSE` and `dataset_spec-to-rtl/**`. It then applies every preparation patch locked
+by source digest, replacement count, and result digest. The current normalization changes the
+Prob099 verification testbench identifiers from `Y2`/`Y4` to the public/reference interface names
+`Y1`/`Y3`. Preparation validates the resulting 472-file content manifest and atomically publishes
+it below ignored `.rtl-agent/datasets/`. `fixtures-check` must report dataset version
+`v2-c498220d-prob099fix1` and 156 cases. Set `RTL_AGENT_VERILOG_EVAL_CACHE_ROOT` to an
+operator-owned absolute cache root when the repository-local ignored cache is unsuitable. If no
+cache/Provider is configured, the library/CLI injection boundary still fails closed with
+`DATASET_NOT_CONFIGURED`; an existing invalid cache fails with `DATASET_PROVENANCE_INVALID` and is
+never overwritten. R01 filesystem contract tests should run on Windows and Linux because case
+sensitivity and symlink behavior differ. If Linux execution is unavailable, record the missing
+command/evidence and do not claim Linux readiness.
 
 Prepare and validate the pinned ChipBench dataset with:
 

@@ -2512,3 +2512,83 @@ task and must remain outside the I2C commit.
 - real normalized I2C Verilator baseline round: passed at 78.16%
 - full Agent adapter test: one unrelated stale v1-guidance text assertion fails against the
   user-owned active v2 worktree edit
+
+## Entry: Repair Prob099 During VerilogEval Dataset Preparation
+
+### Outcome
+
+Added lock-declared preparation patches to the VerilogEval archive pipeline. Each patch validates a
+portable logical path, source SHA-256, exact literal-replacement counts, and result SHA-256 before
+the repaired dataset is checked against its complete content manifest and atomically published.
+The upstream commit, archive URL, and archive SHA remain unchanged.
+
+The production patch changes 27 `Y2` tokens to `Y1` and 27 `Y4` tokens to `Y3` only in
+`Prob099_m2014_q6c_test.sv`. The repaired dataset is versioned as
+`v2-c498220d-prob099fix1`; its 472-file manifest digest is
+`sha256:403633924c1491de25b7cc896cedd1500594930ef0c00a174adc1040d476d210`.
+Synthetic tests prove cold preparation, exact output, valid-cache reuse, and rejection of a wrong
+patch source digest.
+
+Real preparation downloaded and verified the pinned archive, applied the patch, and published the
+new dataset with `reused: false`. A second run returned `reused: true`, and `fixtures-check`
+reported all 156 cases. The prepared Prob099 testbench has the locked result digest, contains 27
+`Y1`, 27 `Y3`, and no `Y2`/`Y4`. Historical Pi/K3 candidate `b-20260731-002` then compiled and
+simulated with Icarus/vvp against the repaired reference/testbench, producing 0 mismatches in 200
+samples. No model call or historical batch mutation occurred.
+
+### Files
+
+- `apps/rtl-core-loop/test/cli.test.ts`
+- `core-loop/fixtures/verilog-eval-v2.lock.json`
+- `packages/core-loop/src/verilog-eval-lock.ts`
+- `packages/core-loop/src/verilog-eval-prepare.ts`
+- `packages/core-loop/test/verilog-eval-provider.test.ts`
+- `docs/verification.md`
+- `docs/decisions.md`
+- `docs/error-journal.md`
+- `current-task.md`
+- `.harness/session-state.json`
+- `.harness/session-log.md`
+
+### Validation
+
+- focused VerilogEval Provider/CLI suite: 19 passed
+- real dataset preparation: first run `reused: false`, second run `reused: true`
+- real fixture check: 156 cases, repaired dataset descriptor and manifest passed
+- real Prob099 Icarus/vvp: 0 mismatches in 200 samples
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm build`: passed
+- full ordinary suite: 280 passed / 2 skipped; one unrelated active-guidance v2 assertion failed
+- real repaired-dataset SHA/content/manifest assertions: passed
+- scoped Prettier and session-state JSON checks: passed
+- `git diff --check`: passed
+- Harness check: passed
+
+## Entry: Make Active RTL Guidance Operator-Selectable
+
+### Outcome
+
+Removed v1-specific heading and recommendation assertions from the OpenCode adapter regression.
+The test now compares the generated prompt with the normalized contents of the currently selected
+`common-guidance.md`, while the existing capability-digest and mid-turn drift checks remain in
+place. Operators may therefore switch guidance revisions without editing source tests or weakening
+the experiment identity.
+
+The process-tree timeout regression exposed a Windows scheduling race during the aggregate suite:
+its 250 ms termination-confirmation allowance was shorter than the production default and could
+classify an otherwise timed-out run as a termination failure under load. The test-only allowance is
+now 1 second; its required `AGENT_TIMEOUT`, unusable workspace, and no-late-child-write assertions
+are unchanged.
+
+### Validation
+
+- focused OpenCode adapter suite: 21 passed
+- `corepack pnpm test`: 281 passed / 2 skipped
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `corepack pnpm core-loop:fixtures:check`: 156 cases passed
+- `git diff --check` and session-state JSON parse: passed
+- equivalent Windows Harness check: passed; `bash` is unavailable in the current PowerShell host

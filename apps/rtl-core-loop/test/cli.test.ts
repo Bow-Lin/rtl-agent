@@ -40,7 +40,7 @@ describe("rtl-core-loop CLI boundary", () => {
         prepareDataset: async (options) => {
           destinationDirectory = options.destinationDirectory;
           return {
-            datasetVersion: "v2-c498220d",
+            datasetVersion: VERILOG_EVAL_DATASET_LOCK.datasetVersion,
             datasetSourceDigest: VERILOG_EVAL_DATASET_LOCK.contentManifestDigest,
             expectedCaseCount: 156,
             reused: false,
@@ -51,7 +51,9 @@ describe("rtl-core-loop CLI boundary", () => {
 
     expect(exitCode).toBe(0);
     expect(errors).toEqual([]);
-    expect(destinationDirectory).toBe(path.resolve("operator-cache", "v2-c498220d"));
+    expect(destinationDirectory).toBe(
+      path.resolve("operator-cache", VERILOG_EVAL_DATASET_LOCK.datasetVersion),
+    );
     expect(JSON.parse(output[0]!) as unknown).toMatchObject({
       ok: true,
       result: { expectedCaseCount: 156, reused: false },

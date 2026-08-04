@@ -1,7 +1,19 @@
 import path from "node:path";
 
-import { Sha256DigestSchema } from "@rtl-agent/contracts";
+import { LogicalPathSchema, Sha256DigestSchema } from "@rtl-agent/contracts";
 import type { Sha256Digest } from "@rtl-agent/contracts";
+
+export interface VerilogEvalPreparationPatch {
+  readonly patchId: string;
+  readonly logicalPath: string;
+  readonly sourceDigest: Sha256Digest;
+  readonly resultDigest: Sha256Digest;
+  readonly replacements: readonly {
+    readonly from: string;
+    readonly to: string;
+    readonly expectedOccurrences: number;
+  }[];
+}
 
 export interface VerilogEvalDatasetLock {
   readonly schemaVersion: 1;
@@ -16,6 +28,7 @@ export interface VerilogEvalDatasetLock {
   readonly contentManifestDigest: Sha256Digest;
   readonly expectedFileCount: number;
   readonly expectedCaseCount: number;
+  readonly preparationPatches: readonly VerilogEvalPreparationPatch[];
   readonly providerImplementationDigest: Sha256Digest;
   readonly datasetDirectory: "dataset_spec-to-rtl";
   readonly problemsFile: "dataset_spec-to-rtl/problems.txt";
@@ -34,7 +47,7 @@ export interface VerilogEvalDatasetLock {
 export const VERILOG_EVAL_DATASET_LOCK = Object.freeze({
   schemaVersion: 1,
   datasetId: "nvlabs-verilog-eval",
-  datasetVersion: "v2-c498220d",
+  datasetVersion: "v2-c498220d-prob099fix1",
   split: "spec-to-rtl",
   sourceRepository: "https://github.com/NVlabs/verilog-eval.git",
   sourceCommit: "c498220d0a52248f8e3fdffe279075215bde2da6",
@@ -45,10 +58,26 @@ export const VERILOG_EVAL_DATASET_LOCK = Object.freeze({
     "sha256:179e0fa36027e93e78adeca687d27d9020f6655bde829ade9baf88aeb20d3fbd",
   ),
   contentManifestDigest: Sha256DigestSchema.parse(
-    "sha256:bbd36573053121fc61e81f38a69b0b9a0f3e4075e18b663e3e4f720aebc10e42",
+    "sha256:403633924c1491de25b7cc896cedd1500594930ef0c00a174adc1040d476d210",
   ),
   expectedFileCount: 472,
   expectedCaseCount: 156,
+  preparationPatches: Object.freeze([
+    Object.freeze({
+      patchId: "prob099-testbench-y1-y3-v1",
+      logicalPath: LogicalPathSchema.parse("dataset_spec-to-rtl/Prob099_m2014_q6c_test.sv"),
+      sourceDigest: Sha256DigestSchema.parse(
+        "sha256:f0646c83cf045e2b151dd54af1772e6b22666d2367ef1f91179309271d9c64a7",
+      ),
+      resultDigest: Sha256DigestSchema.parse(
+        "sha256:f1b10c83ca644b8346a193254e7d0c93fa75406ede8916a81fe557217c44f097",
+      ),
+      replacements: Object.freeze([
+        Object.freeze({ from: "Y2", to: "Y1", expectedOccurrences: 27 }),
+        Object.freeze({ from: "Y4", to: "Y3", expectedOccurrences: 27 }),
+      ]),
+    }),
+  ]),
   providerImplementationDigest: Sha256DigestSchema.parse(
     "sha256:06040bf5a4319dc06deb0069817219fcc3f10bfdce6c748d867e3173d9153771",
   ),
@@ -62,8 +91,8 @@ export const VERILOG_EVAL_DATASET_LOCK = Object.freeze({
   }),
   adapter: Object.freeze({
     adapterId: "verilog-eval-v2",
-    adapterVersion: "v1.0.0",
-    normalizationVersion: "spec-prompt-only-v1",
+    adapterVersion: "v1.1.0",
+    normalizationVersion: "spec-prompt-plus-prob099-testbench-y1-y3-v2",
   }),
 } satisfies VerilogEvalDatasetLock);
 

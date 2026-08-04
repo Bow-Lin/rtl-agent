@@ -457,6 +457,57 @@ source status unless that text still describes the mapped outcome.
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
 
+## 2026-08-04 - Aggregate Windows load exceeded a test-only process termination allowance
+
+### Symptom
+
+The OpenCode adapter test file passed by itself, but the aggregate suite repeatedly classified its
+process-tree timeout fixture as `AGENT_PROCESS_ERROR` with `timedOut: true` instead of the expected
+`AGENT_TIMEOUT`.
+
+### Root Cause
+
+The test overrode the production 2-second termination grace with 250 ms. Under aggregate Windows
+process load, tree termination could exceed that artificial allowance and set
+`terminationFailed`, which intentionally takes precedence over the timeout outcome.
+
+### Fix
+
+Raise only the test fixture's termination-confirmation allowance to 1 second. Keep the 500 ms Agent
+deadline, timeout outcome assertion, unusable-workspace assertion, and delayed child-write check.
+
+### Prevention
+
+Run process-heavy aggregate tests without competing validation jobs and avoid test-only process
+grace periods that are substantially below realistic Windows scheduling latency. Do not change
+production outcome precedence merely to hide an unconfirmed termination.
+
+### Related Files
+
+- `packages/core-loop/test/agent-adapter.test.ts`
+- `docs/verification.md`
+
+## 2026-08-03 - PowerShell quoting broke a repeated ripgrep regex search
+
+### Symptom
+
+Two repository searches failed with an unclosed-group regex even though the intended patterns were
+simple source-code literals.
+
+### Root Cause
+
+PowerShell quoting removed characters from a compound `rg -e` expression containing escaped
+parentheses and quotes before ripgrep parsed it.
+
+### Fix
+
+Reissued the lookup with fixed-string `rg -F` searches for the exact source fragments.
+
+### Prevention
+
+Use separate fixed-string patterns for source tokens under PowerShell unless regular-expression
+semantics are necessary. Do not embed quoted code fragments inside a compound regex command.
+
 ## 2026-07-30 - Spec-understanding host-path regression fixture did not inject its target
 
 ### Symptom
