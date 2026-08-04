@@ -33,7 +33,10 @@ import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.
 const AGENT_NAME = "rtl-core-loop" as const;
 const FIXED_PROMPT =
   "Load the rtl-core-loop skill, read context/agent-input.json, obey any explicit protectedRtlPaths and mutableRtlPaths, and execute exactly one bounded RTL or verification-asset editing attempt.";
-const GUIDANCE_FILE_NAME = "common-guidance.md" as const;
+const GUIDANCE_FILE_NAMES = {
+  generation: "common-guidance.md",
+  "coverage-improvement": "coverage-guidance.md",
+} as const;
 const MAXIMUM_GUIDANCE_BYTES = 16_384;
 const REQUIRED_RUN_FLAGS = [
   "--agent",
@@ -51,6 +54,8 @@ export interface LoadedGuidance {
   readonly digest: ReturnType<typeof sha256Bytes>;
 }
 
+export type RtlGuidanceProfile = keyof typeof GUIDANCE_FILE_NAMES;
+
 export interface RtlWorkspaceLimits {
   readonly maximumFiles: number;
   readonly maximumFileBytes: number;
@@ -63,6 +68,7 @@ export interface OpenCodeExperimentConfig {
   readonly expectedOpenCodeVersion: string;
   readonly repositoryRoot: string;
   readonly providerModel: string;
+  readonly guidanceProfile?: RtlGuidanceProfile;
   readonly variant?: string;
   readonly timeoutMs: number;
   readonly terminationGraceMs: number;
@@ -116,14 +122,21 @@ function validateConfig(config: OpenCodeExperimentConfig): void {
   }
 }
 
-function guidanceFilePath(repositoryRoot: string): string {
-  return path.join(repositoryRoot, "config", "agents", AGENT_NAME, GUIDANCE_FILE_NAME);
+function resolvedGuidanceProfile(profile: RtlGuidanceProfile | undefined): RtlGuidanceProfile {
+  return profile ?? "generation";
 }
 
-export async function loadRtlAgentGuidance(repositoryRoot: string): Promise<LoadedGuidance> {
+function guidanceFilePath(repositoryRoot: string, profile: RtlGuidanceProfile): string {
+  return path.join(repositoryRoot, "config", "agents", AGENT_NAME, GUIDANCE_FILE_NAMES[profile]);
+}
+
+export async function loadRtlAgentGuidance(
+  repositoryRoot: string,
+  profile: RtlGuidanceProfile = "generation",
+): Promise<LoadedGuidance> {
   let bytes: Buffer;
   try {
-    bytes = await readFile(guidanceFilePath(repositoryRoot));
+    bytes = await readFile(guidanceFilePath(repositoryRoot, profile));
   } catch {
     throw new CoreLoopException(
       "OPENCODE_CAPABILITY_MISMATCH",
@@ -158,8 +171,12 @@ export async function loadRtlAgentGuidance(repositoryRoot: string): Promise<Load
   return { content: normalized, digest: sha256Bytes(bytes) };
 }
 
-function turnPrompt(guidance: string): string {
-  return `${FIXED_PROMPT}\n\nApply the following repository guidance to this attempt. The case specification remains authoritative.\n\n${guidance}`;
+function turnPrompt(guidance: string, profile: RtlGuidanceProfile): string {
+  const taskPrompt =
+    profile === "coverage-improvement"
+      ? "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one bounded verification coverage improvement attempt. Preserve protected DUT RTL and improve only the mutable verification assets."
+      : FIXED_PROMPT;
+  return `${taskPrompt}\n\nApply the following repository guidance to this attempt. The case specification remains authoritative.\n\n${guidance}`;
 }
 
 const INLINE_CONFIG = {
@@ -227,6 +244,7 @@ function experimentConfigDigest(config: OpenCodeExperimentConfig): ReturnType<ty
       : { executableArgumentsPrefix: [...executableArgumentsPrefix] }),
     expectedOpenCodeVersion: config.expectedOpenCodeVersion,
     providerModel: config.providerModel,
+    ...(config.guidanceProfile === undefined ? {} : { guidanceProfile: config.guidanceProfile }),
     ...(config.variant === undefined ? {} : { variant: config.variant }),
     agentName: AGENT_NAME,
     repositoryConfigDirectory: ".opencode",
@@ -786,7 +804,10 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
     const [agentBytes, skillBytes, guidance] = await Promise.all([
       readFile(agentFile),
       readFile(skillFile),
-      loadRtlAgentGuidance(this.config.repositoryRoot),
+      loadRtlAgentGuidance(
+        this.config.repositoryRoot,
+        resolvedGuidanceProfile(this.config.guidanceProfile),
+      ),
     ]);
     return OpenCodeCapabilitySchema.parse({
       schemaVersion: 1,
@@ -826,7 +847,8 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       );
     }
     const capability = await this.probe();
-    const guidance = await loadRtlAgentGuidance(this.config.repositoryRoot);
+    const guidanceProfile = resolvedGuidanceProfile(this.config.guidanceProfile);
+    const guidance = await loadRtlAgentGuidance(this.config.repositoryRoot, guidanceProfile);
     if (guidance.digest !== capability.guidanceFileDigest) {
       throw new CoreLoopException(
         "OPENCODE_CAPABILITY_MISMATCH",
@@ -850,7 +872,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       run.workspaceDirectory,
       "--title",
       `core-loop-${run.runId}-attempt-${String(input.attempt)}`,
-      turnPrompt(guidance.content),
+      turnPrompt(guidance.content, guidanceProfile),
     ];
     const processResult = await executeOpenCodeProcess({
       executable: this.config.executable,

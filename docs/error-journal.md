@@ -457,6 +457,52 @@ source status unless that text still describes the mapped outcome.
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
 
+## 2026-08-04 - Real Pi I2C coverage turns can exhaust the fixed turn deadline before editing
+
+### Symptom
+
+Run `run_20260804-163925-750`, requested with `--iterations 4`, measured the 78.16% baseline and
+then exited 3 with `status: FAILED` / `stopReason: AGENT_FAILED`. Only one Agent turn was attempted;
+no later coverage round ran. This repeats the timeout class previously observed in
+`run_20260804-151037-229`, although `run_20260804-154957-029` completed successfully with the same
+Pi/K3 provider and current coverage-guidance digest.
+
+### Root Cause
+
+The first refinement turn reached the configured 600,000 ms deadline and was classified as
+`AGENT_TIMEOUT` after 602,290 ms. Pi completed eight provider responses containing reads and design
+analysis, then the ninth exchange did not produce a response before termination. The before/after
+RTL manifest digests are identical, so neither `tb.sv` nor `checker.sv` changed. The retained event
+summary reports 317,000,961 original bytes and truncation, compared with 59,569,757 bytes for the
+successful turn; this indicates substantial Pi JSON-stream amplification but does not by itself
+prove whether the final delay was local Pi processing or provider latency.
+
+`--iterations` is a maximum refinement budget, not an automatic retry count for failed Agent
+turns. The I2C orchestrator intentionally stops immediately when a turn does not return
+`RTL_CHANGED` with a usable workspace.
+
+### Resolution
+
+No code or workspace repair was applied during diagnosis. The failed workspace and baseline
+evidence remain intact. An operator may retry in a new run, or set
+`RTL_AGENT_TURN_TIMEOUT_MS=1200000` before retrying when accepting a twenty-minute per-turn limit;
+the adapter's validated maximum is 1,200,000 ms. A separate product change would be required to
+retry failed turns or expose timeout/retry behavior as I2C CLI flags.
+
+### Prevention
+
+When evaluating configurable iteration budgets, distinguish successful refinement iterations from
+provider/process failures. Inspect `agent-turn-result.json` before assuming Verilator or the new CLI
+arguments failed, and monitor both wall-clock duration and original event-stream byte count for Pi
+runs.
+
+### Related Files
+
+- `.rtl-agent/i2c-coverage-runs/i2c-master/run_20260804-163925-750/evidence/attempts/2/agent-turn-result.json`
+- `.rtl-agent/i2c-coverage-runs/i2c-master/run_20260804-163925-750/evidence/attempts/2/provider-transcript.json`
+- `packages/core-loop/src/i2c-coverage-experiment.ts`
+- `packages/core-loop/src/pi-agent-adapter.ts`
+
 ## 2026-08-04 - Aggregate Windows load exceeded a test-only process termination allowance
 
 ### Symptom

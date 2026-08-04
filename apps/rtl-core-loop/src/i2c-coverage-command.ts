@@ -2,7 +2,9 @@ import path from "node:path";
 
 import {
   CoreLoopException,
+  DEFAULT_I2C_AGENT_ITERATIONS,
   I2cCoverageFixtureProvider,
+  MAX_I2C_AGENT_ITERATIONS,
   OpenCodeRtlAgentAdapter,
   PiRtlAgentAdapter,
   VerilatorCoverageRunner,
@@ -31,6 +33,44 @@ export interface RtlCoreLoopI2cCoverageDependencies {
   readonly provider?: FixtureProvider;
 }
 
+export interface I2cCoverageCommandOptions {
+  readonly backend: "opencode" | "pi";
+  readonly maxAgentIterations: number;
+  readonly coverageThreshold?: number;
+}
+
+export function parseI2cCoverageCommandOptions(
+  arguments_: readonly string[],
+): I2cCoverageCommandOptions {
+  const namedOptions = parseNamedOptions(arguments_);
+  const allowedOptions = new Set(["--agent", "--iterations", "--coverage-threshold"]);
+  const backend = namedOptions.get("--agent") ?? "opencode";
+  const iterationsText = namedOptions.get("--iterations");
+  const maxAgentIterations =
+    iterationsText === undefined ? DEFAULT_I2C_AGENT_ITERATIONS : Number(iterationsText);
+  const thresholdText = namedOptions.get("--coverage-threshold");
+  const coverageThreshold = thresholdText === undefined ? undefined : Number(thresholdText);
+  if (
+    [...namedOptions.keys()].some((name) => !allowedOptions.has(name)) ||
+    (backend !== "opencode" && backend !== "pi") ||
+    !Number.isSafeInteger(maxAgentIterations) ||
+    maxAgentIterations < 1 ||
+    maxAgentIterations > MAX_I2C_AGENT_ITERATIONS ||
+    (coverageThreshold !== undefined &&
+      (!Number.isFinite(coverageThreshold) || coverageThreshold < 0 || coverageThreshold > 100))
+  ) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      `I2C coverage accepts --agent <opencode|pi>, --iterations <1-${String(MAX_I2C_AGENT_ITERATIONS)}>, and optional --coverage-threshold <0-100>`,
+    );
+  }
+  return {
+    backend,
+    maxAgentIterations,
+    ...(coverageThreshold === undefined ? {} : { coverageThreshold }),
+  };
+}
+
 function configuredBaselineRoot(
   environment: NodeJS.ProcessEnv,
   repositoryRoot: string,
@@ -56,17 +96,9 @@ export async function runI2cCoverageCommand(options: {
   readonly repositoryRoot: string;
   readonly dependencies?: RtlCoreLoopI2cCoverageDependencies;
 }): Promise<number> {
-  const namedOptions = parseNamedOptions(options.arguments_.slice(1));
-  const backend = namedOptions.get("--agent") ?? "opencode";
-  if (
-    (backend !== "opencode" && backend !== "pi") ||
-    namedOptions.size !== (namedOptions.has("--agent") ? 1 : 0)
-  ) {
-    throw new CoreLoopException(
-      "EVALUATION_PROFILE_INVALID",
-      "I2C coverage command accepts only optional --agent <opencode|pi>",
-    );
-  }
+  const { backend, maxAgentIterations, coverageThreshold } = parseI2cCoverageCommandOptions(
+    options.arguments_.slice(1),
+  );
   const provider =
     options.dependencies?.provider ??
     new I2cCoverageFixtureProvider(
@@ -79,12 +111,14 @@ export async function runI2cCoverageCommand(options: {
   const agentAdapter =
     options.dependencies?.agentAdapter ??
     (backend === "pi"
-      ? new PiRtlAgentAdapter(
-          piExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
-        )
-      : new OpenCodeRtlAgentAdapter(
-          openCodeExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
-        ));
+      ? new PiRtlAgentAdapter({
+          ...piExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
+          guidanceProfile: "coverage-improvement",
+        })
+      : new OpenCodeRtlAgentAdapter({
+          ...openCodeExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
+          guidanceProfile: "coverage-improvement",
+        }));
   const windowsVerilator = "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe";
   const windowsCoverage = "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe";
   const coverageRunner =
@@ -110,6 +144,8 @@ export async function runI2cCoverageCommand(options: {
     caseRef: i2cCoverageCaseRef(),
     agentAdapter,
     coverageRunner,
+    maxAgentIterations,
+    ...(coverageThreshold === undefined ? {} : { coverageThreshold }),
     runsRoot:
       options.dependencies?.runsRoot ??
       path.join(options.repositoryRoot, ".rtl-agent", "i2c-coverage-runs"),

@@ -3,7 +3,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { runRtlCoreLoopCli, updateObservedIssuesBestEffort } from "../src/index.js";
+import {
+  parseI2cCoverageCommandOptions,
+  runRtlCoreLoopCli,
+  updateObservedIssuesBestEffort,
+} from "../src/index.js";
 import {
   EvaluationTestProvider,
   ScriptedAgentAdapter,
@@ -168,6 +172,43 @@ describe("rtl-core-loop CLI boundary", () => {
       ok: false,
       error: { code: "EVALUATION_PROFILE_INVALID", retryable: false },
     });
+  });
+
+  it("parses bounded I2C iteration and optional threshold controls", () => {
+    expect(parseI2cCoverageCommandOptions([])).toEqual({
+      backend: "opencode",
+      maxAgentIterations: 2,
+    });
+    expect(
+      parseI2cCoverageCommandOptions([
+        "--agent",
+        "pi",
+        "--iterations",
+        "4",
+        "--coverage-threshold",
+        "95.5",
+      ]),
+    ).toEqual({
+      backend: "pi",
+      maxAgentIterations: 4,
+      coverageThreshold: 95.5,
+    });
+  });
+
+  it.each([
+    ["--iterations", "0"],
+    ["--iterations", "11"],
+    ["--iterations", "1.5"],
+    ["--coverage-threshold", "-1"],
+    ["--coverage-threshold", "101"],
+    ["--coverage-threshold", "not-a-number"],
+    ["--unknown", "1"],
+  ])("rejects invalid I2C option %s=%s", (name, value) => {
+    expect(() => parseI2cCoverageCommandOptions([name, value])).toThrowError(
+      expect.objectContaining({
+        error: expect.objectContaining({ code: "EVALUATION_PROFILE_INVALID" }),
+      }),
+    );
   });
 
   it("recognizes compile-smoke and fails closed when Icarus is unavailable", async () => {

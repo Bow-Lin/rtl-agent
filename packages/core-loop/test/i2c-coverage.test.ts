@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   CoverageFeedbackSchema,
+  I2cCoverageExperimentResultSchema,
   I2cCoverageFixtureProvider,
   createCoreLoopRun,
   i2cCoverageCaseRef,
@@ -161,6 +162,38 @@ class I2cTestCoverageRunner implements CoverageRoundRunner {
   }
 }
 
+class PersistentI2cCoverageRunner implements CoverageRoundRunner {
+  public readonly rounds: number[] = [];
+
+  public runRound(run: CoreLoopRun, round: number): Promise<CoverageFeedback> {
+    this.rounds.push(round);
+    const scores = [40, 75, 92, 94, 95] as const;
+    const score = scores[round - 1] ?? 95;
+    const previousScore = round === 1 ? null : (scores[round - 2] ?? 95);
+    return Promise.resolve(
+      CoverageFeedbackSchema.parse({
+        schemaVersion: 1,
+        runId: run.runId,
+        round,
+        line: { found: 100, hit: score, percent: score },
+        branch: { found: 0, hit: 0, percent: 100 },
+        toggle: { found: 0, hit: 0, percent: 100 },
+        score,
+        increment: previousScore === null ? null : score - previousScore,
+        uncoveredTargets: [
+          {
+            kind: "LINE",
+            sourcePath: "rtl/dut/i2c_master_top.v",
+            line: 10,
+            hitCount: 0,
+            description: "Execute remaining I2C control path",
+          },
+        ],
+      }),
+    );
+  }
+}
+
 describe("FreeCores I2C coverage flow", () => {
   it("validates and normalizes the locked multi-file baseline", async () => {
     const baseline = await syntheticBaseline();
@@ -198,7 +231,7 @@ describe("FreeCores I2C coverage flow", () => {
     expect(tb).not.toContain("force scl");
   });
 
-  it("measures round-one baseline before two Agent refinement turns", async () => {
+  it("runs two Agent iterations by default without an implicit coverage threshold", async () => {
     const baseline = await syntheticBaseline();
     const agent = new I2cTestAgent();
     const runner = new I2cTestCoverageRunner();
@@ -221,12 +254,83 @@ describe("FreeCores I2C coverage flow", () => {
     });
     expect(execution.result).toMatchObject({
       status: "PENDING_HUMAN_REVIEW",
-      stopReason: "COVERAGE_THRESHOLD_REACHED",
+      stopReason: "NO_UNCOVERED_TARGETS",
+      maxAgentIterations: 2,
+      coverageThreshold: null,
       roundsCompleted: 3,
       agentAttempts: 2,
       baselineCoverage: { score: 40 },
       finalCoverage: { score: 92 },
       coverageGain: 52,
+    });
+  });
+
+  it("honors a configurable Agent iteration budget after crossing 90 percent", async () => {
+    const baseline = await syntheticBaseline();
+    const agent = new I2cTestAgent();
+    const runner = new PersistentI2cCoverageRunner();
+    const runRoot = await mkdtemp(path.join(os.tmpdir(), "rtl-agent-i2c-iterations-test-"));
+    roots.push(runRoot);
+    const execution = await runI2cCoverageExperiment({
+      provider: new I2cCoverageFixtureProvider(baseline.root, baseline.lock),
+      caseRef: i2cCoverageCaseRef(baseline.lock),
+      agentAdapter: agent,
+      coverageRunner: runner,
+      runsRoot: path.join(runRoot, "runs"),
+      maxAgentIterations: 4,
+      minimumGain: 0,
+    });
+
+    expect(runner.rounds).toEqual([1, 2, 3, 4, 5]);
+    expect(agent.inputs.map((input) => input.attempt)).toEqual([2, 3, 4, 5]);
+    expect(execution.run.request.profile.maxAttempts).toBe(4);
+    expect(execution.result).toMatchObject({
+      status: "PENDING_HUMAN_REVIEW",
+      stopReason: "MAX_ITERATIONS",
+      maxAgentIterations: 4,
+      coverageThreshold: null,
+      roundsCompleted: 5,
+      agentAttempts: 4,
+      finalCoverage: { score: 95 },
+      coverageGain: 55,
+    });
+    const legacyResult = Object.fromEntries(
+      Object.entries(execution.result).filter(
+        ([name]) => name !== "maxAgentIterations" && name !== "coverageThreshold",
+      ),
+    );
+    expect(I2cCoverageExperimentResultSchema.parse(legacyResult)).toMatchObject({
+      maxAgentIterations: 2,
+      coverageThreshold: 90,
+    });
+  });
+
+  it("stops at an explicitly configured coverage threshold", async () => {
+    const baseline = await syntheticBaseline();
+    const agent = new I2cTestAgent();
+    const runner = new PersistentI2cCoverageRunner();
+    const runRoot = await mkdtemp(path.join(os.tmpdir(), "rtl-agent-i2c-threshold-test-"));
+    roots.push(runRoot);
+    const execution = await runI2cCoverageExperiment({
+      provider: new I2cCoverageFixtureProvider(baseline.root, baseline.lock),
+      caseRef: i2cCoverageCaseRef(baseline.lock),
+      agentAdapter: agent,
+      coverageRunner: runner,
+      runsRoot: path.join(runRoot, "runs"),
+      maxAgentIterations: 4,
+      coverageThreshold: 70,
+    });
+
+    expect(runner.rounds).toEqual([1, 2]);
+    expect(agent.inputs.map((input) => input.attempt)).toEqual([2]);
+    expect(execution.result).toMatchObject({
+      status: "PENDING_HUMAN_REVIEW",
+      stopReason: "COVERAGE_THRESHOLD_REACHED",
+      maxAgentIterations: 4,
+      coverageThreshold: 70,
+      roundsCompleted: 2,
+      agentAttempts: 1,
+      finalCoverage: { score: 75 },
     });
   });
 

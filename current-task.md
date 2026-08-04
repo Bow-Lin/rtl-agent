@@ -2,38 +2,35 @@
 
 ## Goal
 
-Repair the locked VerilogEval Prob099 verification testbench during dataset preparation while
-preserving upstream archive provenance and cold-start reproducibility.
+Repair the guarded-commit finding so an I2C coverage run records its actual configured Agent
+iteration budget in the persisted Core Loop run profile.
 
 ## Current Status
 
-Implementation and validation are complete. VerilogEval preparation now applies lock-declared
-patches after archive SHA validation and safe extraction but before the repaired content manifest
-is validated. Each patch locks its logical path, source SHA, literal replacement counts, and result
-SHA.
+Implementation is complete. `runI2cCoverageExperiment` now writes `maxAgentIterations` into
+`run.request.profile.maxAttempts` instead of the former fixed value 3. The shared run-profile
+contract can represent 1–10 attempts, matching the I2C CLI range, while ordinary generation and
+VerilogEval coverage profiles retain their existing operational maximum of three.
 
-The production patch changes all 27 `Y2` tokens to `Y1` and all 27 `Y4` tokens to `Y3` only in
-`Prob099_m2014_q6c_test.sv`. The pinned upstream archive and archive SHA remain unchanged. The
-repaired dataset is identified as `v2-c498220d-prob099fix1` with manifest digest
-`sha256:403633924c1491de25b7cc896cedd1500594930ef0c00a174adc1040d476d210`.
+## Validation
 
-A real cold preparation completed with `reused: false`; a second run reused the valid cache, and
-`fixtures-check` reported 156 cases. The repaired file has its locked result SHA and contains no
-`Y2`/`Y4`. Historical Pi/K3 candidate `b-20260731-002` compiled and simulated against the repaired
-fixture with 0 mismatches in 200 samples. Historical batch evidence remains unchanged.
+- `corepack pnpm install --frozen-lockfile`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm typecheck`: passed
+- focused contracts/I2C/CLI suite: 3 files and 42 tests passed
+- `corepack pnpm test`: 38 files passed / 1 skipped; 294 tests passed / 2 skipped
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed after formatting the changed contract file
+- `corepack pnpm peers check`: passed
 
-Typecheck, lint, build, focused Provider/CLI tests, and real preparation/simulation passed. The
-Agent-adapter regression now verifies dynamic injection of the selected guidance instead of
-requiring v1-specific headings or wording, so operators may switch guidance revisions without
-editing source tests. The ordinary full suite passes 281 tests with two skipped. Prettier, session
-JSON, repaired-dataset assertions, `git diff --check`, and the equivalent Windows Harness check
-also pass.
+No model call, RTL edit, simulation, coverage run, or persisted runtime-evidence mutation was
+performed.
 
 ## Next Boundary
 
-Use the repaired dataset identity for future VerilogEval batches. If desired, re-simulate historical
-Prob099 candidates as supplemental evidence without mutating their original batch results.
+Complete the guarded `commit-main` review, run the repository validation matrix, and land the
+reviewed accumulated change set on `master` if no P1/P2 findings remain.
 
 ## Last Updated
 
-2026-08-04T08:42:01+08:00
+2026-08-04T17:39:58+08:00

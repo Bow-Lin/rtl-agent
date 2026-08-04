@@ -8,6 +8,8 @@ import { z } from "zod";
 
 import { containsHostAbsolutePath } from "./sanitization.js";
 
+export const MAX_AGENT_TURN_ATTEMPT = 11;
+
 const stableName = <const Brand extends string>(brand: Brand, maximum = 128) =>
   z
     .string()
@@ -188,7 +190,10 @@ export const CoreLoopRunProfileSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   profileId: CoreLoopProfileIdSchema,
   compilerProfileId: CompilerProfileIdSchema,
-  maxAttempts: z.int().min(1).max(3),
+  maxAttempts: z
+    .int()
+    .min(1)
+    .max(MAX_AGENT_TURN_ATTEMPT - 1),
   stdoutLimitBytes: z.int().positive().max(1_048_576),
   stderrLimitBytes: z.int().positive().max(1_048_576),
   maximumIssues: z.int().positive().max(500),
@@ -240,7 +245,7 @@ export const AgentAttemptInputSchema = z
   .strictObject({
     schemaVersion: SchemaVersionSchema,
     runId: RunIdSchema,
-    attempt: z.int().positive().max(3),
+    attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
     category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
     specPath: z.literal("spec.md"),
     workspaceRtlRoot: z.literal("rtl"),

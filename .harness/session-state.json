@@ -1,70 +1,52 @@
 {
-  "task_id": "verilog-eval-prob099-preparation-patch",
+  "task_id": "record-i2c-iteration-budget-in-run-profile",
   "status": "complete",
-  "current_phase": "implementation_and_real_validation_complete",
-  "last_updated": "2026-08-04T08:42:01+08:00",
+  "current_phase": "guarded_landing_review",
+  "last_updated": "2026-08-04T17:39:58+08:00",
   "active_plan": [
-    "Prob099 preparation-time testbench repair implemented and validated; wait for future evaluation or supplemental historical adjudication"
+    "Record the selected I2C Agent iteration budget in both experiment and Core Loop run-profile evidence"
   ],
   "next_3_steps": [
-    "Use dataset version v2-c498220d-prob099fix1 for future VerilogEval runs",
-    "Optionally re-simulate historical Prob099 candidates without mutating original batch evidence",
-    "Keep future dataset and guidance identities separately recorded"
+    "Repeat the guarded review over the complete uncommitted scope",
+    "Commit the reviewed accumulated change set on master",
+    "Push master to origin"
   ],
   "changed_files": [
     ".harness/session-log.md",
     ".harness/session-state.json",
-    "apps/rtl-core-loop/test/cli.test.ts",
-    "config/agents/rtl-core-loop/common-guidance.md",
-    "core-loop/fixtures/verilog-eval-v2.lock.json",
     "current-task.md",
     "docs/decisions.md",
-    "docs/error-journal.md",
-    "docs/verification.md",
-    "packages/core-loop/src/verilog-eval-lock.ts",
-    "packages/core-loop/src/verilog-eval-prepare.ts",
-    "packages/core-loop/test/agent-adapter.test.ts",
-    "packages/core-loop/test/verilog-eval-provider.test.ts"
+    "packages/core-loop/src/contracts.ts",
+    "packages/core-loop/src/i2c-coverage-experiment.ts",
+    "packages/core-loop/test/contracts.test.ts",
+    "packages/core-loop/test/i2c-coverage.test.ts"
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm typecheck",
+      "corepack pnpm install --frozen-lockfile",
       "corepack pnpm lint",
+      "corepack pnpm typecheck",
+      "corepack pnpm exec vitest run packages/core-loop/test/contracts.test.ts packages/core-loop/test/i2c-coverage.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm test",
       "corepack pnpm build",
       "corepack pnpm format:check",
-      "corepack pnpm exec vitest run packages/core-loop/test/verilog-eval-provider.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm core-loop:dataset:prepare (reused false, then true)",
-      "corepack pnpm core-loop:fixtures:check",
-      "real Icarus/vvp Prob099 historical-candidate simulation against repaired fixture",
-      "corepack pnpm exec vitest run packages/core-loop/test/agent-adapter.test.ts (21 passed)",
-      "corepack pnpm test (281 passed, 2 skipped)",
-      "real repaired dataset SHA/content/manifest assertions",
-      "scoped Prettier check",
-      "PowerShell session-state JSON parse",
-      "git diff --check",
-      "equivalent Windows harness file and session-state JSON checks"
+      "corepack pnpm peers check"
     ],
-    "last_result": "Prob099 repaired dataset cold-prepared and reused successfully; 156 fixtures validated and a historical Pi/K3 candidate passed 200/200 samples against the repaired testbench.",
-    "known_failures": [
-      "Historical VerilogEval batches retain their original dataset identity and Prob099 invalid result",
-      "Real Linux execution remains unavailable; no formal Gate or Linux-readiness claim is made"
-    ]
+    "last_result": "Full validation passed: 38 files passed / 1 skipped and 294 tests passed / 2 skipped, with lint, typecheck, build, format, frozen install, and peers all passing.",
+    "known_failures": []
   },
   "cognitive_state": {
-    "failure_count": 3,
-    "current_mode": "handoff",
+    "failure_count": 0,
+    "current_mode": "guarded_review",
     "tried_approaches": [
-      "Kept the upstream archive and archive digest unchanged",
-      "Declared the preparation patch in the lock with source/result digests and exact occurrence counts",
-      "Published a new dataset version rather than mutating historical batch evidence",
-      "Validated both cold preparation and cache reuse",
-      "Reused a historical candidate for real Prob099 functional confirmation without a model call",
-      "Made Agent guidance injection tests independent of revision-specific wording"
+      "Bound run.request.profile.maxAttempts to maxAgentIterations",
+      "Widened only shared run-profile representational capacity to ten",
+      "Added contract and persisted-run regression assertions"
     ],
     "blocked_on": "None"
   },
   "handoff": {
-    "last_summary": "Prob099 testbench is now repaired during VerilogEval preparation under a new locked dataset identity; real historical-candidate simulation passed 200/200 samples.",
-    "resume_from": "Use v2-c498220d-prob099fix1 for future runs or produce supplemental historical Prob099 adjudication if requested."
+    "last_summary": "The guarded-review evidence mismatch is repaired and the complete repository validation matrix passes.",
+    "resume_from": "Repeat the final diff review, then commit and push master if no P1/P2 finding remains."
   }
 }

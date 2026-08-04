@@ -1,7 +1,12 @@
 import { LogicalPathSchema, SchemaVersionSchema, Sha256DigestSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
-import { CapturedOutputSchema, RunIdSchema, ToolVersionSchema } from "./contracts.js";
+import {
+  CapturedOutputSchema,
+  MAX_AGENT_TURN_ATTEMPT,
+  RunIdSchema,
+  ToolVersionSchema,
+} from "./contracts.js";
 
 const boundedToken = z
   .string()
@@ -65,7 +70,7 @@ export const AgentTurnOutcomeSchema = z.enum([
 const agentTurnCommonShape = {
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
-  attempt: z.int().positive().max(3),
+  attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
   outcome: AgentTurnOutcomeSchema,
   workspaceUsableForCompile: z.boolean(),
   rtlChanged: z.boolean(),

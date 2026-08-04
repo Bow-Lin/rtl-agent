@@ -70,8 +70,12 @@ import {
 import { runReanalysisCommand, updateObservedIssuesBestEffort } from "./reanalysis-command.js";
 
 export { updateObservedIssuesBestEffort } from "./reanalysis-command.js";
+export { parseI2cCoverageCommandOptions } from "./i2c-coverage-command.js";
 export type { RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
-export type { RtlCoreLoopI2cCoverageDependencies } from "./i2c-coverage-command.js";
+export type {
+  I2cCoverageCommandOptions,
+  RtlCoreLoopI2cCoverageDependencies,
+} from "./i2c-coverage-command.js";
 
 export type RtlCoreLoopWorkspaceDependency = typeof CoreLoop.packageVersion;
 const DEFAULT_REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -646,7 +650,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

@@ -6,6 +6,7 @@ import {
   CompileRequestSchema,
   CompileResultSchema,
   CoreLoopErrorSchema,
+  CoreLoopRunProfileSchema,
   FinalResultSchema,
   NormalizedFixtureSchema,
   captureOutput,
@@ -15,6 +16,11 @@ import { CASE_DIGEST, CASE_REF, DATASET_DIGEST, PROFILE } from "./fixtures.js";
 const RUN_ID = "run_123e4567-e89b-42d3-a456-426614174000";
 
 describe("Core Loop contracts", () => {
+  it("represents the bounded I2C Agent iteration budget in run profiles", () => {
+    expect(CoreLoopRunProfileSchema.safeParse({ ...PROFILE, maxAttempts: 10 }).success).toBe(true);
+    expect(CoreLoopRunProfileSchema.safeParse({ ...PROFILE, maxAttempts: 11 }).success).toBe(false);
+  });
+
   it("keeps blank generation and seeded repair structurally distinct", () => {
     const common = {
       schemaVersion: 1,
@@ -100,6 +106,24 @@ describe("Core Loop contracts", () => {
         verificationFeedbackPath: "context/verification-feedback-attempt-2.json",
       }).success,
     ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 11,
+        rtlSourceFiles: ["rtl/dut/i2c.v", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        protectedRtlPaths: ["rtl/dut/i2c.v"],
+        mutableRtlPaths: ["rtl/checker.sv", "rtl/tb.sv"],
+        verificationFeedbackPath: "context/verification-feedback-attempt-10.json",
+      }).success,
+    ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 12,
+        rtlSourceFiles: ["rtl/dut/i2c.v", "rtl/tb.sv"],
+      }).success,
+    ).toBe(false);
     expect(
       AgentAttemptInputSchema.safeParse({
         ...seededAgentInput,

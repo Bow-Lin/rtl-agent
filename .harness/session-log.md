@@ -2592,3 +2592,190 @@ are unchanged.
 - `corepack pnpm core-loop:fixtures:check`: 156 cases passed
 - `git diff --check` and session-state JSON parse: passed
 - equivalent Windows Harness check: passed; `bash` is unavailable in the current PowerShell host
+
+## Entry: Consolidate the Pi/K3 Common-Guidance v2 VerilogEval Experiment
+
+### Outcome
+
+Added `exp_result/verilog-eval/08.03-08.04-k3-pi-common-guidance-v2-001-156.md` from existing
+ignored runtime evidence. The report uses three continuous, non-overlapping Pi/K3 batches:
+`b-20260803-003`, `b-20260803-004`, and `b-20260804-001`. Their selections cover Prob001–Prob156
+exactly once; their Agent/compiler capabilities, repaired dataset identity, and v2 guidance digest
+are consistent. All 156 generation transcripts contain the v2 guidance title.
+
+Aggregate results are 155 candidate compile passes, 141 functional passes, 14 genuine mismatches,
+one candidate compile failure, and zero verification-invalid cases. All mismatches have complete
+restricted Pi/K3 diagnoses. The report compares v2 with original guidance and v1, separates the
+Prob099 dataset-repair gain, and records that v2 remains a single unseeded, test-set-informed
+Windows experiment rather than causal or formal-Gate evidence. No model call, RTL generation,
+compile, or simulation was performed for this report.
+
+### Validation
+
+- evidence reconciliation: 156 records, 156 unique continuous cases, totals 155/141/14/1/0
+- capability reconciliation: one Agent capability, one compiler capability, one dataset descriptor
+- transcript check: 156/156 contain `RTL Generation Common Guidance v2`
+- mismatch analysis check: 14/14 strict analysis artifacts present
+- report Prettier check: passed
+- `.harness/session-state.json` parse, `git diff --check`, and Harness check: passed
+
+## Entry: Separate Coverage Improvement Guidance from RTL Generation Guidance
+
+### Outcome
+
+Added `config/agents/rtl-core-loop/coverage-guidance.md` and a fixed
+`coverage-improvement` adapter profile. The new prompt treats coverage as an incremental edit to
+existing verification assets: consume one feedback artifact, target one coherent behavior cluster,
+read only the necessary protected RTL, preserve existing checks, and add bounded legal-interface
+stimulus. It explicitly rejects exhaustive DUT reading, from-scratch rewrites, hierarchical
+backdoors, and assertion weakening.
+
+Both OpenCode and Pi load the selected guidance during probe and turn preparation. The content
+digest remains in capability/turn evidence and the explicit coverage profile participates in the
+experiment configuration digest. Leaving the profile unset preserves generation's existing
+implicit configuration identity and continues to select active Common Guidance v2.
+
+Both `coverage` and `i2c-coverage` select the new profile internally without changing command-line
+syntax. Adapter regressions inspect the actual fake-provider prompt and prove it contains Coverage
+Guidance v1 and excludes Generation Common Guidance v2.
+
+### Validation
+
+- focused OpenCode/Pi/I2C suite: 3 files, 43 tests passed
+- full ordinary suite: 38 files passed / 1 skipped; 283 tests passed / 2 skipped
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `git diff --check`: passed
+
+No real model call was made after this prompt change. A future I2C run remains non-authoritative and
+must verify the new transcript/digest plus human-review the resulting verification assets and
+coverage gain.
+
+## Entry: Report the First Successful I2C Coverage Guidance v1 Run
+
+### Outcome
+
+Added `exp_result/i2c/08.04-k3-pi-coverage-guidance-v1.md` from existing runtime evidence. The
+report reconciles run `run_20260804-154957-029`, its 78.16% normalized baseline, the exact Coverage
+Guidance v1 transcript/digest, the TB-only Agent edit, and the final 93.99% weighted score. It also
+compares the same fixture with the preceding Common Guidance v2 timeout run.
+
+The report records that one Pi/K3 turn added bounded Wishbone synchronous-reset and debug/readback
+stimulus, preserved every protected DUT/model and the checker, cleared 54 of 92 uncovered targets,
+and reached the threshold after round 2. Human review accepts the run as a non-authoritative
+coverage-refinement experiment while retaining the important limits: toggle coverage is 76.35%, 38
+line targets remain, debug/readback accesses lack expected-value assertions, and a single unseeded
+Windows comparison does not prove guidance causality or production readiness.
+
+### Validation
+
+- report Prettier check: passed
+- report-to-evidence reconciliation: passed for run identity, guidance digest, baseline/final
+  coverage, gain, stop reason, and uncovered-target counts
+- no model call, RTL edit, compile, simulation, or new coverage run was performed for the report
+
+## Entry: Make I2C Coverage Iterations Configurable
+
+### Outcome
+
+Added `--iterations <1-10>` to `core-loop:i2c-coverage`, defaulting to two Agent refinement turns.
+The baseline Verilator measurement remains coverage round one and does not consume an Agent turn.
+Added optional `--coverage-threshold <0-100>` and removed the implicit 90% threshold from new
+invocations. Omitting the flag now records `coverageThreshold: null` and permits later iterations
+after crossing 90 when the other early-stop rules allow.
+
+The result evidence now records `maxAgentIterations` and the nullable threshold, and budget
+exhaustion reports `MAX_ITERATIONS`. Historical schema-v1 I2C results without these fields parse as
+the former two-turn, 90% setup. Shared attempt and feedback schemas now represent the baseline plus
+ten Agent turns, while ordinary generation and VerilogEval coverage retain their existing
+operational limits.
+
+### Validation
+
+- focused contracts/I2C/CLI suite: 3 files, 41 tests passed
+- full ordinary suite: 38 files passed / 1 skipped; 293 tests passed / 2 skipped
+- `corepack pnpm typecheck`: passed
+- `corepack pnpm lint`: passed
+- `corepack pnpm build`: passed
+- `corepack pnpm format:check`: passed
+- `git diff --check`: passed
+
+No real Agent call, RTL edit, compile, simulation, or coverage experiment was performed for this
+command-control change.
+
+## Entry: Diagnose the Four-Iteration I2C Run Failure
+
+### Outcome
+
+Inspected run `run_20260804-163925-750`. The command parsed `--iterations 4` correctly, stored a
+null score threshold, and completed the baseline Verilator round at 78.16%. Its first Pi/K3 Agent
+turn timed out after 602,290 ms with `AGENT_TIMEOUT`, no RTL edit, and identical before/after
+manifest digests. The experiment therefore stopped immediately with `AGENT_FAILED`; the remaining
+three refinement opportunities and coverage round two were never reached.
+
+The provider transcript contains eight completed responses spent reading and analyzing the
+feedback, verification assets, DUT regions, and Wishbone model. The ninth response did not complete
+before the fixed ten-minute deadline. The Pi event summary reports 317,000,961 original bytes and
+truncation, versus 59,569,757 bytes for the earlier successful Coverage Guidance v1 turn. This
+supports a stream/latency problem but does not conclusively identify whether the final stall was
+inside Pi or at the provider.
+
+### Validation
+
+- supplied terminal result reconciled with persisted experiment evidence
+- baseline compile, simulation, and coverage processes confirmed successful and not timed out
+- attempt-2 result and all nine retained provider exchanges inspected
+- current run compared with the earlier timeout and successful I2C coverage runs
+- no implementation, RTL, runtime evidence, model call, compile, simulation, or new run performed
+
+## Entry: Diagnose the Twenty-Minute I2C Run's Simulation Failure
+
+### Outcome
+
+Inspected run `run_20260804-170019-107`. The twenty-minute environment override worked: Pi/K3
+completed attempt 2 in 615,239 ms, returned `RTL_CHANGED`, and modified only `rtl/tb.sv`. The
+baseline remained 78.16%, and the round-two Verilator compile passed in 28,601 ms.
+
+The generated TB asserted that the undocumented CR debug mirror must read `8'h00`. Simulation
+instead returned `8'h40`, the preceding STOP command value, and the generated `$fatal` at
+`tb.sv:481` aborted after 476 ms. No round-two coverage data was produced. The result therefore
+reported `VERILATOR_FAILED`, one Agent attempt, and one completed coverage round.
+
+The four-iteration option is a maximum budget, not a guarantee that four turns run. Current I2C
+orchestration can issue repair turns for missing verification assets and Verilator compile errors,
+but treats a nonzero simulation exit as terminal. The remaining three turns could not repair the
+bad assertion.
+
+### Validation
+
+- terminal output reconciled with persisted experiment and Agent evidence
+- Agent timeout override, completion, mutable-only edit, and event evidence confirmed
+- round-two compile success and simulation `$fatal` confirmed
+- generated TB diff and DUT CR readback/update logic inspected
+- no source/RTL/runtime-evidence edit, model call, compile, simulation, or new run performed
+
+## Entry: Record the Actual I2C Iteration Budget in Run Evidence
+
+### Outcome
+
+Repaired the P2 found by the guarded `commit-main` review. Configurable I2C runs no longer retain a
+fixed `profile.maxAttempts: 3` when the operator selects four through ten iterations. The selected
+`maxAgentIterations` now becomes the Core Loop run profile's `maxAttempts`, so the materialized run
+identity and I2C experiment result describe the same execution budget.
+
+The shared run-profile contract can represent 1–10 attempts. This is representational capacity for
+the I2C workflow only; ordinary generation and VerilogEval coverage still construct profiles capped
+at three and their orchestration limits are unchanged.
+
+### Validation
+
+- focused contracts/I2C/CLI suite: 3 files and 42 tests passed
+- contract regression accepts profile attempt budget 10 and rejects 11
+- I2C regression proves `--iterations 4` is persisted as `run.request.profile.maxAttempts: 4`
+- frozen install, lint, typecheck, build, format, and peer dependency checks passed
+- full repository: 38 files passed / 1 skipped; 294 tests passed / 2 skipped
+- the first format check found only the changed contract file; Prettier formatted it and the full
+  format check then passed
+- no model call, RTL edit, simulation, coverage run, or persisted runtime-evidence mutation occurred

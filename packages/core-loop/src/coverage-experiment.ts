@@ -4,7 +4,7 @@ import path from "node:path";
 import { LogicalPathSchema, SchemaVersionSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
-import { AgentAttemptInputSchema, RunIdSchema } from "./contracts.js";
+import { AgentAttemptInputSchema, MAX_AGENT_TURN_ATTEMPT, RunIdSchema } from "./contracts.js";
 import type { FixtureCaseRef, RunId } from "./contracts.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import { executeCompilerProcess } from "./compiler-process.js";
@@ -30,7 +30,7 @@ const CoverageTargetSchema = z.strictObject({
 export const CoverageFeedbackSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
-  round: z.int().positive().max(3),
+  round: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
   line: z.strictObject({
     found: z.int().nonnegative(),
     hit: z.int().nonnegative(),
@@ -65,7 +65,7 @@ export const VerificationAssetRequirementSchema = z.enum([
 export const VerificationAssetFeedbackSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
-  attempt: z.int().positive().max(3),
+  attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
   missingRequirements: z.array(VerificationAssetRequirementSchema).min(1).max(8),
 });
 
@@ -80,7 +80,7 @@ const VerilatorCompileIssueSchema = z.strictObject({
 export const VerilatorCompileFeedbackSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
-  attempt: z.int().positive().max(3),
+  attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
   stage: z.literal("VERILATOR_COMPILE"),
   issues: z.array(VerilatorCompileIssueSchema).min(1).max(64),
 });

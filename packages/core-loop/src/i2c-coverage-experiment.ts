@@ -5,7 +5,7 @@ import { LogicalPathSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
 import type { RtlAgentAdapter } from "./agent-adapter.js";
-import { AgentAttemptInputSchema, RunIdSchema } from "./contracts.js";
+import { AgentAttemptInputSchema, MAX_AGENT_TURN_ATTEMPT, RunIdSchema } from "./contracts.js";
 import type { FixtureCaseRef } from "./contracts.js";
 import {
   CoverageFeedbackSchema,
@@ -22,6 +22,9 @@ import { resolveLogicalPath, scanRegularFiles } from "./filesystem.js";
 import { createCoreLoopRun } from "./materialize.js";
 import type { CoreLoopRun } from "./materialize.js";
 
+export const DEFAULT_I2C_AGENT_ITERATIONS = 2;
+export const MAX_I2C_AGENT_ITERATIONS = MAX_AGENT_TURN_ATTEMPT - 1;
+
 export const I2cCoverageExperimentResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
   runId: RunIdSchema,
@@ -34,6 +37,7 @@ export const I2cCoverageExperimentResultSchema = z.strictObject({
     "NO_UNCOVERED_TARGETS",
     "NO_MEANINGFUL_GAIN",
     "MAX_ROUNDS",
+    "MAX_ITERATIONS",
     "MAX_AGENT_ATTEMPTS",
     "BASELINE_VERILATOR_FAILED",
     "AGENT_FAILED",
@@ -43,8 +47,17 @@ export const I2cCoverageExperimentResultSchema = z.strictObject({
   ]),
   authoritative: z.literal(false),
   claim: z.literal("I2C_COVERAGE_EXPERIMENT"),
-  roundsCompleted: z.int().nonnegative().max(3),
-  agentAttempts: z.int().nonnegative().max(2),
+  maxAgentIterations: z
+    .int()
+    .min(1)
+    .max(MAX_I2C_AGENT_ITERATIONS)
+    .default(DEFAULT_I2C_AGENT_ITERATIONS),
+  coverageThreshold: z.number().min(0).max(100).nullable().default(90),
+  roundsCompleted: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
+  agentAttempts: z
+    .int()
+    .nonnegative()
+    .max(MAX_AGENT_TURN_ATTEMPT - 1),
   baselineCoverage: CoverageFeedbackSchema.nullable(),
   finalCoverage: CoverageFeedbackSchema.nullable(),
   coverageGain: z.number().min(-100).max(100).nullable(),
@@ -67,6 +80,7 @@ export interface RunI2cCoverageExperimentOptions {
   readonly coverageRunner: CoverageRoundRunner;
   readonly runsRoot: string;
   readonly clock?: () => Date;
+  readonly maxAgentIterations?: number;
   readonly coverageThreshold?: number;
   readonly minimumGain?: number;
 }
@@ -116,7 +130,23 @@ function coverageGain(
 export async function runI2cCoverageExperiment(
   options: RunI2cCoverageExperimentOptions,
 ): Promise<{ readonly run: CoreLoopRun; readonly result: I2cCoverageExperimentResult }> {
-  const threshold = options.coverageThreshold ?? 90;
+  const maxAgentIterations = options.maxAgentIterations ?? DEFAULT_I2C_AGENT_ITERATIONS;
+  if (
+    !Number.isSafeInteger(maxAgentIterations) ||
+    maxAgentIterations < 1 ||
+    maxAgentIterations > MAX_I2C_AGENT_ITERATIONS
+  ) {
+    throw new TypeError(
+      `maxAgentIterations must be an integer from 1 to ${String(MAX_I2C_AGENT_ITERATIONS)}`,
+    );
+  }
+  const threshold = options.coverageThreshold;
+  if (
+    threshold !== undefined &&
+    (!Number.isFinite(threshold) || threshold < 0 || threshold > 100)
+  ) {
+    throw new TypeError("coverageThreshold must be a finite number from 0 to 100");
+  }
   const minimumGain = options.minimumGain ?? 0.5;
   const startedAt = options.clock?.() ?? new Date();
   const run = await createCoreLoopRun(
@@ -128,7 +158,7 @@ export async function runI2cCoverageExperiment(
         schemaVersion: 1,
         profileId: "freecores-i2c-coverage-agent-v1",
         compilerProfileId: "fixed-verilator-i2c-coverage-v1",
-        maxAttempts: 3,
+        maxAttempts: maxAgentIterations,
         stdoutLimitBytes: 65_536,
         stderrLimitBytes: 65_536,
         maximumIssues: 256,
@@ -162,7 +192,7 @@ export async function runI2cCoverageExperiment(
   }
 
   if (baselineCoverage !== null) {
-    if (baselineCoverage.score >= threshold) {
+    if (threshold !== undefined && baselineCoverage.score >= threshold) {
       status = "PENDING_HUMAN_REVIEW";
       stopReason = "BASELINE_THRESHOLD_REACHED";
     } else if (baselineCoverage.uncoveredTargets.length === 0) {
@@ -176,7 +206,8 @@ export async function runI2cCoverageExperiment(
         kind: "coverage",
         path: "context/coverage-round-1.json",
       };
-      for (let attempt = 2; attempt <= 3; attempt += 1) {
+      const maximumAttempt = maxAgentIterations + 1;
+      for (let attempt = 2; attempt <= maximumAttempt; attempt += 1) {
         agentAttempts += 1;
         const sourceFiles = (await scanRegularFiles(path.join(run.workspaceDirectory, "rtl")))
           .map((file) => `rtl/${file.logicalPath}`)
@@ -212,7 +243,7 @@ export async function runI2cCoverageExperiment(
         }
         const missing = await missingVerificationAssetRequirements(run);
         if (missing.length > 0) {
-          if (attempt === 3) {
+          if (attempt === maximumAttempt) {
             stopReason = "VERIFICATION_ASSETS_MISSING";
             break;
           }
@@ -234,7 +265,7 @@ export async function runI2cCoverageExperiment(
         try {
           finalCoverage = await options.coverageRunner.runRound(run, round, attempt);
         } catch (error) {
-          if (error instanceof RepairableVerilatorCompileError && attempt < 3) {
+          if (error instanceof RepairableVerilatorCompileError && attempt < maximumAttempt) {
             const feedbackPath = `context/verilator-compile-feedback-attempt-${String(attempt)}.json`;
             await writeWorkspaceJson(
               run,
@@ -259,7 +290,7 @@ export async function runI2cCoverageExperiment(
           `context/coverage-round-${String(round)}.json`,
           finalCoverage,
         );
-        if (finalCoverage.score >= threshold) {
+        if (threshold !== undefined && finalCoverage.score >= threshold) {
           status = "PENDING_HUMAN_REVIEW";
           stopReason = "COVERAGE_THRESHOLD_REACHED";
           break;
@@ -274,9 +305,9 @@ export async function runI2cCoverageExperiment(
           stopReason = "NO_MEANINGFUL_GAIN";
           break;
         }
-        if (round === 3) {
+        if (attempt === maximumAttempt) {
           status = "PENDING_HUMAN_REVIEW";
-          stopReason = "MAX_ROUNDS";
+          stopReason = "MAX_ITERATIONS";
           break;
         }
         feedback = {
@@ -303,6 +334,8 @@ export async function runI2cCoverageExperiment(
     stopReason,
     authoritative: false,
     claim: "I2C_COVERAGE_EXPERIMENT",
+    maxAgentIterations,
+    coverageThreshold: threshold ?? null,
     roundsCompleted,
     agentAttempts,
     baselineCoverage,

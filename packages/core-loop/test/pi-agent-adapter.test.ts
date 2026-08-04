@@ -235,6 +235,33 @@ describe("Pi RTL Agent adapter", () => {
     expect(capability.requiredFlags).toContain("--offline");
   });
 
+  it("selects coverage guidance instead of generation guidance", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const run = await createBlankRun(root);
+    const generation = await new PiRtlAgentAdapter(config(fake, "change")).probe();
+    const coverageConfig: PiExperimentConfig = {
+      ...config(fake, "change"),
+      guidanceProfile: "coverage-improvement",
+    };
+    const adapter = new PiRtlAgentAdapter(coverageConfig);
+    const coverage = await adapter.probe();
+
+    expect(coverage.guidanceFileDigest).not.toBe(generation.guidanceFileDigest);
+    expect(coverage.experimentConfigDigest).not.toBe(generation.experimentConfigDigest);
+
+    await adapter.runTurn(inputFor(run), run);
+    const log = (await readFile(fake.log, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { args: string[] });
+    const args = log.at(-1)!.args;
+    const prompt = args[args.indexOf("--system-prompt") + 1]!;
+    expect(prompt).toContain("verification coverage improvement attempt");
+    expect(prompt).toContain("# RTL Verification Coverage Improvement Guidance v1");
+    expect(prompt).not.toContain("# RTL Generation Common Guidance v2");
+  });
+
   it("runs one isolated JSON turn and records Pi-specific evidence", async () => {
     const root = await temporaryRoot();
     const fake = await fakePi(root);

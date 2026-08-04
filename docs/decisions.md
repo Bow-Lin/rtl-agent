@@ -1354,3 +1354,74 @@ they do not require revision-specific headings, wording, or recommendations.
 Switching the active guidance no longer requires changing source tests. Each run still records the
 actual guidance digest, so experiments using different text remain distinguishable and mid-turn
 guidance changes continue to fail closed.
+
+## 2026-08-04 - Separate Coverage Improvement Guidance from RTL Generation Guidance
+
+### Context
+
+The first real I2C coverage Agent turn loaded RTL Generation Common Guidance v2. Pi spent the
+ten-minute turn reading coverage feedback and protected legacy RTL, made no mutable-asset edit, and
+timed out. Generation guidance optimizes for deriving a new implementation from a specification;
+coverage improvement starts with a working DUT, testbench, checker, and measured runtime feedback.
+
+### Decision
+
+Add the fixed `coverage-improvement` guidance profile backed by
+`config/agents/rtl-core-loop/coverage-guidance.md`. Both `coverage` and `i2c-coverage` select that
+profile without adding or changing CLI arguments. Ordinary generation/evaluation and standalone
+Agent probes continue to default to `generation`, backed by the active `common-guidance.md`.
+
+The coverage prompt requires an incremental verification-asset edit: read the one structured
+feedback file, select one coherent uncovered behavior cluster, inspect only the necessary DUT
+region, preserve protected RTL and existing checks, and add bounded legal-interface stimulus. It
+explicitly rejects exhaustive DUT reading, from-scratch verification rewrites, hierarchical
+backdoors, and assertion weakening.
+
+Both OpenCode and Pi load the selected file during probe and turn preparation. The selected
+guidance content digest remains in capability and turn evidence, and the explicit non-default
+coverage profile also participates in the experiment configuration digest.
+
+### Consequences
+
+Coverage runs no longer inherit generation-specific v2 advice, while existing generation command
+syntax and behavior remain unchanged. Historical runs keep their recorded common-guidance digest.
+Leaving the profile unset preserves the existing generation experiment configuration identity.
+The new prompt is a workflow hypothesis, not coverage evidence; it requires another real I2C Agent
+run and human review before any coverage-improvement claim.
+
+## 2026-08-04 - Make I2C Coverage Iterations Configurable and Threshold Opt-In
+
+### Context
+
+The first I2C coverage workflow fixed the experiment at two Agent refinement turns and stopped as
+soon as its weighted line/branch score reached 90%. That made the initial bounded experiment easy
+to review, but it prevented an operator from intentionally testing additional refinement turns
+after a run crossed 90%. The generic generation and VerilogEval coverage workflows have different
+evidence contracts and must not inherit a wider attempt budget accidentally.
+
+### Decision
+
+Add `--iterations <1-10>` to `core-loop:i2c-coverage`, with a default of two Agent refinement
+turns. The unchanged baseline measurement is not counted as an Agent turn. Add the optional
+`--coverage-threshold <0-100>` flag and remove the implicit threshold from new invocations. An
+omitted threshold therefore never ends a run based only on its score; an explicit threshold may
+stop either the baseline or a later coverage round.
+
+Keep the existing early-stop rules for no uncovered targets, insufficient gain, missing
+verification assets, protected-file changes, compile failure, and Agent failure. Record the chosen
+maximum and nullable threshold in the I2C result. Retain the historical `MAX_ROUNDS` result enum and
+schema defaults when parsing old schema-v1 evidence, while new budget exhaustion is reported as
+`MAX_ITERATIONS`.
+
+Widen the shared run-profile, Agent-turn, and coverage-feedback numeric capacity enough to
+represent ten I2C Agent iterations plus the baseline round. The I2C run profile records the
+operator-selected iteration budget exactly. Do not change the operational limits of ordinary
+generation or the VerilogEval `coverage` command; their own profiles remain capped at three.
+
+### Consequences
+
+`corepack pnpm core-loop:i2c-coverage --agent pi --iterations 4` may continue beyond a score of 90,
+subject to the other early-stop rules. Adding `--coverage-threshold 95` restores score-based early
+termination at an operator-selected target. Every new result distinguishes an absent threshold
+(`null`) from an explicit numeric threshold, and historical results without the new fields remain
+readable as the former two-turn, 90% configuration.

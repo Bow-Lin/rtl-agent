@@ -130,8 +130,8 @@ node .\apps\rtl-core-loop\dist\index.js pi-agent-probe
 ```
 
 `pi-agent-probe` locks the exact Pi version, JSON/ephemeral/offline flags, isolated configuration,
-the explicit `read,write,edit` tool set, the repository path-policy extension, common guidance, and
-experiment configuration. The adapter disables discovered extensions, skills, prompt templates,
+the explicit `read,write,edit` tool set, the repository path-policy extension, selected guidance,
+and experiment configuration. The adapter disables discovered extensions, skills, prompt templates,
 context files, project trust, sessions, telemetry, and startup update traffic. Its explicit
 extension blocks reads outside `spec.md`, `context/**`, and `rtl/**`; writes and edits are restricted
 to supported RTL files below `rtl/**`. The normal post-turn manifest policy remains a second
@@ -238,11 +238,35 @@ into the derived profile before any model turn. The v1 profile uses one Agent at
 Immediately before each selected case enters the Agent/compile loop, `evaluate` writes
 `正在处理 <case-id>... (<current>/<total>)` to stderr. The final machine-readable result remains the
 only stdout line and includes `agentBackend`, so progress output does not corrupt JSON consumers.
-Every Agent turn also receives the complete backend-neutral versioned checklist from
-`config/agents/rtl-core-loop/common-guidance.md`. Its SHA-256 is stored as
+Every generation Agent turn also receives the complete backend-neutral versioned checklist from
+`config/agents/rtl-core-loop/common-guidance.md`. Coverage and I2C coverage turns instead use
+`config/agents/rtl-core-loop/coverage-guidance.md`; the command syntax is unchanged. The selected
+file's SHA-256 is stored as
 `guidanceFileDigest` in the Agent capability and turn evidence, so changing the checklist changes
-the resolved profile identity and mid-run drift fails closed. The guide contains only general
+the resolved profile identity and mid-run drift fails closed. The explicit coverage profile also
+participates in the experiment configuration digest. Each guide contains only general
 Compile/Logic/Safety advice and must not contain case-specific answers or hidden verification data.
+
+The dedicated I2C experiment accepts a bounded Agent-iteration budget and an optional score
+threshold:
+
+```powershell
+# Run at most four Agent refinement turns; do not stop just because the score crosses 90.
+corepack pnpm core-loop:i2c-coverage --agent pi --iterations 4
+
+# Run at most four turns, but stop when the weighted line/branch score reaches 95.
+corepack pnpm core-loop:i2c-coverage --agent pi --iterations 4 --coverage-threshold 95
+```
+
+`--iterations` accepts integers from 1 through 10 and defaults to 2. It counts Agent refinement
+turns only; the unchanged baseline measurement is coverage round one and is not an Agent turn.
+`--coverage-threshold` accepts 0 through 100. When omitted, no score threshold is active. Runs may
+still end early when no uncovered targets remain, the measured gain is below the experiment's
+minimum-gain rule, required verification assets remain invalid, or Agent/Verilator execution
+fails. The result evidence records `maxAgentIterations` and a nullable `coverageThreshold` so the
+invocation can be reconstructed. These options apply only to `i2c-coverage`; the existing
+generation and VerilogEval `coverage` commands retain their current attempt limits and syntax.
+
 After the batch result is published, `evaluate` atomically updates the ignored runtime journal at
 `.rtl-agent/knowledge/observed-issues.md`. Compile diagnostics are taken from structured run
 observations. Each nonzero mismatch requires an additional restricted diagnosis turn supplied only

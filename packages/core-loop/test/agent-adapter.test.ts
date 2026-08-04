@@ -401,6 +401,34 @@ describe("OpenCode RTL Agent adapter", () => {
     expect(first.skillFileDigest).toBe(second.skillFileDigest);
   });
 
+  it("selects the coverage guidance and coverage-specific turn prompt explicitly", async () => {
+    const root = await temporaryRoot();
+    const fake = await createFakeOpenCode(root);
+    const run = await createRun(root);
+    const generation = await new OpenCodeRtlAgentAdapter(config(fake, "no-change")).probe();
+    const adapter = new OpenCodeRtlAgentAdapter(
+      config(fake, "no-change", { guidanceProfile: "coverage-improvement" }),
+    );
+    const coverage = await adapter.probe();
+    const coverageBytes = await readFile(
+      path.join(REPOSITORY_ROOT, "config", "agents", "rtl-core-loop", "coverage-guidance.md"),
+    );
+
+    expect(coverage.guidanceFileDigest).toBe(sha256Bytes(coverageBytes));
+    expect(coverage.guidanceFileDigest).not.toBe(generation.guidanceFileDigest);
+    expect(coverage.experimentConfigDigest).not.toBe(generation.experimentConfigDigest);
+
+    await adapter.runTurn(inputFor(run, ["rtl/dut.sv"]), run);
+    const invocations = (await readFile(fake.log, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[]);
+    const prompt = invocations.at(-1)!.at(-1)!;
+    expect(prompt).toContain("verification coverage improvement attempt");
+    expect(prompt).toContain(coverageBytes.toString("utf8").trim());
+    expect(prompt).not.toContain("# RTL Generation Common Guidance v2");
+  });
+
   it.each([
     ["no-change", "NO_RTL_CHANGE"],
     ["process-error", "AGENT_PROCESS_ERROR"],

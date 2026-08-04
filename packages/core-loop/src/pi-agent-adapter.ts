@@ -15,6 +15,7 @@ import {
   writeAgentInput,
 } from "./agent-adapter.js";
 import type { RtlAgentAdapter, RtlWorkspaceLimits } from "./agent-adapter.js";
+import type { RtlGuidanceProfile } from "./agent-adapter.js";
 import { AgentAttemptInputSchema, ToolVersionSchema } from "./contracts.js";
 import { CoreLoopException } from "./errors.js";
 import { writeJsonEvidenceExclusive } from "./evidence.js";
@@ -82,6 +83,7 @@ export interface PiExperimentConfig {
   readonly configDirectory: string;
   readonly provider: string;
   readonly model: string;
+  readonly guidanceProfile?: RtlGuidanceProfile;
   readonly capabilityFile: string;
   readonly extensionFile: string;
   readonly timeoutMs: number;
@@ -256,6 +258,7 @@ function experimentConfigDigest(
     expectedPiVersion: config.expectedPiVersion,
     provider: config.provider,
     model: config.model,
+    ...(config.guidanceProfile === undefined ? {} : { guidanceProfile: config.guidanceProfile }),
     agentName: AGENT_NAME,
     ...(config.executableArgumentsPrefix === undefined
       ? {}
@@ -272,9 +275,13 @@ function experimentConfigDigest(
   });
 }
 
-function fixedPrompt(guidance: string): string {
+function fixedPrompt(guidance: string, profile: RtlGuidanceProfile): string {
+  const taskPrompt =
+    profile === "coverage-improvement"
+      ? "Read context/agent-input.json and execute exactly one bounded verification coverage improvement attempt."
+      : "Read context/agent-input.json and execute exactly one bounded RTL or verification-asset editing attempt.";
   return [
-    "Read context/agent-input.json and execute exactly one bounded RTL or verification-asset editing attempt.",
+    taskPrompt,
     "The case specification is authoritative.",
     "Only read spec.md, context/**, and rtl/**. Only write or edit RTL files under rtl/.",
     "In VERIFICATION_ASSET_GENERATION mode, obey protectedRtlPaths and mutableRtlPaths when present; otherwise keep rtl/dut.sv unchanged and create or improve rtl/tb.sv and rtl/checker.sv.",
@@ -463,7 +470,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
     const resolvedConfigDigest = await this.lockSharedConfig();
     const [extensionBytes, guidance, projectCapability] = await Promise.all([
       readFile(this.config.extensionFile),
-      loadRtlAgentGuidance(this.config.repositoryRoot),
+      loadRtlAgentGuidance(this.config.repositoryRoot, this.config.guidanceProfile),
       loadPiProjectCapability(this.config.capabilityFile),
     ]);
     return PiCapabilitySchema.parse({
@@ -509,7 +516,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
     }
     const [extensionBytes, guidance, projectCapability] = await Promise.all([
       readFile(this.config.extensionFile),
-      loadRtlAgentGuidance(this.config.repositoryRoot),
+      loadRtlAgentGuidance(this.config.repositoryRoot, this.config.guidanceProfile),
       loadPiProjectCapability(this.config.capabilityFile),
     ]);
     if (
@@ -555,7 +562,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
           "--no-approve",
           "--offline",
           "--system-prompt",
-          fixedPrompt(guidance.content),
+          fixedPrompt(guidance.content, this.config.guidanceProfile ?? "generation"),
           "Execute the bounded RTL attempt now.",
         ]),
         cwd: run.workspaceDirectory,

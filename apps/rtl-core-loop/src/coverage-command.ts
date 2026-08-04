@@ -64,12 +64,14 @@ export async function runCoverageCommand(options: {
   const agentAdapter =
     options.dependencies?.agentAdapter ??
     (backend === "pi"
-      ? new PiRtlAgentAdapter(
-          piExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
-        )
-      : new OpenCodeRtlAgentAdapter(
-          openCodeExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
-        ));
+      ? new PiRtlAgentAdapter({
+          ...piExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
+          guidanceProfile: "coverage-improvement",
+        })
+      : new OpenCodeRtlAgentAdapter({
+          ...openCodeExperimentConfigFromEnvironment(options.environment, options.repositoryRoot),
+          guidanceProfile: "coverage-improvement",
+        }));
   const windowsVerilator = "C:\\msys64\\ucrt64\\bin\\verilator_bin.exe";
   const windowsCoverage = "C:\\msys64\\ucrt64\\bin\\verilator_coverage_bin_dbg.exe";
   const coverageRunner =
