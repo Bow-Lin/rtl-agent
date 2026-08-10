@@ -23,6 +23,7 @@
     "core-loop:fixtures:check": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check",
     "core-loop:fixtures:check:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check:chipbench",
     "core-loop:evaluate:pi": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js evaluate --profile verilog-eval-kimi-v1 --agent pi",
+    "core-loop:evaluate:chipbench:pi": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js evaluate --dataset chipbench --profile chipbench-kimi-v1 --agent pi",
     "core-loop:coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js coverage",
     "core-loop:i2c-coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js i2c-coverage",
     "test:pi-connection": "node test_pi_connection.ts"

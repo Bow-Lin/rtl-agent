@@ -259,6 +259,7 @@ describe("Pi RTL Agent adapter", () => {
     const prompt = args[args.indexOf("--system-prompt") + 1]!;
     expect(prompt).toContain("verification coverage improvement attempt");
     expect(prompt).toContain("# RTL Verification Coverage Improvement Guidance v1");
+    expect(prompt).toContain("verilatorSimulationFeedbackPath");
     expect(prompt).not.toContain("# RTL Generation Common Guidance v2");
   });
 

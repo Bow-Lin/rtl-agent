@@ -1,52 +1,73 @@
 {
-  "task_id": "record-i2c-iteration-budget-in-run-profile",
+  "task_id": "guarded-land-accumulated-core-loop-changes",
   "status": "complete",
-  "current_phase": "guarded_landing_review",
-  "last_updated": "2026-08-04T17:39:58+08:00",
+  "current_phase": "guarded_landing_ready",
+  "last_updated": "2026-08-10T08:25:34+08:00",
   "active_plan": [
-    "Record the selected I2C Agent iteration budget in both experiment and Core Loop run-profile evidence"
+    "Review the complete accumulated uncommitted scope with a P1/P2 gate",
+    "Run the full repository and relevant real-tool validation matrix",
+    "Land the reviewed change set on master and push origin"
   ],
   "next_3_steps": [
-    "Repeat the guarded review over the complete uncommitted scope",
-    "Commit the reviewed accumulated change set on master",
-    "Push master to origin"
+    "Eliminate reserved-keyword compile failures and confirmed Agent timeout noise",
+    "Run repeated paired pre-v1/v3 ChipBench self-contained batches under identical locks",
+    "Compare strict pass rate, compile rate, status transitions, and same-denominator sample mismatch rate"
   ],
   "changed_files": [
     ".harness/session-log.md",
     ".harness/session-state.json",
+    ".opencode/agents/rtl-core-loop.md",
+    ".opencode/skills/rtl-core-loop/SKILL.md",
+    "apps/rtl-core-loop/src/index.ts",
+    "apps/rtl-core-loop/src/chipbench-profile.ts",
+    "config/agents/rtl-core-loop/common-guidance.md",
+    "config/agents/rtl-core-loop/common-guidance_v3.md",
+    "config/agents/rtl-core-loop/common-guidance_v4.md",
+    "config/agents/rtl-core-loop/coverage-guidance.md",
     "current-task.md",
     "docs/decisions.md",
-    "packages/core-loop/src/contracts.ts",
+    "docs/error-journal.md",
+    "docs/verification.md",
+    "packages/core-loop/src/chipbench-provider.ts",
+    "packages/core-loop/src/chipbench-simulation.ts",
+    "packages/core-loop/src/coverage-experiment.ts",
     "packages/core-loop/src/i2c-coverage-experiment.ts",
-    "packages/core-loop/test/contracts.test.ts",
-    "packages/core-loop/test/i2c-coverage.test.ts"
+    "packages/core-loop/src/verilog-eval-simulation.ts",
+    "associated package scripts, locks, documentation, and regression tests"
   ],
   "validation": {
     "last_commands": [
       "corepack pnpm install --frozen-lockfile",
-      "corepack pnpm lint",
-      "corepack pnpm typecheck",
-      "corepack pnpm exec vitest run packages/core-loop/test/contracts.test.ts packages/core-loop/test/i2c-coverage.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm format:check",
-      "corepack pnpm peers check"
+      "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test",
+      "corepack pnpm build && corepack pnpm format:check && corepack pnpm peers check",
+      "corepack pnpm core-loop:fixtures:check:chipbench",
+      "corepack pnpm --filter @rtl-agent/core-loop test:integration:iverilog",
+      "corepack pnpm --filter @rtl-agent/rtl-core-loop compile:smoke",
+      "$env:RUN_VERILATOR_COVERAGE='1'; corepack pnpm exec vitest run packages/core-loop/test/verilator-coverage.integration.test.ts --config vitest.iverilog.config.ts --maxWorkers=1",
+      "git diff --check",
+      "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Full validation passed: 38 files passed / 1 skipped and 294 tests passed / 2 skipped, with lint, typecheck, build, format, frozen install, and peers all passing.",
-    "known_failures": []
+    "last_result": "All deterministic repository checks, 305 ordinary tests, ChipBench cache validation, real Icarus integration/smoke, real Verilator integration, diff checks, and the Harness check passed.",
+    "known_failures": [
+      "A model-backed coverage --case run was not repeated because it would consume model quota; this landing uses deterministic orchestration tests plus real Verilator integration evidence.",
+      "The duplicated common-guidance v4 decision entry remains a non-blocking P3 documentation issue.",
+      "Guidance experiments remain unseeded and cannot separate prompt effects from model sampling variance without repeated paired runs."
+    ]
   },
   "cognitive_state": {
-    "failure_count": 0,
-    "current_mode": "guarded_review",
+    "failure_count": 1,
+    "current_mode": "guarded_landing",
     "tried_approaches": [
-      "Bound run.request.profile.maxAttempts to maxAgentIterations",
-      "Widened only shared run-profile representational capacity to ten",
-      "Added contract and persisted-run regression assertions"
+      "Reviewed all tracked and untracked changes before touching Git state",
+      "Applied the operator's existing guidance-switching decision to dismiss the previous false P2",
+      "Ran the full validation matrix serially to avoid Windows process-test contention",
+      "Corrected the Verilator integration command to use the dedicated integration config after the ordinary config excluded integration files"
     ],
     "blocked_on": "None"
   },
   "handoff": {
-    "last_summary": "The guarded-review evidence mismatch is repaired and the complete repository validation matrix passes.",
-    "resume_from": "Repeat the final diff review, then commit and push master if no P1/P2 finding remains."
-  }
+    "last_summary": "The accumulated Core Loop change set passed guarded review and the full available validation matrix with no remaining P1/P2 finding.",
+    "resume_from": "After landing, preserve existing batch evidence and address compile/timeout noise before repeated paired guidance experiments."
+  },
+  "preexisting_uncommitted_changes_preserved": true
 }

@@ -29,6 +29,18 @@ interface ChipBenchCase {
   readonly caseRef: FixtureCaseRef;
   readonly promptPath: string;
   readonly promptDigest: ScannedFile["contentDigest"];
+  readonly referencePath: string;
+  readonly referenceDigest: ScannedFile["contentDigest"];
+  readonly testbenchPath: string;
+  readonly testbenchDigest: ScannedFile["contentDigest"];
+}
+
+export interface ChipBenchVerificationMaterialization {
+  readonly referenceLogicalPath: "reference.sv";
+  readonly referenceDigest: ScannedFile["contentDigest"];
+  readonly testbenchLogicalPath: "testbench.sv";
+  readonly testbenchDigest: ScannedFile["contentDigest"];
+  readonly testbenchTopModule: "tb";
 }
 
 interface ChipBenchMetadata {
@@ -190,6 +202,10 @@ export class ChipBenchFixtureProvider implements FixtureProvider {
           caseRef,
           promptPath: prompt.hostPath,
           promptDigest: prompt.contentDigest,
+          referencePath: reference.hostPath,
+          referenceDigest: reference.contentDigest,
+          testbenchPath: testbench.hostPath,
+          testbenchDigest: testbench.contentDigest,
         };
         byIdentity.set(identityKey(split.split, caseId), entry);
         return entry;
@@ -282,5 +298,47 @@ export class ChipBenchFixtureProvider implements FixtureProvider {
         split.category === "BLANK_GENERATION" ? "verilog-generation" : "prompted-functional-repair",
       ].sort(),
     });
+  }
+
+  public async materializeVerification(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<ChipBenchVerificationMaterialization> {
+    const parsed = FixtureCaseRefSchema.parse(caseRef);
+    const metadata = await this.loadMetadata();
+    const entry = metadata.byIdentity.get(
+      identityKey(parsed.identity.split, parsed.identity.caseId),
+    );
+    if (entry === undefined || sha256Jcs(entry.caseRef) !== sha256Jcs(parsed)) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "Requested ChipBench verification case does not match the locked catalog",
+      );
+    }
+    await requireRegularDirectory(destination, "Verification staging destination");
+    const [reference, testbench] = await Promise.all([
+      readFile(entry.referencePath),
+      readFile(entry.testbenchPath),
+    ]);
+    if (
+      sha256Bytes(reference) !== entry.referenceDigest ||
+      sha256Bytes(testbench) !== entry.testbenchDigest
+    ) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "ChipBench verification assets changed after dataset validation",
+      );
+    }
+    await Promise.all([
+      writeFile(path.join(destination, "reference.sv"), reference, { flag: "wx" }),
+      writeFile(path.join(destination, "testbench.sv"), testbench, { flag: "wx" }),
+    ]);
+    return {
+      referenceLogicalPath: "reference.sv",
+      referenceDigest: entry.referenceDigest,
+      testbenchLogicalPath: "testbench.sv",
+      testbenchDigest: entry.testbenchDigest,
+      testbenchTopModule: "tb",
+    };
   }
 }

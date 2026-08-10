@@ -20,8 +20,10 @@ reference implementations and testbenches remain outside the Agent boundary.
 Verilog-debugging splits. Preparation extracts only `LICENSE`, `Verilog Gen/**`, and
 `Verilog Debugging/**`; the Provider derives the locked 223-case catalog from complete
 prompt/reference/testbench triplets and exposes only prompts. Debugging prompts are categorized
-as `PROMPTED_FUNCTIONAL_REPAIR`, not seeded compile repair. Reference-model generation, toolbox,
-scripts, and upstream execution harnesses are not extracted or executed.
+as `PROMPTED_FUNCTIONAL_REPAIR`, not seeded compile repair. After an Agent run, the functional
+evaluator may privately materialize the locked reference/testbench below the internal batch tree;
+those assets never enter the Agent workspace or published RTL. Reference-model generation,
+toolbox, scripts, and upstream execution harnesses are not extracted or executed.
 
 Do not commit third-party dataset content here. Tests may create synthetic inputs only in
 temporary directories; those inputs are mechanics tests, not evaluation evidence.

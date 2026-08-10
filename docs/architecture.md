@@ -13,7 +13,7 @@ RTL engineering workflow service under ordered implementation. A01 established t
 - `packages/contracts`: implemented Zod schema version 1, JCS, logical paths, and stable boundary parsers/errors.
 - `packages/domain`: pure Phase A `decide`/`evolveBatch`/`replay`, executable transition policy, aggregate invariants, and internal integrity errors.
 - `packages/storage`: buildable package shell awaiting A04 logic.
-- `packages/core-loop` and `apps/rtl-core-loop`: implemented R01–R04 Core Loop contracts, restricted Agent/compile adapters, bounded repair evaluation, pinned VerilogEval and ChipBench generation/debugging Provider/cache preparation, manifests/write policy, metrics, evidence, recoverable mismatch reanalysis, and thin CLI. Exploratory real batches exist; the acceptance-qualified checkpoint profile, human review, and recommendation remain pending.
+- `packages/core-loop` and `apps/rtl-core-loop`: implemented R01–R04 Core Loop contracts, restricted Agent/compile adapters, bounded repair evaluation, pinned VerilogEval and ChipBench generation/debugging Provider/cache preparation, split-scoped functional simulation, manifests/write policy, metrics, evidence, recoverable mismatch reanalysis, and thin CLI. Exploratory real batches exist; the acceptance-qualified checkpoint profile, human review, and recommendation remain pending.
 
 ## Entry Points
 
@@ -42,7 +42,7 @@ reported locally and in turn evidence after bounded retries, but does not change
 
 - Use `docs/rtl-agent-high-level-design.md` as the implementation baseline.
 - Use `docs/task-breakdown.md` for the ordered implementation sequence and task acceptance criteria.
-- R01–R03 are complete and R04 mechanics plus the VerilogEval and ChipBench Providers are implemented. ChipBench prompted functional-repair results remain compile-only and cannot establish bug repair without a future functional Gate. Do not begin A04 until the locked R04 batch, human review, checkpoint recommendation, and explicit user choice are complete.
+- R01–R03 are complete and R04 mechanics plus the VerilogEval and ChipBench Providers are implemented. Both datasets now have non-authoritative Icarus/VVP functional simulation, while Linux Gate evidence and a real reviewed ChipBench batch remain pending. Do not begin A04 until the locked R04 batch, human review, checkpoint recommendation, and explicit user choice are complete.
 - Do not reintroduce LangGraph without a new decision record showing a requirement for dynamic graph execution that the transactional state machine cannot meet.
 - Preserve the separation between authoritative database state, immutable artifacts, and non-authoritative Langfuse telemetry.
 - Inspect relevant files before editing.

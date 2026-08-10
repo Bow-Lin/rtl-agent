@@ -20,11 +20,72 @@ import {
   BatchInputManifestSchema,
   CHIPBENCH_DATASET_LOCK,
   CoreLoopException,
+  DatasetDescriptorSchema,
+  DatasetSelectionSchema,
   EvaluationProfileSchema,
+  FixtureCaseRefSchema,
+  FixtureMaterializationSchema,
   MismatchAnalysisSchema,
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFunctionalResultSchema,
+  sha256Bytes,
+  sha256Jcs,
 } from "../../../packages/core-loop/src/index.js";
+import type {
+  DatasetSelection,
+  FixtureCaseRef,
+  FixtureMaterialization,
+  FixtureProvider,
+  HostDirectory,
+} from "../../../packages/core-loop/src/index.js";
+
+class ChipBenchCliTestProvider implements FixtureProvider {
+  private readonly caseId = "Prob000_mux";
+
+  public async describe() {
+    return DatasetDescriptorSchema.parse({
+      schemaVersion: 1,
+      datasetId: CHIPBENCH_DATASET_LOCK.datasetId,
+      datasetVersion: CHIPBENCH_DATASET_LOCK.datasetVersion,
+      datasetSourceDigest: CHIPBENCH_DATASET_LOCK.contentManifestDigest,
+      license: CHIPBENCH_DATASET_LOCK.license,
+      adapter: CHIPBENCH_DATASET_LOCK.adapter,
+      splits: CHIPBENCH_DATASET_LOCK.splits.map((entry) => entry.split),
+    });
+  }
+
+  public async *listCases(selection: DatasetSelection): AsyncIterable<FixtureCaseRef> {
+    if (selection.split !== "self-contained") return;
+    yield FixtureCaseRefSchema.parse({
+      schemaVersion: 1,
+      fixtureId: "cb-sc-p000",
+      identity: {
+        datasetId: CHIPBENCH_DATASET_LOCK.datasetId,
+        datasetVersion: CHIPBENCH_DATASET_LOCK.datasetVersion,
+        split: selection.split,
+        caseId: this.caseId,
+      },
+      caseSourceDigest: sha256Bytes(Buffer.from(this.caseId)),
+    });
+  }
+
+  public async materialize(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<FixtureMaterialization> {
+    await writeFile(path.join(destination, "prompt.txt"), "Implement module TopModule.\n");
+    return FixtureMaterializationSchema.parse({
+      schemaVersion: 1,
+      fixtureId: caseRef.fixtureId,
+      identity: caseRef.identity,
+      caseSourceDigest: caseRef.caseSourceDigest,
+      category: "BLANK_GENERATION",
+      specPath: "prompt.txt",
+      topModule: "TopModule",
+      tags: ["chipbench", "self-contained"],
+    });
+  }
+}
 
 describe("rtl-core-loop CLI boundary", () => {
   it("prepares the pinned dataset through an injected cache boundary", async () => {
@@ -655,6 +716,127 @@ describe("rtl-core-loop CLI boundary", () => {
     expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
       ok: false,
       error: { code: "EVALUATION_PROFILE_NOT_CONFIGURED" },
+    });
+  });
+
+  it("accepts a complete ChipBench dataset/split scope before profile lookup", async () => {
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      [
+        "evaluate",
+        "--profile",
+        "missing-chipbench-profile",
+        "--dataset",
+        "chipbench",
+        "--split",
+        "self-contained",
+      ],
+      new EvaluationTestProvider(),
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: { code: "EVALUATION_PROFILE_NOT_CONFIGURED" },
+    });
+  });
+
+  it("runs a registered ChipBench split without requiring case selectors", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-core-loop-chipbench-cli-"));
+    try {
+      const provider = new ChipBenchCliTestProvider();
+      const base = await testEvaluationProfile(
+        new EvaluationTestProvider([
+          { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+        ]),
+      );
+      const descriptor = await provider.describe();
+      const caseIds = ["Prob000_mux"];
+      const profile = EvaluationProfileSchema.parse({
+        ...base,
+        evaluationProfileId: "chipbench-cli-test-v1",
+        dataset: descriptor,
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+        selection: DatasetSelectionSchema.parse({
+          schemaVersion: 1,
+          split: "self-contained",
+          caseIds,
+        }),
+        expectedCaseCount: 1,
+        expectedOrderedCaseIdsDigest: sha256Jcs(caseIds),
+      });
+      const output: string[] = [];
+      const errors: string[] = [];
+      const agent = new ScriptedAgentAdapter([{ outcome: "NO_RTL_CHANGE" }]);
+      const exitCode = await runRtlCoreLoopCli(
+        [
+          "evaluate",
+          "--profile",
+          profile.evaluationProfileId,
+          "--dataset",
+          "chipbench",
+          "--split",
+          "self-contained",
+        ],
+        provider,
+        (line) => output.push(line),
+        (line) => errors.push(line),
+        {},
+        process.cwd(),
+        {
+          profiles: [profile],
+          providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+          agentAdapter: agent,
+          compilerAdapter: new ScriptedCompilerAdapter([]),
+          batchesRoot: path.join(root, "batches"),
+        },
+      );
+
+      expect(exitCode).toBe(0);
+      expect(errors).toEqual(["正在处理 Prob000_mux... (1/1)"]);
+      expect(agent.inputs).toHaveLength(1);
+      expect(JSON.parse(output[0]!) as unknown).toMatchObject({
+        ok: true,
+        result: {
+          status: "COMPLETED",
+          claim: "COMPILE_ONLY",
+          caseCount: 1,
+          compilePassed: 0,
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects ChipBench evaluation when dataset and split are not provided together", async () => {
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      ["evaluate", "--profile", "chipbench-kimi-v1", "--dataset", "chipbench"],
+      new EvaluationTestProvider(),
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: {
+        code: "EVALUATION_PROFILE_INVALID",
+        message: "ChipBench evaluation requires --dataset chipbench with --split",
+      },
     });
   });
 });

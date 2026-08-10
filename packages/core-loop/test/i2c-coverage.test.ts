@@ -8,6 +8,8 @@ import {
   CoverageFeedbackSchema,
   I2cCoverageExperimentResultSchema,
   I2cCoverageFixtureProvider,
+  RepairableVerilatorSimulationError,
+  captureOutput,
   createCoreLoopRun,
   i2cCoverageCaseRef,
   runI2cCoverageExperiment,
@@ -194,6 +196,60 @@ class PersistentI2cCoverageRunner implements CoverageRoundRunner {
   }
 }
 
+class SimulationRepairI2cCoverageRunner implements CoverageRoundRunner {
+  public readonly invocations: { readonly round: number; readonly agentAttempt: number }[] = [];
+
+  public runRound(
+    run: CoreLoopRun,
+    round: number,
+    agentAttempt = round,
+  ): Promise<CoverageFeedback> {
+    this.invocations.push({ round, agentAttempt });
+    if (agentAttempt === 2) {
+      throw new RepairableVerilatorSimulationError({
+        schemaVersion: 1,
+        runId: run.runId,
+        attempt: agentAttempt,
+        stage: "VERILATOR_SIMULATION",
+        outcome: "NONZERO_EXIT",
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        durationMs: 476,
+        stdout: captureOutput("%Fatal: rtl/tb.sv:481: Expected CR mirror 00, received 40\n", {
+          limitBytes: 8_192,
+        }),
+        stderr: captureOutput("", { limitBytes: 8_192 }),
+      });
+    }
+    const score = round === 1 ? 40 : 85;
+    return Promise.resolve(
+      CoverageFeedbackSchema.parse({
+        schemaVersion: 1,
+        runId: run.runId,
+        round,
+        line: { found: 100, hit: score, percent: score },
+        branch: { found: 0, hit: 0, percent: 100 },
+        toggle: { found: 0, hit: 0, percent: 100 },
+        score,
+        increment: round === 1 ? null : 45,
+        uncoveredTargets:
+          round === 1
+            ? [
+                {
+                  kind: "LINE",
+                  sourcePath: "rtl/dut/i2c_master_top.v",
+                  line: 10,
+                  hitCount: 0,
+                  description: "Execute remaining I2C control path",
+                },
+              ]
+            : [],
+      }),
+    );
+  }
+}
+
 describe("FreeCores I2C coverage flow", () => {
   it("validates and normalizes the locked multi-file baseline", async () => {
     const baseline = await syntheticBaseline();
@@ -331,6 +387,59 @@ describe("FreeCores I2C coverage flow", () => {
       roundsCompleted: 2,
       agentAttempts: 1,
       finalCoverage: { score: 75 },
+    });
+  });
+
+  it("feeds a repairable simulation failure to the next Agent iteration", async () => {
+    const baseline = await syntheticBaseline();
+    const agent = new I2cTestAgent();
+    const runner = new SimulationRepairI2cCoverageRunner();
+    const runRoot = await mkdtemp(path.join(os.tmpdir(), "rtl-agent-i2c-simulation-repair-test-"));
+    roots.push(runRoot);
+    const execution = await runI2cCoverageExperiment({
+      provider: new I2cCoverageFixtureProvider(baseline.root, baseline.lock),
+      caseRef: i2cCoverageCaseRef(baseline.lock),
+      agentAdapter: agent,
+      coverageRunner: runner,
+      runsRoot: path.join(runRoot, "runs"),
+      maxAgentIterations: 3,
+    });
+
+    expect(runner.invocations).toEqual([
+      { round: 1, agentAttempt: 0 },
+      { round: 2, agentAttempt: 2 },
+      { round: 2, agentAttempt: 3 },
+    ]);
+    expect(agent.inputs.map((input) => input.attempt)).toEqual([2, 3]);
+    expect(agent.inputs[1]).toMatchObject({
+      verilatorSimulationFeedbackPath: "context/verilator-simulation-feedback-attempt-2.json",
+    });
+    expect(execution.result).toMatchObject({
+      status: "PENDING_HUMAN_REVIEW",
+      stopReason: "NO_UNCOVERED_TARGETS",
+      roundsCompleted: 2,
+      agentAttempts: 2,
+      baselineCoverage: { score: 40 },
+      finalCoverage: { score: 85 },
+      coverageGain: 45,
+    });
+    const feedback = JSON.parse(
+      await readFile(
+        path.join(
+          execution.run.workspaceDirectory,
+          "context",
+          "verilator-simulation-feedback-attempt-2.json",
+        ),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect(feedback).toMatchObject({
+      stage: "VERILATOR_SIMULATION",
+      outcome: "NONZERO_EXIT",
+      attempt: 2,
+      stdout: expect.objectContaining({
+        preview: expect.stringContaining("Expected CR mirror 00, received 40"),
+      }),
     });
   });
 

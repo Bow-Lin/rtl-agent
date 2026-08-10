@@ -12,6 +12,7 @@
     "compile:smoke": "node dist/index.js compile-smoke",
     "coverage": "node dist/index.js coverage",
     "i2c-coverage": "node dist/index.js i2c-coverage",
+    "evaluate:chipbench:pi": "node dist/index.js evaluate --dataset chipbench --profile chipbench-kimi-v1 --agent pi",
     "dataset:prepare": "node dist/index.js dataset-prepare",
     "dataset:prepare:chipbench": "node dist/index.js dataset-prepare --dataset chipbench",
     "fixtures:check": "node dist/index.js fixtures-check",

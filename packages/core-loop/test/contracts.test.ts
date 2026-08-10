@@ -142,6 +142,15 @@ describe("Core Loop contracts", () => {
     expect(
       AgentAttemptInputSchema.safeParse({
         ...seededAgentInput,
+        attempt: 3,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut.sv", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        verilatorSimulationFeedbackPath: "context/verilator-simulation-feedback-attempt-2.json",
+      }).success,
+    ).toBe(true);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
         attempt: 2,
         rtlSourceFiles: ["rtl/checker.sv", "rtl/dut/i2c.v", "rtl/tb.sv"],
         taskKind: "VERIFICATION_ASSET_GENERATION",
@@ -169,6 +178,16 @@ describe("Core Loop contracts", () => {
         taskKind: "VERIFICATION_ASSET_GENERATION",
         verificationFeedbackPath: "context/verification-feedback-attempt-1.json",
         verilatorCompileFeedbackPath: "context/verilator-compile-feedback-attempt-1.json",
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentAttemptInputSchema.safeParse({
+        ...seededAgentInput,
+        attempt: 2,
+        rtlSourceFiles: ["rtl/checker.sv", "rtl/dut.sv", "rtl/tb.sv"],
+        taskKind: "VERIFICATION_ASSET_GENERATION",
+        verilatorCompileFeedbackPath: "context/verilator-compile-feedback-attempt-1.json",
+        verilatorSimulationFeedbackPath: "context/verilator-simulation-feedback-attempt-1.json",
       }).success,
     ).toBe(false);
     expect(

@@ -1425,3 +1425,182 @@ subject to the other early-stop rules. Adding `--coverage-threshold 95` restores
 termination at an operator-selected target. Every new result distinguishes an absent threshold
 (`null`) from an explicit numeric threshold, and historical results without the new fields remain
 readable as the former two-turn, 90% configuration.
+
+## 2026-08-05 - Route Confirmed Simulation Failures Back to the Coverage Agent
+
+### Context
+
+I2C run `run_20260804-170019-107` compiled an Agent-modified testbench successfully but then
+stopped on a generated `$fatal`: the testbench guessed that an undocumented CR debug mirror must
+read `8'h00`, while the DUT correctly exposed the preceding `8'h40` STOP command. Three configured
+Agent iterations remained, but simulation failures were terminal and therefore could not be
+repaired.
+
+### Decision
+
+Treat a Verilator simulation nonzero exit, signal, or timeout as repairable only after the process
+started, termination succeeded, and close was confirmed. Persist a strict, bounded
+`VerilatorSimulationFeedback` artifact containing the stage, outcome, exit metadata, duration, and
+sanitized stdout/stderr. Give exactly that feedback path to the next coverage Agent turn and rerun
+the same coverage round after the mutable verification assets are changed.
+
+Apply the behavior to both the dedicated I2C experiment and the existing VerilogEval coverage
+orchestrator. A failed simulation consumes one Agent attempt but is not a completed coverage round.
+If no attempt remains, retain `VERILATOR_FAILED` after persisting the diagnostic. Spawn errors,
+failed termination, and unconfirmed close remain terminal and are never converted into repair
+instructions.
+
+### Consequences
+
+Coverage Agents can now correct their own invalid assertions instead of losing the remaining
+iteration budget. The next turn receives at most one verification feedback type, and its prompt
+prioritizes the concrete simulation failure before new coverage work. Expected values must be
+derived from public protocol and inspected RTL semantics rather than guessed for undocumented
+mirrors. This changes guidance identity for future runs but does not rewrite historical evidence or
+change either command's syntax.
+
+## 2026-08-05 - Keep Common Guidance v3 as an Inactive, Dataset-Neutral Candidate
+
+### Context
+
+The common-guidance v2 VerilogEval run improved compile robustness substantially, including all ten
+previous enum/state compile failures, but the remaining failures concentrated on procedural output
+declarations, sequential cycle ownership, remembered state, truth-table indexing, and counter
+boundaries. The v1 experiment also showed that a longer explanatory prompt can reduce accuracy.
+
+### Decision
+
+Add `config/agents/rtl-core-loop/common-guidance_v3.md` as a candidate without replacing the active
+`common-guidance.md`. Preserve v2's small-design, exact-interface, compile-safe state, and
+unspecified-behavior principles. Strengthen only reusable design contracts: output driver
+classification, edge-N cycle statements, history-state self-loops, final-domain truth-table replay,
+and explicit counter meaning plus threshold boundary checks. Include no case identifiers, expected
+answers, or dataset-specific exceptions.
+
+### Consequences
+
+The candidate is 832 words, shorter than v2's 915 words, so the new checks do not expand the prompt
+past the current baseline. Existing runs continue to use v2 until an operator explicitly activates
+v3, allowing the next experiment to attribute any result change to a deliberate guidance switch.
+
+## 2026-08-06 - Evaluate ChipBench Through Split-Scoped Core Loop Profiles
+
+### Context
+
+The pinned ChipBench cache and Provider exposed 45 generation cases and 178 prompted debugging
+cases, but the standalone CLI selected ChipBench only for prepare/check. All dynamic Kimi profiles
+and functional simulation were VerilogEval-specific, so ChipBench could produce Provider mechanics
+or injected compile-only evidence but could not be run as a normal functional batch. Case IDs repeat
+across ChipBench splits, and debugging compile success alone does not demonstrate a repaired bug.
+
+### Decision
+
+Add explicit `evaluate --dataset chipbench --split <split>` routing and create one locked Kimi
+OpenCode/Pi profile per selected split. Omitting case selectors runs the complete split; range and
+sparse selectors remain split-local. Do not introduce a cross-split selection or aggregate
+zero-shot, one-shot, generation, and debugging into one experiment identity.
+
+Extend the ChipBench Provider with a verification-only materialization that revalidates and copies
+the locked reference and testbench into the internal batch tree, never the Agent workspace or
+published RTL. Generalize the existing VerilogEval functional engine and reuse its fixed Icarus/VVP
+process, timeout, sanitization, evidence, mismatch parsing, and invalid-verification classifications.
+Do not invoke the upstream Docker, Make, Python, or model scripts.
+
+### Consequences
+
+All 11 ChipBench splits can now be run through the same restricted Agent and compiler boundaries as
+VerilogEval and produce non-authoritative `FUNCTIONAL_SIMULATION` evidence. The provider source
+digest advances while the pinned archive and 683-file content manifest remain unchanged. Existing
+VerilogEval commands and result schema stay compatible. A real ChipBench/K3 batch, Linux evidence,
+and human review remain separate operator actions.
+
+## 2026-08-06 - Keep Common Guidance v4 as a Surgical, Inactive Candidate
+
+### Context
+
+The full common-guidance v3 VerilogEval run produced 144/156 functional passes versus v2's
+141/156 while both compiled 155/156 candidates. V3 recovered seven v2 non-pass cases but regressed
+four prior passes. RTL inspection found that v3 removed v2's explicit Moore/Mealy definition before
+a previously correct Moore design became a same-cycle Mealy implementation. Other regressions
+exposed ambiguity around explicitly required initial state, a cycle contract contradicted by its
+final driver, and a compiler-rejected function output argument.
+
+### Decision
+
+Add `config/agents/rtl-core-loop/common-guidance_v4.md` as an inactive candidate without replacing
+`common-guidance.md`. Use v3 as the base and make only reusable corrections: restore the explicit
+Moore/Mealy contract, distinguish required power-up state from invented initialization, require the
+final driver to implement the stated N/N+1 cycle contract, retain one-hot equation replay, and
+constrain functions to input arguments with packed return values under the locked compiler.
+
+Do not add case identifiers, expected answers, reference-specific behavior, or rules for ambiguous
+evaluation behavior. Persistent failures that already violate written timing, truth-table, history,
+or counter rules require executable checks or bounded feedback rather than more prompt text.
+
+### Consequences
+
+V4 is dataset-neutral, 810 words, and remains unpromoted. Evaluate it under the same locked dataset
+and capability identity, preferably with repeated paired v3/v4 runs, before activation. A single
+test-set-informed batch is not enough evidence to replace the active guidance.
+
+## 2026-08-06 - Keep Common Guidance v4 as a Surgical, Inactive Candidate
+
+### Context
+
+The full common-guidance v3 VerilogEval run produced 144/156 functional passes versus v2's
+141/156 while both compiled 155/156 candidates. V3 recovered seven v2 non-pass cases but regressed
+four prior passes. Actual RTL inspection found one strong text-level regression: v3 removed v2's
+explicit Moore/Mealy definition, and a previously correct Moore design became a same-cycle Mealy
+implementation. Another regression exposed ambiguity between matching an explicitly required
+initial state and the general prohibition on invented initialization. The remaining regressions
+included a cycle contract contradicted by its final driver and a compiler-rejected function output
+argument.
+
+### Decision
+
+Add `config/agents/rtl-core-loop/common-guidance_v4.md` as an inactive candidate without replacing
+`common-guidance.md`. Use v3 as the base and make only reusable corrections: restore the explicit
+Moore/Mealy contract, distinguish required power-up state from invented initialization, require the
+final output driver to implement the stated N/N+1 cycle contract, retain one-hot equation replay,
+and constrain helper functions to input arguments with packed return values under the locked
+compiler.
+
+Do not add case identifiers, expected answers, reference-specific behavior, or extra rules for
+unspecified startup, contradictory interfaces, or other evaluation ambiguities. Persistent timing,
+truth-table, history, and counter failures already violate existing guidance and should be handled
+with executable checks or bounded feedback rather than additional prompt volume.
+
+### Consequences
+
+V4 remains dataset-neutral and unpromoted. It must be evaluated under the same locked dataset and
+capability identity, preferably with repeated paired v3/v4 runs, before activation. A single
+test-set-informed batch is not sufficient evidence to replace the active guidance.
+
+## 2026-08-06 - Do Not Promote Common Guidance v4 From Its First Full Run
+
+### Context
+
+Batch `b-20260806-004` evaluated common-guidance v4 on all 156 VerilogEval `spec-to-rtl` cases
+with the same repaired dataset, Pi/K3 backend, one-attempt policy, and Icarus profile used by the
+v3 experiment. V4 produced 134 functional passes and 152 compile passes, versus v3's 144 and 155.
+The paired comparison contains 6 improvements and 16 regressions.
+
+### Decision
+
+Record v4 as a negative single-run result and do not treat the experiment-time selection of
+`common-guidance.md` as evidence that v4 should replace v3 as the default. Preserve v4's targeted
+required-initialization, Moore/Mealy, final-driver, and compiler-safe-function corrections for a
+future candidate, but restore the more explicit no-extra-pipeline and distinct-input wording before
+the next evaluation. Handle the recurring Icarus enum failure through a hard rule or bounded
+compile feedback instead of another soft preference.
+
+Require repeated paired v3/follow-up runs before making a default-guidance decision. The current
+single unseeded run supports only the claim that v4 performed worse in this observation.
+
+### Consequences
+
+The report at
+`exp_result/verilog-eval/08.06-k3-pi-common-guidance-v4-001-156.md` is the evidence summary. This
+decision does not modify the active guidance file, rerun a case, or rewrite batch evidence. Future
+guidance work should keep targeted fixes separate from the repeated evaluation needed to estimate
+model variance.

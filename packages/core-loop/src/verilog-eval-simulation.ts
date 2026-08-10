@@ -11,13 +11,11 @@ import { executeCompilerProcess } from "./compiler-process.js";
 import type { CompilerProcessOptions, CompilerProcessResult } from "./compiler-process.js";
 import { copyRegularTreeToEvidence, writeJsonEvidenceExclusive } from "./evidence.js";
 import { asHostDirectoryForProvider } from "./fixture-provider.js";
+import type { HostDirectory } from "./fixture-provider.js";
 import { scanRegularFiles } from "./filesystem.js";
-import type {
-  VerilogEvalFixtureProvider,
-  VerilogEvalVerificationMaterialization,
-} from "./verilog-eval-provider.js";
+import type { VerilogEvalFixtureProvider } from "./verilog-eval-provider.js";
 
-const FunctionalCaseStatusSchema = z.enum([
+export const FunctionalCaseStatusSchema = z.enum([
   "PASSED",
   "MISMATCH",
   "CANDIDATE_NOT_COMPILE_PASSED",
@@ -28,7 +26,7 @@ const FunctionalCaseStatusSchema = z.enum([
   "OUTPUT_INVALID",
 ]);
 
-const FunctionalCaseResultSchema = z.strictObject({
+export const FunctionalCaseResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
   caseRef: FixtureCaseRefSchema,
   runId: z.string().min(1),
@@ -53,7 +51,7 @@ const FunctionalCaseResultSchema = z.strictObject({
   stderr: CapturedOutputSchema.nullable(),
 });
 
-export const VerilogEvalFunctionalResultSchema = z.strictObject({
+export const FunctionalSimulationResultSchema = z.strictObject({
   schemaVersion: z.literal(1),
   authoritative: z.literal(false),
   claim: z.literal("FUNCTIONAL_SIMULATION"),
@@ -68,15 +66,45 @@ export const VerilogEvalFunctionalResultSchema = z.strictObject({
   cases: z.array(FunctionalCaseResultSchema),
 });
 
-export type VerilogEvalFunctionalResult = z.infer<typeof VerilogEvalFunctionalResultSchema>;
+export const VerilogEvalFunctionalResultSchema = FunctionalSimulationResultSchema;
+export type FunctionalSimulationResult = z.infer<typeof FunctionalSimulationResultSchema>;
+export type VerilogEvalFunctionalResult = FunctionalSimulationResult;
 type ProcessRunner = (options: CompilerProcessOptions) => Promise<CompilerProcessResult>;
 
-export interface EvaluateVerilogEvalFunctionalOptions {
+export interface FunctionalVerificationMaterialization {
+  readonly referenceLogicalPath: "reference.sv";
+  readonly testbenchLogicalPath: "testbench.sv";
+  readonly testbenchTopModule: "tb";
+}
+
+const FunctionalVerificationMaterializationSchema = z
+  .object({
+    referenceLogicalPath: z.literal("reference.sv"),
+    testbenchLogicalPath: z.literal("testbench.sv"),
+    testbenchTopModule: z.literal("tb"),
+  })
+  .passthrough();
+
+export interface FunctionalVerificationProvider {
+  materializeVerification(
+    caseRef: FixtureCaseRef,
+    destination: HostDirectory,
+  ): Promise<FunctionalVerificationMaterialization>;
+}
+
+export interface EvaluateFunctionalSimulationOptions {
   readonly execution: CoreLoopBatchExecution;
-  readonly provider: VerilogEvalFixtureProvider;
+  readonly provider: FunctionalVerificationProvider;
   readonly iverilogExecutable: string;
   readonly vvpExecutable?: string;
   readonly processRunner?: ProcessRunner;
+}
+
+export interface EvaluateVerilogEvalFunctionalOptions extends Omit<
+  EvaluateFunctionalSimulationOptions,
+  "provider"
+> {
+  readonly provider: VerilogEvalFixtureProvider;
 }
 
 function emptyProcessFields() {
@@ -187,17 +215,19 @@ async function publishCandidate(
 }
 
 async function materializeVerification(
-  provider: VerilogEvalFixtureProvider,
+  provider: FunctionalVerificationProvider,
   caseRef: FixtureCaseRef,
   destination: string,
-): Promise<VerilogEvalVerificationMaterialization> {
+): Promise<FunctionalVerificationMaterialization> {
   await mkdir(destination, { recursive: true });
-  return provider.materializeVerification(caseRef, asHostDirectoryForProvider(destination));
+  return FunctionalVerificationMaterializationSchema.parse(
+    await provider.materializeVerification(caseRef, asHostDirectoryForProvider(destination)),
+  );
 }
 
-export async function evaluateVerilogEvalFunctionalBatch(
-  options: EvaluateVerilogEvalFunctionalOptions,
-): Promise<VerilogEvalFunctionalResult> {
+export async function evaluateFunctionalSimulationBatch(
+  options: EvaluateFunctionalSimulationOptions,
+): Promise<FunctionalSimulationResult> {
   const runner = options.processRunner ?? executeCompilerProcess;
   const byRunId = new Map(options.execution.result.runs.map((run) => [run.runId, run]));
   const caseResults: z.infer<typeof FunctionalCaseResultSchema>[] = [];
@@ -360,7 +390,7 @@ export async function evaluateVerilogEvalFunctionalBatch(
   const compilePassed = caseResults.filter(
     (caseResult) => caseResult.status !== "CANDIDATE_NOT_COMPILE_PASSED",
   ).length;
-  const result = VerilogEvalFunctionalResultSchema.parse({
+  const result = FunctionalSimulationResultSchema.parse({
     schemaVersion: 1,
     authoritative: false,
     claim: "FUNCTIONAL_SIMULATION",
@@ -398,4 +428,10 @@ export async function evaluateVerilogEvalFunctionalBatch(
     internalEvidenceDirectory: `${BATCH_INTERNAL_DIRECTORY}/evidence`,
   });
   return result;
+}
+
+export function evaluateVerilogEvalFunctionalBatch(
+  options: EvaluateVerilogEvalFunctionalOptions,
+): Promise<VerilogEvalFunctionalResult> {
+  return evaluateFunctionalSimulationBatch(options);
 }

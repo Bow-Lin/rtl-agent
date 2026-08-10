@@ -127,6 +127,22 @@ describe("ChipBench pinned dataset Provider", () => {
     await expect(createFileManifest(debuggingStaging)).resolves.toMatchObject({
       entries: [{ path: "prompt.txt" }],
     });
+
+    const verificationStaging = path.join(root, "verification-staging");
+    await mkdir(verificationStaging);
+    await expect(
+      provider.materializeVerification(
+        debugging[0]!,
+        asHostDirectoryForProvider(verificationStaging),
+      ),
+    ).resolves.toMatchObject({
+      referenceLogicalPath: "reference.sv",
+      testbenchLogicalPath: "testbench.sv",
+      testbenchTopModule: "tb",
+    });
+    await expect(createFileManifest(verificationStaging)).resolves.toMatchObject({
+      entries: [{ path: "reference.sv" }, { path: "testbench.sv" }],
+    });
   });
 
   it("detects source drift and rejects unsupported debugging splits", async () => {

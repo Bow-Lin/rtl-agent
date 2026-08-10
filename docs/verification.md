@@ -92,7 +92,37 @@ corepack pnpm core-loop:dataset:prepare:chipbench
 corepack pnpm core-loop:fixtures:check:chipbench
 ```
 
-The command extracts only `LICENSE`, `Verilog Gen/**`, and `Verilog Debugging/**`, validates the 683-file manifest, and must report 45 generation cases plus 178 debugging cases across 11 splits. Set `RTL_AGENT_CHIPBENCH_CACHE_ROOT` for an external cache. Debugging cases are `PROMPTED_FUNCTIONAL_REPAIR`: their buggy RTL is contained in the prompt, and the current result remains non-authoritative `COMPILE_ONLY` evidence rather than functional-repair proof. Reference-model, toolbox, script, Docker, Make, and Python paths are excluded and never executed.
+The command extracts only `LICENSE`, `Verilog Gen/**`, and `Verilog Debugging/**`, validates the 683-file manifest, and must report 45 generation cases plus 178 debugging cases across 11 splits. Set `RTL_AGENT_CHIPBENCH_CACHE_ROOT` for an external cache. Debugging cases are `PROMPTED_FUNCTIONAL_REPAIR`: their buggy RTL is contained in the prompt. Reference-model, toolbox, script, Docker, Make, and Python paths are excluded and never executed.
+
+Run one complete ChipBench split with Pi/Kimi using:
+
+```powershell
+corepack pnpm core-loop:evaluate:chipbench:pi --split self-contained
+```
+
+An explicit range or sparse case list narrows the selected split; case prefixes are resolved only
+inside that split, because ChipBench repeats identifiers such as `Prob001` across splits:
+
+```powershell
+corepack pnpm core-loop:evaluate:chipbench:pi `
+  --split self-contained `
+  --cases "Prob000,Prob001"
+```
+
+Supported generation splits are `self-contained` (30), `not-self-contained` (6), and `cpu-ip` (9).
+The eight debugging splits use
+`debug-(zero|one)-shot-(arithmetic|assignment|state-machine|timing)` with 24, 30, 6, and 29
+cases respectively for each shot setting. Run each split as a separate batch; do not combine
+zero-shot, one-shot, generation, and debugging results into one accuracy claim.
+
+After the normal candidate-only compile Gate, ChipBench functional evaluation privately
+materializes the locked `_ref.sv` and `_test.sv`, compiles candidate/reference/testbench with
+Icarus SystemVerilog 2012 using top `tb`, runs VVP under the fixed timeout boundary, and parses the
+single `Mismatches: N in M samples` summary. Reference and testbench files remain below the batch's
+internal verification tree and are never copied into the Agent workspace or published RTL output.
+The resulting `FUNCTIONAL_SIMULATION` evidence is non-authoritative. Configure
+`RTL_AGENT_IVERILOG_EXECUTABLE` and optionally `RTL_AGENT_VVP_EXECUTABLE` when the tools are not on
+`PATH`.
 
 R02-specific static and live checks are:
 
@@ -262,10 +292,19 @@ corepack pnpm core-loop:i2c-coverage --agent pi --iterations 4 --coverage-thresh
 turns only; the unchanged baseline measurement is coverage round one and is not an Agent turn.
 `--coverage-threshold` accepts 0 through 100. When omitted, no score threshold is active. Runs may
 still end early when no uncovered targets remain, the measured gain is below the experiment's
-minimum-gain rule, required verification assets remain invalid, or Agent/Verilator execution
-fails. The result evidence records `maxAgentIterations` and a nullable `coverageThreshold` so the
-invocation can be reconstructed. These options apply only to `i2c-coverage`; the existing
-generation and VerilogEval `coverage` commands retain their current attempt limits and syntax.
+minimum-gain rule, required verification assets remain invalid, the Agent fails, or a Verilator
+failure exhausts the Agent budget or cannot be repaired safely. A confirmed Verilator simulation
+nonzero exit, signal, or timeout is written to
+`context/verilator-simulation-feedback-attempt-<n>.json`; when another Agent turn remains, that
+turn receives the bounded stdout/stderr and retries the same coverage round after repairing the
+mutable verification assets. Failed simulation attempts consume Agent iterations but do not count
+as completed coverage rounds. Spawn failures and failures without confirmed process termination
+remain terminal because they do not provide a trustworthy repair boundary. The same structured
+simulation-repair behavior applies to the existing VerilogEval `coverage` orchestration without
+changing its command syntax or three-attempt limit. The result evidence records
+`maxAgentIterations` and a nullable `coverageThreshold` so the I2C invocation can be reconstructed.
+The iteration and threshold options apply only to `i2c-coverage`; the existing generation and
+VerilogEval `coverage` commands retain their current attempt limits and syntax.
 
 After the batch result is published, `evaluate` atomically updates the ignored runtime journal at
 `.rtl-agent/knowledge/observed-issues.md`. Compile diagnostics are taken from structured run

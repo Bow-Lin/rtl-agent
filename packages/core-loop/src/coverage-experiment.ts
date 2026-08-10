@@ -4,7 +4,13 @@ import path from "node:path";
 import { LogicalPathSchema, SchemaVersionSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
-import { AgentAttemptInputSchema, MAX_AGENT_TURN_ATTEMPT, RunIdSchema } from "./contracts.js";
+import {
+  AgentAttemptInputSchema,
+  CapturedOutputSchema,
+  MAX_AGENT_TURN_ATTEMPT,
+  RunIdSchema,
+} from "./contracts.js";
+import type { CapturedOutput } from "./contracts.js";
 import type { FixtureCaseRef, RunId } from "./contracts.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import { executeCompilerProcess } from "./compiler-process.js";
@@ -85,6 +91,38 @@ export const VerilatorCompileFeedbackSchema = z.strictObject({
   issues: z.array(VerilatorCompileIssueSchema).min(1).max(64),
 });
 
+export const VerilatorSimulationFeedbackSchema = z
+  .strictObject({
+    schemaVersion: SchemaVersionSchema,
+    runId: RunIdSchema,
+    attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
+    stage: z.literal("VERILATOR_SIMULATION"),
+    outcome: z.enum(["NONZERO_EXIT", "SIGNAL", "TIMEOUT"]),
+    exitCode: z.int().nullable(),
+    signal: z.string().min(1).max(32).nullable(),
+    timedOut: z.boolean(),
+    durationMs: z.int().nonnegative(),
+    stdout: CapturedOutputSchema,
+    stderr: CapturedOutputSchema,
+  })
+  .superRefine((value, context) => {
+    const valid =
+      (value.outcome === "TIMEOUT" && value.timedOut) ||
+      (value.outcome === "SIGNAL" && !value.timedOut && value.signal !== null) ||
+      (value.outcome === "NONZERO_EXIT" &&
+        !value.timedOut &&
+        value.signal === null &&
+        value.exitCode !== null &&
+        value.exitCode !== 0);
+    if (!valid) {
+      context.addIssue({
+        code: "custom",
+        path: ["outcome"],
+        message: "Simulation outcome does not match its process result",
+      });
+    }
+  });
+
 export const CoverageExperimentResultSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
   runId: RunIdSchema,
@@ -117,6 +155,7 @@ export const CoverageExperimentResultSchema = z.strictObject({
 export type CoverageFeedback = z.infer<typeof CoverageFeedbackSchema>;
 export type VerificationAssetRequirement = z.infer<typeof VerificationAssetRequirementSchema>;
 export type VerilatorCompileIssue = z.infer<typeof VerilatorCompileIssueSchema>;
+export type VerilatorSimulationFeedback = z.infer<typeof VerilatorSimulationFeedbackSchema>;
 export type CoverageExperimentResult = z.infer<typeof CoverageExperimentResultSchema>;
 
 export class RepairableVerilatorCompileError extends Error {
@@ -127,6 +166,64 @@ export class RepairableVerilatorCompileError extends Error {
     this.name = "RepairableVerilatorCompileError";
     this.issues = z.array(VerilatorCompileIssueSchema).min(1).max(64).parse(issues);
   }
+}
+
+export class RepairableVerilatorSimulationError extends Error {
+  public readonly feedback: VerilatorSimulationFeedback;
+
+  public constructor(feedback: VerilatorSimulationFeedback) {
+    super("Verilator simulation rejected generated verification assets");
+    this.name = "RepairableVerilatorSimulationError";
+    this.feedback = VerilatorSimulationFeedbackSchema.parse(feedback);
+  }
+}
+
+const SIMULATION_FEEDBACK_OUTPUT_BYTES = 8_192;
+
+function simulationFeedbackOutput(output: CapturedOutput): CapturedOutput {
+  const bytes = Buffer.from(output.preview, "utf8");
+  const bounded =
+    bytes.byteLength <= SIMULATION_FEEDBACK_OUTPUT_BYTES
+      ? output.preview
+      : new TextDecoder("utf-8", { fatal: false }).decode(
+          bytes.subarray(bytes.byteLength - SIMULATION_FEEDBACK_OUTPUT_BYTES),
+        );
+  return CapturedOutputSchema.parse({
+    preview: bounded,
+    truncated: output.truncated || bytes.byteLength > SIMULATION_FEEDBACK_OUTPUT_BYTES,
+    originalByteLength: output.originalByteLength,
+  });
+}
+
+export function repairableVerilatorSimulationFeedback(
+  result: CompilerProcessResult,
+  runId: RunId,
+  attempt: number,
+): VerilatorSimulationFeedback | undefined {
+  if (result.spawnError !== undefined || result.terminationFailed || !result.closeConfirmed) {
+    return undefined;
+  }
+  const outcome = result.timedOut
+    ? "TIMEOUT"
+    : result.signal !== null
+      ? "SIGNAL"
+      : result.exitCode !== null && result.exitCode !== 0
+        ? "NONZERO_EXIT"
+        : undefined;
+  if (outcome === undefined) return undefined;
+  return VerilatorSimulationFeedbackSchema.parse({
+    schemaVersion: 1,
+    runId,
+    attempt,
+    stage: "VERILATOR_SIMULATION",
+    outcome,
+    exitCode: result.exitCode,
+    signal: result.signal,
+    timedOut: result.timedOut,
+    durationMs: result.durationMs,
+    stdout: simulationFeedbackOutput(result.stdout),
+    stderr: simulationFeedbackOutput(result.stderr),
+  });
 }
 
 export interface VerilatorCoverageConfig {
@@ -473,11 +570,20 @@ export class VerilatorCoverageRunner implements CoverageRoundRunner {
       `${JSON.stringify(simulation, undefined, 2)}\n`,
       { flag: "wx" },
     );
-    if (!processPassed(simulation))
+    if (!processPassed(simulation)) {
+      const repairableFeedback = repairableVerilatorSimulationFeedback(
+        simulation,
+        run.runId,
+        agentAttempt,
+      );
+      if (repairableFeedback !== undefined) {
+        throw new RepairableVerilatorSimulationError(repairableFeedback);
+      }
       throw new CoreLoopException(
         "COVERAGE_EXPERIMENT_FAILED",
-        `Verilator simulation failed: ${simulation.stderr.preview.slice(0, 768)}`,
+        `Verilator simulation failed: ${(simulation.stderr.preview || simulation.stdout.preview).slice(0, 768)}`,
       );
+    }
     const coverageData = path.join(buildDirectory, "coverage.dat");
     const lineCoverageData = path.join(buildDirectory, "coverage-line.dat");
     const coverageInfo = path.join(buildDirectory, "coverage.info");
@@ -680,6 +786,7 @@ export async function runCoverageExperiment(
     | { readonly kind: "coverage"; readonly path: string }
     | { readonly kind: "verification"; readonly path: string }
     | { readonly kind: "verilator-compile"; readonly path: string }
+    | { readonly kind: "verilator-simulation"; readonly path: string }
     | undefined;
   for (let attempt = 1; attempt <= 3 && roundsCompleted < maxRounds; attempt += 1) {
     const sourceFiles = (await scanRegularFiles(path.join(run.workspaceDirectory, "rtl")))
@@ -699,6 +806,9 @@ export async function runCoverageExperiment(
       ...(feedback?.kind === "verification" ? { verificationFeedbackPath: feedback.path } : {}),
       ...(feedback?.kind === "verilator-compile"
         ? { verilatorCompileFeedbackPath: feedback.path }
+        : {}),
+      ...(feedback?.kind === "verilator-simulation"
+        ? { verilatorSimulationFeedbackPath: feedback.path }
         : {}),
     });
     const turn = await options.agentAdapter.runTurn(input, run);
@@ -758,6 +868,20 @@ export async function runCoverageExperiment(
         );
         feedback = { kind: "verilator-compile", path: compileFeedbackPath };
         continue;
+      }
+      if (error instanceof RepairableVerilatorSimulationError) {
+        const simulationFeedbackPath = LogicalPathSchema.parse(
+          `context/verilator-simulation-feedback-attempt-${String(attempt)}.json`,
+        );
+        await writeFile(
+          resolveLogicalPath(run.workspaceDirectory, simulationFeedbackPath),
+          `${JSON.stringify(error.feedback, undefined, 2)}\n`,
+          { flag: "wx" },
+        );
+        if (attempt < 3) {
+          feedback = { kind: "verilator-simulation", path: simulationFeedbackPath };
+          continue;
+        }
       }
       stopReason = "VERILATOR_FAILED";
       status = "FAILED";

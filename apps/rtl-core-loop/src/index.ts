@@ -21,6 +21,7 @@ import {
   chipBenchCacheRoot,
   chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
+  evaluateChipBenchFunctionalBatch,
   evaluateCoreLoopBatch,
   evaluateVerilogEvalFunctionalBatch,
   createRunId,
@@ -44,6 +45,13 @@ import type {
   RtlAgentAdapter,
 } from "@rtl-agent/core-loop";
 import { parseNamedOptions } from "./cli-arguments.js";
+import {
+  CHIPBENCH_KIMI_PI_PROFILE_ID,
+  CHIPBENCH_KIMI_PROFILE_ID,
+  createChipBenchKimiBaseProfile,
+  createChipBenchKimiPiBaseProfile,
+  parseChipBenchSplit,
+} from "./chipbench-profile.js";
 import { executeCliCommand } from "./cli-error.js";
 import { runCoverageCommand, type RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
 import {
@@ -104,6 +112,8 @@ interface ParsedEvaluationCommand {
   readonly profileId: string;
   readonly agentBackend?: AgentBackend;
   readonly mismatchAnalyzerBackend?: MismatchAnalyzerBackend;
+  readonly dataset?: DatasetName;
+  readonly split?: string;
   readonly selection?: EvaluationCaseSelectionRequest;
 }
 
@@ -139,6 +149,18 @@ function selectedDataset(arguments_: readonly string[]): DatasetName | undefined
     return arguments_[2];
   }
   return undefined;
+}
+
+function standaloneDataset(arguments_: readonly string[]): DatasetName {
+  const prepared = selectedDataset(arguments_);
+  if (prepared !== undefined) return prepared;
+  if (arguments_[0] !== "evaluate") return "verilog-eval";
+  for (let index = 1; index + 1 < arguments_.length; index += 2) {
+    if (arguments_[index] !== "--dataset") continue;
+    const value = arguments_[index + 1];
+    if (value === "verilog-eval" || value === "chipbench") return value;
+  }
+  return "verilog-eval";
 }
 
 function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluationCommand {
@@ -186,10 +208,31 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       "--agent must be either opencode or pi",
     );
   }
+  const datasetOption = options.get("--dataset");
+  if (
+    datasetOption !== undefined &&
+    datasetOption !== "verilog-eval" &&
+    datasetOption !== "chipbench"
+  ) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "--dataset must be either verilog-eval or chipbench",
+    );
+  }
+  const dataset = datasetOption as DatasetName | undefined;
+  const split = options.get("--split");
+  if ((dataset === "chipbench") !== (split !== undefined)) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "ChipBench evaluation requires --dataset chipbench with --split",
+    );
+  }
   const allowedOptions = new Set([
     "--profile",
     "--agent",
     "--analyzer",
+    "--dataset",
+    "--split",
     "--begin",
     "--end",
     "--cases",
@@ -204,13 +247,17 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     options.size -
     1 -
     (agentBackend === undefined ? 0 : 1) -
-    (mismatchAnalyzerBackend === undefined ? 0 : 1);
+    (mismatchAnalyzerBackend === undefined ? 0 : 1) -
+    (dataset === undefined ? 0 : 1) -
+    (split === undefined ? 0 : 1);
   const parsedBackend = agentBackend as AgentBackend | undefined;
   if (selectionOptionCount === 0) {
     return {
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+      ...(dataset === undefined ? {} : { dataset }),
+      ...(split === undefined ? {} : { split }),
     };
   }
 
@@ -227,6 +274,8 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+      ...(dataset === undefined ? {} : { dataset }),
+      ...(split === undefined ? {} : { split }),
       selection: { kind: "RANGE", begin, end },
     };
   }
@@ -247,6 +296,8 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+      ...(dataset === undefined ? {} : { dataset }),
+      ...(split === undefined ? {} : { split }),
       selection: { kind: "CASES", cases: selectors },
     };
   }
@@ -267,6 +318,15 @@ function profileIdForAgentBackend(command: ParsedEvaluationCommand): string {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
       `${VERILOG_EVAL_KIMI_PI_PROFILE_ID} requires --agent pi`,
+    );
+  }
+  if (command.profileId === CHIPBENCH_KIMI_PROFILE_ID) {
+    return command.agentBackend === "pi" ? CHIPBENCH_KIMI_PI_PROFILE_ID : CHIPBENCH_KIMI_PROFILE_ID;
+  }
+  if (command.profileId === CHIPBENCH_KIMI_PI_PROFILE_ID && command.agentBackend !== "pi") {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      `${CHIPBENCH_KIMI_PI_PROFILE_ID} requires --agent pi`,
     );
   }
   return command.profileId;
@@ -523,6 +583,48 @@ export async function runRtlCoreLoopCli(
               );
         providerImplementationDigest = VERILOG_EVAL_DATASET_LOCK.providerImplementationDigest;
       }
+      if (
+        registered === undefined &&
+        evaluationDependencies === undefined &&
+        (requestedProfileId === CHIPBENCH_KIMI_PROFILE_ID ||
+          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID)
+      ) {
+        if (parsedCommand.dataset !== "chipbench") {
+          throw new CoreLoopException(
+            "EVALUATION_PROFILE_INVALID",
+            "ChipBench profile requires --dataset chipbench",
+          );
+        }
+        const split = parseChipBenchSplit(parsedCommand.split);
+        if (requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID) {
+          agentAdapter = new PiRtlAgentAdapter(
+            piExperimentConfigFromEnvironment(environment, repositoryRoot),
+          );
+        } else {
+          agentAdapter = new OpenCodeRtlAgentAdapter(
+            openCodeExperimentConfigFromEnvironment(environment, repositoryRoot),
+          );
+        }
+        compilerAdapter = new IcarusCompileAdapter({
+          executable: icarusExecutableFromEnvironment(environment),
+          probeWorkingDirectory: repositoryRoot,
+        });
+        registered =
+          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID
+            ? await createChipBenchKimiPiBaseProfile(
+                configuredProvider,
+                agentAdapter,
+                compilerAdapter,
+                split,
+              )
+            : await createChipBenchKimiBaseProfile(
+                configuredProvider,
+                agentAdapter,
+                compilerAdapter,
+                split,
+              );
+        providerImplementationDigest = CHIPBENCH_DATASET_LOCK.providerImplementationDigest;
+      }
       if (registered === undefined) {
         throw new CoreLoopException(
           "EVALUATION_PROFILE_NOT_CONFIGURED",
@@ -542,6 +644,21 @@ export async function runRtlCoreLoopCli(
         throw new CoreLoopException(
           "EVALUATION_PROFILE_NOT_CONFIGURED",
           "Requested Core Loop evaluation profile has no Provider implementation lock",
+        );
+      }
+      const requestedDatasetId =
+        parsedCommand.dataset === "chipbench"
+          ? CHIPBENCH_DATASET_LOCK.datasetId
+          : parsedCommand.dataset === "verilog-eval"
+            ? VERILOG_EVAL_DATASET_LOCK.datasetId
+            : undefined;
+      if (
+        (requestedDatasetId !== undefined && registered.dataset.datasetId !== requestedDatasetId) ||
+        (parsedCommand.split !== undefined && registered.selection.split !== parsedCommand.split)
+      ) {
+        throw new CoreLoopException(
+          "EVALUATION_PROFILE_INVALID",
+          "Requested dataset or split does not match the evaluation profile",
         );
       }
       const profile =
@@ -597,7 +714,17 @@ export async function runRtlCoreLoopCli(
                 ? {}
                 : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
             })
-          : undefined;
+          : configuredProvider instanceof ChipBenchFixtureProvider &&
+              profile.dataset.datasetId === CHIPBENCH_DATASET_LOCK.datasetId
+            ? await evaluateChipBenchFunctionalBatch({
+                execution,
+                provider: configuredProvider,
+                iverilogExecutable: icarusExecutableFromEnvironment(environment),
+                ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
+                  ? {}
+                  : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
+              })
+            : undefined;
       const hasMismatch =
         functionalResult?.cases.some((item) => item.status === "MISMATCH") ?? false;
       const mismatchAnalyzer =
@@ -650,7 +777,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--analyzer <opencode|pi>] (--begin <case> --end <case>|--cases <case,...>)|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }
@@ -660,7 +787,7 @@ export const packageVersion = "0.0.0" as const;
 const invokedPath = process.argv[1];
 if (invokedPath !== undefined && fileURLToPath(import.meta.url) === invokedPath) {
   const repositoryEnvironment = await loadRepositoryEnvironment(DEFAULT_REPOSITORY_ROOT);
-  const requestedDataset = selectedDataset(process.argv.slice(2)) ?? "verilog-eval";
+  const requestedDataset = standaloneDataset(process.argv.slice(2));
   const datasetDirectory =
     requestedDataset === "chipbench"
       ? chipBenchDatasetDirectory(

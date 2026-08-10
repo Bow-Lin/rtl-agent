@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  AgentAttemptInputSchema,
   OpenCodeRtlAgentAdapter,
   buildIsolatedOpenCodeEnvironment,
   createCoreLoopRun,
   openCodeExperimentConfigFromEnvironment,
   sha256Bytes,
+  validateTurnInput,
 } from "../src/index.js";
 import type { AgentAttemptInput, CoreLoopRun, OpenCodeExperimentConfig } from "../src/index.js";
 import { RUN_REQUEST, TestFixtureProvider } from "./fixtures.js";
@@ -426,6 +428,7 @@ describe("OpenCode RTL Agent adapter", () => {
     const prompt = invocations.at(-1)!.at(-1)!;
     expect(prompt).toContain("verification coverage improvement attempt");
     expect(prompt).toContain(coverageBytes.toString("utf8").trim());
+    expect(prompt).toContain("verilatorSimulationFeedbackPath");
     expect(prompt).not.toContain("# RTL Generation Common Guidance v2");
   });
 
@@ -459,6 +462,45 @@ describe("OpenCode RTL Agent adapter", () => {
     await expect(
       new OpenCodeRtlAgentAdapter(config(fake, "change")).runTurn(inputFor(run, []), run),
     ).rejects.toMatchObject({ error: { code: "AGENT_INPUT_INVALID" } });
+  });
+
+  it("validates bound Verilator simulation feedback for a later repair turn", async () => {
+    const root = await temporaryRoot();
+    const run = await createRun(root);
+    const feedbackPath = path.join(
+      run.workspaceDirectory,
+      "context",
+      "verilator-simulation-feedback-attempt-1.json",
+    );
+    await writeFile(
+      feedbackPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: run.runId,
+        attempt: 1,
+        stage: "VERILATOR_SIMULATION",
+        outcome: "NONZERO_EXIT",
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        durationMs: 476,
+        stdout: {
+          preview: "%Fatal: rtl/tb.sv:10: assertion failed\n",
+          truncated: false,
+          originalByteLength: 41,
+        },
+        stderr: { preview: "", truncated: false, originalByteLength: 0 },
+      })}\n`,
+      "utf8",
+    );
+    const input = AgentAttemptInputSchema.parse({
+      ...inputFor(run, ["rtl/dut.sv"]),
+      attempt: 2,
+      taskKind: "VERIFICATION_ASSET_GENERATION",
+      verilatorSimulationFeedbackPath: "context/verilator-simulation-feedback-attempt-1.json",
+    });
+
+    await expect(validateTurnInput(input, run)).resolves.toBeUndefined();
   });
 
   it("kills the complete fake process tree before post-turn evidence is accepted", async () => {

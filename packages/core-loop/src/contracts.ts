@@ -302,6 +302,10 @@ export const AgentAttemptInputSchema = z
       (value) => value.startsWith("context/"),
       "Verilator compile feedback must stay below context/",
     ).optional(),
+    verilatorSimulationFeedbackPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Verilator simulation feedback must stay below context/",
+    ).optional(),
   })
   .superRefine((value, context) => {
     if (
@@ -355,7 +359,8 @@ export const AgentAttemptInputSchema = z
       value.taskKind === undefined &&
       (value.coverageFeedbackPath !== undefined ||
         value.verificationFeedbackPath !== undefined ||
-        value.verilatorCompileFeedbackPath !== undefined)
+        value.verilatorCompileFeedbackPath !== undefined ||
+        value.verilatorSimulationFeedbackPath !== undefined)
     ) {
       context.addIssue({
         code: "custom",
@@ -367,11 +372,12 @@ export const AgentAttemptInputSchema = z
       value.coverageFeedbackPath,
       value.verificationFeedbackPath,
       value.verilatorCompileFeedbackPath,
+      value.verilatorSimulationFeedbackPath,
     ].filter((feedbackPath) => feedbackPath !== undefined).length;
     if (verificationFeedbackCount > 1) {
       context.addIssue({
         code: "custom",
-        path: ["verilatorCompileFeedbackPath"],
+        path: ["verilatorSimulationFeedbackPath"],
         message: "An Agent attempt may consume only one verification feedback type",
       });
     }

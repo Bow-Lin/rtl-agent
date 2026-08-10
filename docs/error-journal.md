@@ -738,6 +738,44 @@ post-processed. Do not infer that the default ABI is usable from a successful pa
 - `.harness/session-log.md`
 - `current-task.md`
 
+## 2026-08-05 - A generated I2C assertion stopped the experiment without a repair turn
+
+### Symptom
+
+I2C coverage run `run_20260804-170019-107` completed its Agent turn and Verilator compile, then
+failed simulation at `rtl/tb.sv:481`. The generated testbench required the CR debug mirror to equal
+`8'h00`, but the DUT returned `8'h40`, the preceding STOP command. The result stopped at
+`VERILATOR_FAILED` even though three configured Agent iterations remained.
+
+### Root Cause
+
+Coverage orchestration generated structured feedback for missing verification assets and
+Verilator compile diagnostics only. A nonzero simulation exit was treated as terminal, so the
+next Agent turn had no bounded artifact describing the failing assertion and could not repair the
+mutable testbench.
+
+### Fix
+
+Convert confirmed simulation nonzero exits, signals, and timeouts into strict
+`context/verilator-simulation-feedback-attempt-<n>.json` artifacts. The next available Agent turn
+receives that path and retries the same coverage round. Persist the final diagnostic even when the
+iteration budget is exhausted. Keep spawn errors and unconfirmed termination terminal.
+
+### Prevention
+
+Regression tests now prove both I2C and generic coverage orchestration preserve the round number,
+pass the simulation feedback path to the next attempt, and complete after a repair. Contract and
+adapter tests reject ambiguous feedback combinations and feedback from the wrong run or a
+non-earlier attempt. Coverage guidance tells the Agent to repair the concrete runtime failure
+before pursuing new targets and not to guess undocumented mirror values.
+
+### Related Files
+
+- `packages/core-loop/src/coverage-experiment.ts`
+- `packages/core-loop/src/i2c-coverage-experiment.ts`
+- `packages/core-loop/src/agent-adapter.ts`
+- `config/agents/rtl-core-loop/coverage-guidance.md`
+
 ## 2026-07-22 - Historical compile error masked a later tool failure
 
 ### Symptom
@@ -766,3 +804,28 @@ for outcomes whose meaning explicitly depends on that history.
 
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
+
+## 2026-08-06 - PowerShell rejected a direct `foreach` result pipeline four times
+
+### Symptom
+
+Four read-only diagnostic commands failed with `An empty pipe element is not allowed` when a
+PowerShell `foreach (...) { [pscustomobject]... } | Format-Table` expression was placed directly
+before a pipeline.
+
+### Root Cause
+
+In this invocation form PowerShell did not parse the statement-style `foreach` as a pipeline
+producer. The construction was reused while checking Icarus paths, while locating Git Bash, and
+again while computing ChipBench paired micro metrics, despite the existing prevention note.
+
+### Fix
+
+Assign the `foreach` results to a task-specific collection variable first, then pipe that variable
+to `Format-Table`. All corrected diagnostics completed normally.
+
+### Prevention
+
+For PowerShell diagnostic tables, use `$rows = foreach (...) { ... }; $rows | Format-Table` rather
+than piping directly from the `foreach` statement. This affects diagnostics only; no repository or
+runtime data was changed by either failed command.

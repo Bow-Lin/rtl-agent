@@ -5,6 +5,11 @@ import {
   createVerilogEvalKimiPiBaseProfile,
 } from "../src/verilog-eval-profile.js";
 import {
+  createChipBenchKimiBaseProfile,
+  createChipBenchKimiPiBaseProfile,
+} from "../src/chipbench-profile.js";
+import {
+  CHIPBENCH_DATASET_LOCK,
   DatasetDescriptorSchema,
   FixtureCaseRefSchema,
   IcarusCapabilitySchema,
@@ -55,6 +60,42 @@ class VerilogEvalProfileTestProvider implements FixtureProvider {
           caseId: `Prob${String(index).padStart(3, "0")}_test`,
         },
         caseSourceDigest: sha256Bytes(Buffer.from(`case-${String(index)}`)),
+      });
+    }
+  }
+
+  public materialize(): Promise<FixtureMaterialization> {
+    throw new Error("Profile construction does not materialize fixtures");
+  }
+}
+
+class ChipBenchProfileTestProvider implements FixtureProvider {
+  public async describe() {
+    return DatasetDescriptorSchema.parse({
+      schemaVersion: 1,
+      datasetId: CHIPBENCH_DATASET_LOCK.datasetId,
+      datasetVersion: CHIPBENCH_DATASET_LOCK.datasetVersion,
+      datasetSourceDigest: CHIPBENCH_DATASET_LOCK.contentManifestDigest,
+      license: CHIPBENCH_DATASET_LOCK.license,
+      adapter: CHIPBENCH_DATASET_LOCK.adapter,
+      splits: CHIPBENCH_DATASET_LOCK.splits.map((entry) => entry.split),
+    });
+  }
+
+  public async *listCases(selection: DatasetSelection): AsyncIterable<FixtureCaseRef> {
+    const split = CHIPBENCH_DATASET_LOCK.splits.find((entry) => entry.split === selection.split);
+    if (split === undefined) throw new Error("unexpected ChipBench split");
+    for (let index = 1; index <= split.expectedCaseCount; index += 1) {
+      yield FixtureCaseRefSchema.parse({
+        schemaVersion: 1,
+        fixtureId: `${split.fixturePrefix}-p${String(index).padStart(3, "0")}`,
+        identity: {
+          datasetId: CHIPBENCH_DATASET_LOCK.datasetId,
+          datasetVersion: CHIPBENCH_DATASET_LOCK.datasetVersion,
+          split: selection.split,
+          caseId: `Prob${String(index).padStart(3, "0")}_test`,
+        },
+        caseSourceDigest: sha256Bytes(Buffer.from(`${selection.split}-${String(index)}`)),
       });
     }
   }
@@ -185,5 +226,41 @@ describe("VerilogEval Kimi profile", () => {
         compilerAdapter(),
       ),
     ).rejects.toMatchObject({ error: { code: "EVALUATION_PROFILE_INVALID" } });
+  });
+});
+
+describe("ChipBench Kimi profile", () => {
+  it("binds a complete generation split to the selected OpenCode model", async () => {
+    const profile = await createChipBenchKimiBaseProfile(
+      new ChipBenchProfileTestProvider(),
+      openCodeAgent("kimi-code/k3"),
+      compilerAdapter(),
+      "self-contained",
+    );
+
+    expect(profile).toMatchObject({
+      evaluationProfileId: "chipbench-kimi-v1-self-contained",
+      expectedCaseCount: 30,
+      selection: { split: "self-contained" },
+      thresholds: { minimumBlankGenerationCases: 1 },
+      agentCapability: { model: "kimi-code/k3" },
+    });
+  });
+
+  it("binds a debugging split to Pi without claiming blank generation", async () => {
+    const profile = await createChipBenchKimiPiBaseProfile(
+      new ChipBenchProfileTestProvider(),
+      piAgent("kimi-coding", "k3"),
+      compilerAdapter(),
+      "debug-zero-shot-arithmetic",
+    );
+
+    expect(profile).toMatchObject({
+      evaluationProfileId: "chipbench-kimi-pi-v1-debug-zero-shot-arithmetic",
+      expectedCaseCount: 24,
+      selection: { split: "debug-zero-shot-arithmetic" },
+      thresholds: { minimumBlankGenerationCases: 0 },
+      agentCapability: { provider: "kimi-coding", model: "k3" },
+    });
   });
 });

@@ -7,7 +7,12 @@ replace the verification environment from scratch.
 ## Start From Runtime Feedback
 
 - Read `context/agent-input.json`, then read exactly the one feedback file named by
-  `coverageFeedbackPath`, `verificationFeedbackPath`, or `verilatorCompileFeedbackPath`.
+  `coverageFeedbackPath`, `verificationFeedbackPath`, `verilatorCompileFeedbackPath`, or
+  `verilatorSimulationFeedbackPath`.
+- For simulation feedback, repair the concrete `$fatal`, nonzero exit, signal, or timeout before
+  pursuing new coverage. Derive expected values from the public protocol and inspected RTL
+  semantics; do not guess values for undocumented mirrors. Correct only unsupported assertions
+  introduced by the mutable verification assets and preserve every valid existing check.
 - Treat coverage targets as observations, not as a requirement to cover every listed line in one
   turn. Select one coherent behavior cluster that can be reached with focused stimulus.
 - Read the existing mutable verification files before inspecting protected RTL. Inspect only the

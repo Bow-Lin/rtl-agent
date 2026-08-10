@@ -10,8 +10,10 @@ import type { FixtureCaseRef } from "./contracts.js";
 import {
   CoverageFeedbackSchema,
   RepairableVerilatorCompileError,
+  RepairableVerilatorSimulationError,
   VerificationAssetFeedbackSchema,
   VerilatorCompileFeedbackSchema,
+  VerilatorSimulationFeedbackSchema,
   coverageCaseDirectoryName,
   coverageRunDirectoryName,
   missingVerificationAssetRequirements,
@@ -202,7 +204,8 @@ export async function runI2cCoverageExperiment(
       let feedback:
         | { readonly kind: "coverage"; readonly path: string }
         | { readonly kind: "verification"; readonly path: string }
-        | { readonly kind: "verilator-compile"; readonly path: string } = {
+        | { readonly kind: "verilator-compile"; readonly path: string }
+        | { readonly kind: "verilator-simulation"; readonly path: string } = {
         kind: "coverage",
         path: "context/coverage-round-1.json",
       };
@@ -230,6 +233,9 @@ export async function runI2cCoverageExperiment(
           ...(feedback.kind === "verification" ? { verificationFeedbackPath: feedback.path } : {}),
           ...(feedback.kind === "verilator-compile"
             ? { verilatorCompileFeedbackPath: feedback.path }
+            : {}),
+          ...(feedback.kind === "verilator-simulation"
+            ? { verilatorSimulationFeedbackPath: feedback.path }
             : {}),
         });
         const turn = await options.agentAdapter.runTurn(input, run);
@@ -280,6 +286,18 @@ export async function runI2cCoverageExperiment(
             );
             feedback = { kind: "verilator-compile", path: feedbackPath };
             continue;
+          }
+          if (error instanceof RepairableVerilatorSimulationError) {
+            const feedbackPath = `context/verilator-simulation-feedback-attempt-${String(attempt)}.json`;
+            await writeWorkspaceJson(
+              run,
+              feedbackPath,
+              VerilatorSimulationFeedbackSchema.parse(error.feedback),
+            );
+            if (attempt < maximumAttempt) {
+              feedback = { kind: "verilator-simulation", path: feedbackPath };
+              continue;
+            }
           }
           stopReason = "VERILATOR_FAILED";
           break;

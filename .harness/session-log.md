@@ -1,5 +1,256 @@
 # Session Log
 
+## Entry: Guarded Landing Review for Accumulated Core Loop Changes
+
+### Summary
+
+Re-reviewed the complete tracked and untracked change set on `master` before staging. The operator
+confirmed that `config/agents/rtl-core-loop/common-guidance.md` is intentionally switchable
+experiment configuration. This matches the existing 2026-08-04 decision: every run records the
+actual guidance digest, so an experiment-time active revision does not need to remain aligned with
+an inactive-candidate decision between runs. The earlier guidance-version P2 is therefore
+dismissed. No other P1/P2 finding remains.
+
+The duplicated common-guidance v4 decision entry is retained as a non-blocking P3 documentation
+note. The reviewed scope includes split-scoped ChipBench functional evaluation, private locked
+verification materialization, reusable functional simulation, structured Verilator simulation
+repair feedback, coverage prompt updates, versioned guidance candidates, and accumulated
+experiment documentation.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed
+- lint, typecheck, build, format, and peer dependency checks: passed
+- full repository: 39 files passed / 1 skipped; 305 tests passed / 2 skipped
+- real ChipBench `fixtures-check`: passed for 683 files and 223 cases across 11 splits
+- real Icarus integration: 2 files passed / 1 skipped; 7 tests passed / 1 skipped
+- fixed Icarus compile smoke: passed
+- real Verilator coverage integration: passed
+- `git diff --check`: passed
+- explicit Git Bash Harness check: passed
+
+The first attempt to select the real Verilator integration through the ordinary Vitest config
+found no tests because that config intentionally excludes `*.integration.test.ts`. The corrected
+command used `vitest.iverilog.config.ts` and passed. This was a validation-command selection error,
+not an implementation failure.
+
+A real model-backed `coverage --case` experiment was not repeated because it would consume model
+quota and create new runtime evidence. Deterministic orchestration regressions plus the real
+Verilator integration cover the changed execution boundary; no production Linux or formal-Gate
+claim is made.
+
+## Entry: Analyze ChipBench Self-Contained Common-Guidance v3
+
+### Summary
+
+Analyzed completed batch `b-20260807-001` and compared it case-by-case with pre-v1 guidance batch
+`b-20260806-003`. Published
+`exp_result/chipbench/08.07-k3-pi-common-guidance-v3-self-contained.md` without starting a new
+model call or rerunning generation, compilation, simulation, or mismatch analysis.
+
+### Paired Result
+
+- Both batches selected all 30 `self-contained` cases with the same dataset, Pi/K3, isolation,
+  tool policy, experiment configuration, and Icarus profile.
+- V3 provenance is complete: the locked digest matches `common-guidance_v3.md`, and 30/30
+  generation transcripts contain the v3 title.
+- Raw functional accuracy stayed at 9/30. Candidate compile pass count fell from 30 to 28.
+- Eight cases passed in both runs and 18 mismatched in both. `Prob025` improved to pass;
+  `Prob030` regressed to mismatch; `Prob008` became a compile failure; `Prob034` timed out before
+  compile.
+- `Prob003` improved from 404 to one mismatch and `Prob017` from 1,542 to 80, but both remain
+  strict case failures.
+- On the same 28 simulated cases, baseline mismatch samples were 9,735/28,572 and v3 was
+  8,360/28,572. This is a diagnostic micro-average, not case-level accuracy.
+
+### Failure Analysis
+
+- All 19 v3 mismatch cases have published analysis and metadata. Categories are 12
+  `SEQUENTIAL_TIMING`, two `INITIALIZATION_SEMANTICS`, two `RESET_SEMANTICS`, two
+  `SPEC_REFERENCE_AMBIGUITY`, and one `COUNTER_BOUNDARY`.
+- `Prob008` used reserved Verilog primitive keyword `buf` as a register identifier, causing Icarus
+  syntax errors.
+- `Prob034` reached the 600-second Agent timeout with a changed but unusable workspace and did not
+  compile.
+- Earlier v3 batch `b-20260806-005` is excluded from accuracy comparison because it is `INVALID`:
+  a roughly 180-minute policy-violation turn, a roughly 625-minute incomplete turn, and six later
+  cases not executed.
+
+### Validation and Limits
+
+- Report Prettier and scoped diff checks: passed.
+- Evidence assertions for summaries, sample totals, diagnosis counts, guidance digest, and all 30
+  provider transcripts: passed.
+- Final Harness check: passed using the explicit Git Bash executable.
+- The result is one unseeded, non-authoritative Windows observation. It does not prove a stable v3
+  effect, Linux readiness, formal-Gate success, or production safety.
+
+### Diagnostic Failure
+
+A read-only micro-metric command repeated the already documented PowerShell direct-`foreach`
+pipeline parser failure before the collection-variable form passed. The recurrence is recorded in
+`docs/error-journal.md`; no repository runtime or experiment evidence changed.
+
+## Entry: Analyze VerilogEval Common-Guidance v4 Prob001–156
+
+### Summary
+
+Analyzed completed batch `b-20260806-004` without starting a model call or rerunning generation,
+compilation, simulation, or diagnosis. Published
+`exp_result/verilog-eval/08.06-k3-pi-common-guidance-v4-001-156.md`.
+
+### Result
+
+- The locked selection contains all 156 VerilogEval `spec-to-rtl` cases with no gaps or duplicates.
+- 152 candidates compiled, 134 passed functional simulation, 18 mismatched, four did not compile,
+  and none were verification-invalid.
+- Against v3, 128 cases passed both runs, six mismatched both, six improved to pass, and 16
+  regressed from pass. V4 therefore lost ten functional passes and 6.41 percentage points.
+- The four compile failures all reproduce the Icarus enum implicit-cast class. Twelve additional
+  regressions are functional errors across timing, bit ordering, priority, truth-table replay, and
+  directional FSM inputs.
+- Targeted v4 changes still have positive evidence: required initialization fixed `Prob074`, the
+  packed function return fixed `Prob141`, and final-driver/Moore timing helped `Prob054` and
+  `Prob146`.
+
+### Diagnosis and Limits
+
+- Thirteen of 18 mismatches have valid analysis metadata. `Prob122` retains a placeholder analysis
+  without metadata; `Prob127`, `Prob137`, `Prob152`, and `Prob153` have no structured diagnosis.
+- The report uses public Spec/candidate evidence and retained reference RTL only for bounded
+  report-level explanations of those five cases. It does not rewrite runtime evidence or promote
+  the findings into guidance.
+- All 156 generation transcripts contain the v4 title, and the locked guidance digest matches
+  `common-guidance_v4.md`.
+- An exploratory paired exact McNemar comparison gives `p ≈ 0.0525`; one unseeded sample does not
+  prove v4 is stably worse even though this run clearly declined.
+
+### Validation
+
+- Report and decision-log Prettier check: passed.
+- Evidence assertions for counts, mismatch sample totals, guidance digest, and diagnosis artifact
+  counts: passed.
+- Scoped `git diff --check`: passed.
+- Final Harness check: passed using the explicit Git Bash executable.
+
+### Recommendation
+
+Do not promote v4 from this run. Keep its targeted fixes, restore v3's explicit no-extra-pipeline
+and distinct-input wording, make enum handling deterministic, and use repeated paired runs before a
+default-guidance decision.
+
+## Entry: Analyze ChipBench Self-Contained Pi/K3 Batch
+
+### Summary
+
+Analyzed completed batch `b-20260806-003` without starting a model call or rerunning generation,
+compilation, simulation, or diagnosis. Published
+`exp_result/chipbench/08.06-k3-pi-self-contained.md`.
+
+### Result
+
+- The locked `self-contained` selection contains all 30 cases with no gaps or duplicates.
+- All 30 candidates passed candidate-only compile; 9 passed functional simulation and 21 produced
+  mismatch. No case was not run or verification-invalid.
+- Total sample evidence is 10,041 mismatches / 29,186 samples. This micro-average is diagnostic and
+  does not replace the 9/30 case-level benchmark score.
+- The batch took 41 minutes 24 seconds; median case generation time was 63 seconds.
+- Functionally correct cases cluster in direct combinational logic, counters, RAM, and simple
+  datapaths. Sequence detectors, waveform/frequency generators, streaming protocols, and
+  application controllers failed primarily on cycle alignment and reference conventions.
+
+### Diagnosis and Guidance Provenance
+
+- Eighteen of 21 mismatches have published `analysis-metadata.json`; `Prob032` has a retained
+  `analysis.json` without metadata, while `Prob033` and `Prob034` have no structured diagnosis.
+- The report uses the retained internal reference only to give separate report-level explanations
+  for `Prob033` and `Prob034`; it does not rewrite runtime evidence or promote those explanations
+  into guidance.
+- Among the 19 existing analyses, 11 are `SEQUENTIAL_TIMING`, four
+  `SPEC_REFERENCE_AMBIGUITY`, two `RESET_SEMANTICS`, one `BIT_ORDERING`, and one
+  `INTERFACE_PROTOCOL`.
+- Capability evidence locks Pi `0.81.1`, `kimi-coding` / `k3`, and guidance digest
+  `sha256:2bd7c4ec2049793cce8c62bab6dcb3baecb49416fb3cfd8f51693c8e3933842f`.
+  Git history and provider transcripts confirm this is the pre-v1 common guidance, not current v4.
+
+### Validation and Limits
+
+- Prettier check for the report: passed.
+- Report-only `git diff --check`: passed.
+- PowerShell evidence assertions against the batch summary, functional result, and diagnosis file
+  counts: passed.
+- Final Harness check: passed using the explicit Git Bash executable because `bash` was not on the
+  PowerShell `PATH`.
+- The batch remains `PENDING_HUMAN_REVIEW`. It is a one-sample Windows direct-host,
+  non-authoritative functional experiment and provides no v4, Linux, formal-Gate, or production
+  readiness claim.
+
+### Diagnostic Failure
+
+The first Harness invocation did not run because `bash` was absent from `PATH`; the explicit
+`C:\Program Files\Git\bin\bash.exe` invocation passed. The read-only Git Bash lookup also repeated
+the already documented direct-`foreach` pipeline parser failure once before the corrected
+collection-variable form passed. The recurrence is recorded in `docs/error-journal.md`; no runtime
+or experiment evidence changed.
+
+## Entry: Create Inactive Common-Guidance v4 Candidate
+
+### Summary
+
+Created `config/agents/rtl-core-loop/common-guidance_v4.md` from the full v1/v2/v3 comparison. The
+candidate is 810 words, shorter than v3's 832 words, and does not replace active
+`common-guidance.md`.
+
+### Candidate Changes
+
+- Restored the explicit Moore/Mealy definition removed between v2 and v3.
+- Distinguished an explicitly required power-up value from invented initialization used to hide
+  unspecified `X` behavior.
+- Required each final output driver to implement its declared edge-N/N+1 cycle contract.
+- Restored final one-hot equation replay against the transition table.
+- Restricted functions to input arguments and packed return values for locked-compiler
+  compatibility.
+- Added no case identifiers, expected answers, reference-specific exceptions, or ambiguous
+  hidden-behavior hints.
+
+### Validation and Limits
+
+- Candidate: 74 lines, 810 words, 5,822 bytes.
+- SHA-256: `sha256:febc717af1ca539359333df83405cf49c1a3a552446a67653382305310f617b6`.
+- Prettier, dataset-neutral token scan, active-guidance/v3 digest parity, and `git diff --check`
+  passed.
+- No model call or evaluation ran. V4 remains an inactive candidate pending paired v3/v4 evidence
+  and explicit operator promotion.
+
+## Entry: Analyze VerilogEval Common-Guidance v3 Prob001–156
+
+### Summary
+
+Analyzed completed batches `b-20260806-001` and `b-20260805-001` without starting a new model call
+or verification run. Both locked guidance digests match `common-guidance_v3.md`, and their
+continuous selections cover all 156 cases. In aggregate, 155 candidates compiled and 144 passed
+functional simulation; eleven produced mismatch and one did not compile. Against the full v2
+selection, compile pass count stayed at 155 while functional pass count improved from 141 to 144.
+
+### Paired Result
+
+- 137 cases passed in both runs and eight mismatched in both runs.
+- Seven cases improved to functional pass; four regressed, for a net gain of three passes.
+- The eleven v3 mismatches classify as four initialization, three sequential-timing, and one each
+  of width/interface, bit-ordering, edge-history, and counter-boundary issues.
+- `Prob141` is the only compile failure; its function uses a non-input argument rejected by Icarus.
+
+### Output and Validation
+
+- Added `exp_result/verilog-eval/08.05-08.06-k3-pi-common-guidance-v3-001-156.md`; the earlier
+  incomplete `001-100` report was replaced.
+- Parsed both summaries, profiles, capability locks, batch results, functional results, the compile
+  failure, and all mismatch-analysis JSON evidence.
+- Recomputed the guidance SHA-256 and confirmed it matches both capability locks.
+- Performed a 156-case paired status comparison against `b-20260803-003`, `b-20260803-004`, and
+  `b-20260804-001`.
+- No business logic, runtime evidence, generated RTL, or existing batch artifact was modified.
+
 ## Entry: Pin VerilogEval v2 Through a Verified External Cache
 
 ### Summary
@@ -2779,3 +3030,99 @@ at three and their orchestration limits are unchanged.
 - the first format check found only the changed contract file; Prettier formatted it and the full
   format check then passed
 - no model call, RTL edit, simulation, coverage run, or persisted runtime-evidence mutation occurred
+
+## Entry: Route Confirmed Coverage Simulation Failures to the Next Agent Turn
+
+### Outcome
+
+Implemented structured Verilator simulation feedback for both the dedicated I2C experiment and the
+existing VerilogEval coverage orchestrator. A confirmed nonzero exit, signal, or timeout now writes
+`context/verilator-simulation-feedback-attempt-<n>.json` with bounded sanitized stdout/stderr,
+process metadata, and a strict outcome contract. If another Agent iteration remains, its input
+contains `verilatorSimulationFeedbackPath` and orchestration retries the same coverage round after
+the mutable verification assets are edited.
+
+The repair boundary is fail-closed: spawn errors, failed process-tree termination, and unconfirmed
+close are not sent to the Agent. A failed simulation consumes an Agent attempt but does not count as
+a completed coverage round. The final failed attempt still persists its diagnostic before returning
+`VERILATOR_FAILED`. OpenCode and Pi prompts plus Coverage Guidance v1 now prioritize repairing the
+concrete runtime failure and prohibit guessed expectations for undocumented mirrors.
+
+This directly addresses I2C run `run_20260804-170019-107`, where a generated testbench guessed that
+the CR mirror must be `8'h00`, observed `8'h40`, and stopped with unused Agent iterations.
+
+### Validation
+
+- frozen pnpm install passed
+- lint, typecheck, build, format, peer-dependency check, and `git diff --check` passed
+- focused contracts/coverage/I2C/OpenCode/Pi suite: 5 files and 72 tests passed
+- full repository: 38 files passed / 1 skipped; 299 tests passed / 2 skipped
+- regressions prove I2C and generic orchestration pass the feedback path to the next attempt, retry
+  the same round, and succeed after repair
+- regression proves unconfirmed termination remains terminal and does not create Agent feedback
+- Bash was unavailable on the Windows host, so `scripts/harness_check.sh` could not run; the same
+  required-file existence and session-state JSON checks were performed in PowerShell
+- no real Agent call, RTL edit, Verilator execution, coverage run, or persisted runtime-evidence
+  mutation was performed
+
+## Entry: Create Inactive Common Guidance v3 Candidate
+
+### Outcome
+
+Added `config/agents/rtl-core-loop/common-guidance_v3.md` without changing the active
+`common-guidance.md`. The candidate retains v2's dataset-neutral constraints while making five
+remaining error classes more explicit: procedural output legality, edge-N cycle ownership,
+history-state holds, truth-table label/index replay, and counter threshold semantics. It contains no
+case identifiers or dataset-specific expected behavior and is 832 words versus v2's 915.
+
+### Validation
+
+- active `common-guidance.md` and `common-guidance_v2.md` retain the same SHA-256 digest
+- v3 content assertions confirmed all intended contracts and no `ProbNNN` identifiers
+- targeted Prettier check and whitespace validation passed
+- no Agent call, evaluation run, activity switch, runtime artifact, or business-code change occurred
+
+## Entry: Enable Split-Scoped ChipBench Functional Evaluation
+
+### Outcome
+
+Completed the missing ChipBench execution path. The standalone CLI now accepts
+`evaluate --dataset chipbench --split <split>`, selects the verified ChipBench cache, and creates a
+Kimi OpenCode or Pi profile bound to exactly one of the 11 locked splits. Omitting range/case
+selectors runs the complete split; selectors remain split-local because case IDs repeat across
+splits. Root and app package scripts expose the Pi/K3 command directly.
+
+The ChipBench Provider now records the locked reference/testbench paths and digests but continues to
+materialize only the prompt for Agent work. After a candidate passes the ordinary compile Gate, a
+verification-only method revalidates and copies those hidden assets into the internal batch tree.
+The VerilogEval functional implementation was generalized behind a strict `reference.sv`,
+`testbench.sv`, and top-`tb` contract, and a ChipBench wrapper reuses its fixed Icarus/VVP process,
+timeout, sanitization, mismatch parser, evidence, and result schema. Hidden assets are never copied
+to published candidate RTL.
+
+The provider implementation digest was advanced to
+`sha256:794a527715816ca7a5f11d8d1b781f75f10ec31effd6f7cd3421f9e558db5dd4`; the pinned archive and
+683-file content manifest are unchanged. Existing VerilogEval tests and commands remain compatible.
+
+### Validation
+
+- frozen pnpm install, lint, typecheck, build, format, and peer dependency checks passed
+- focused ChipBench Provider/simulation, VerilogEval simulation, profile, and CLI suite: 5 files and
+  39 tests passed
+- full repository: 39 files passed / 1 skipped; 305 tests passed / 2 skipped
+- real ChipBench prepare published `c74fe7d28-r2` with 223 cases; real fixtures-check validated all
+  683 files and the exact 9/24/30/6/29/24/30/6/29/6/30 split counts
+- real Icarus compile smoke passed with Icarus 12.0
+- real Pi capability probe passed for Pi 0.81.1, provider `kimi-coding`, and model `k3`; no model
+  turn was started
+- provider source digest parity passed; built CLI rejected an invalid ChipBench split with the
+  stable `EVALUATION_PROFILE_INVALID` diagnostic
+- no real Agent generation, paid model evaluation, ChipBench VVP batch, Linux execution, or human
+  review was performed
+
+### Next Boundary
+
+Run `corepack pnpm core-loop:evaluate:chipbench:pi --split self-contained --cases Prob000`, inspect
+the published candidate and internal functional result, then decide whether to run the remaining 29
+self-contained cases. Keep generation, zero-shot debugging, and one-shot debugging reports
+separate.

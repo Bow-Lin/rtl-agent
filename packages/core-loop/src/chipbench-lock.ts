@@ -68,7 +68,7 @@ export const CHIPBENCH_DATASET_LOCK = Object.freeze({
   expectedFileCount: 683,
   expectedCaseCount: 223,
   providerImplementationDigest: Sha256DigestSchema.parse(
-    "sha256:a00cea795fc1388ad76c135250924364665ca6ac9533d19f5f4d54b8a571a15c",
+    "sha256:794a527715816ca7a5f11d8d1b781f75f10ec31effd6f7cd3421f9e558db5dd4",
   ),
   splits: Object.freeze([
     Object.freeze({

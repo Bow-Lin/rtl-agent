@@ -52,7 +52,7 @@ Execute exactly one bounded RTL or verification-asset editing attempt.
 First read `context/agent-input.json`, then read `spec.md`, every path in
 `rtlSourceFiles`, the optional `previousCompileResultPath`, and the optional
 `coverageFeedbackPath`, `verificationFeedbackPath`, or
-`verilatorCompileFeedbackPath`. You may load the
+`verilatorCompileFeedbackPath` or `verilatorSimulationFeedbackPath`. You may load the
 `rtl-core-loop` skill for RTL methodology, but this protocol applies even if the
 skill is unavailable.
 
@@ -74,8 +74,11 @@ On later rounds, target the structured gaps in `coverageFeedbackPath` without
 weakening existing checks. When `verificationFeedbackPath` is present, repair
 every listed missing requirement before finishing the turn. When
 `verilatorCompileFeedbackPath` is present, repair every listed compiler issue in
-`rtl/tb.sv` or `rtl/checker.sv`; never modify the DUT to evade it. Do not use an
-upstream dataset testbench or invent a golden implementation.
+`rtl/tb.sv` or `rtl/checker.sv`; never modify the DUT to evade it. When
+`verilatorSimulationFeedbackPath` is present, repair the concrete runtime failure in the mutable
+verification assets before pursuing new coverage; derive expected behavior from the public
+specification and protected RTL instead of guessing undocumented values. Do not use an upstream
+dataset testbench or invent a golden implementation.
 
 Never invent a compiler or verification result. Your final text may summarize
 the RTL edits and remaining uncertainty, but must not claim that compilation,
