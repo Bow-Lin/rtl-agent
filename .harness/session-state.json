@@ -1,78 +1,64 @@
 {
-  "task_id": "case-functional-mismatch-repair",
-  "status": "complete",
-  "current_phase": "guarded_landing_ready",
-  "last_updated": "2026-08-10T10:56:48+08:00",
+  "task_id": "memory-v1-implementation",
+  "status": "in_progress",
+  "current_phase": "experience_milestone_complete",
+  "last_updated": "2026-08-10T16:48:23+08:00",
   "active_plan": [
-    "Run functional simulation before each case is sealed",
-    "Route structured mismatch feedback into bounded RTL repair turns",
-    "Record the default-three repair policy in experiment identity and evidence"
+    "Require execution-level proof that Pi read every required Experience input",
+    "Wire Experience modes and Case End publication without Batch-internal visibility",
+    "Implement Store, Selector, then Batch Consolidator in the frozen order"
   ],
   "next_3_steps": [
-    "Freeze the Memory V1 execution and experiment-identity contract",
-    "Define simulation_debug extraction from per-attempt functional evidence",
-    "Implement the Markdown Memory store and deterministic stage/scope filter"
+    "Add Pi Summarizer required-read enforcement and regression tests",
+    "Add off/read_write/frozen identity and automatic Case End Experience wiring",
+    "Implement validated filesystem snapshots before Selector and Consolidator"
   ],
   "changed_files": [
-    ".opencode/agents/rtl-core-loop.md",
-    ".opencode/skills/rtl-core-loop/SKILL.md",
-    "apps/rtl-core-loop/src/index.ts",
-    "apps/rtl-core-loop/test/cli.test.ts",
-    "docs/decisions.md",
-    "docs/verification.md",
-    "packages/core-loop/src/agent-adapter.ts",
-    "packages/core-loop/src/batch-evaluator.ts",
-    "packages/core-loop/src/compiler-contracts.ts",
-    "packages/core-loop/src/contracts.ts",
-    "packages/core-loop/src/evaluation-contracts.ts",
-    "packages/core-loop/src/functional-repair-contracts.ts",
+    ".pi/extensions/rtl-experience-summarizer-policy.mjs",
+    "packages/core-loop/src/experience.ts",
+    "packages/core-loop/test/experience.test.ts",
+    "packages/core-loop/src/errors.ts",
     "packages/core-loop/src/index.ts",
-    "packages/core-loop/src/pi-agent-adapter.ts",
-    "packages/core-loop/src/run-orchestrator.ts",
-    "packages/core-loop/src/verilog-eval-simulation.ts",
-    "packages/core-loop/test/agent-adapter.test.ts",
-    "packages/core-loop/test/batch-evaluator.test.ts",
-    "packages/core-loop/test/verilog-eval-simulation.test.ts",
+    "docs/memory-v1.md",
+    "docs/decisions.md",
+    "docs/error-journal.md",
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md"
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/batch-evaluator.test.ts packages/core-loop/test/verilog-eval-simulation.test.ts packages/core-loop/test/chipbench-simulation.test.ts packages/core-loop/test/agent-adapter.test.ts apps/rtl-core-loop/test/cli.test.ts",
-      "corepack pnpm@11.13.0 install --frozen-lockfile",
+      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/experience.test.ts",
       "corepack pnpm@11.13.0 lint",
       "corepack pnpm@11.13.0 typecheck",
       "corepack pnpm@11.13.0 test",
-      "corepack pnpm@11.13.0 build",
       "corepack pnpm@11.13.0 format:check",
-      "corepack pnpm@11.13.0 peers check",
-      "corepack pnpm@11.13.0 --filter @rtl-agent/core-loop test:integration:iverilog",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Guarded review found no unresolved P1/P2 within the operator-confirmed VerilogEval/ChipBench scope. Focused 72-test coverage, 314 ordinary tests, frozen install, typecheck, build, lint, formatting, peer checks, real Icarus integration, diff checks, and the Harness check passed.",
+    "last_result": "The 12 focused Experience tests, lint, typecheck, formatting, diff check, Harness check, and all 326 ordinary tests passed; 2 tests remain intentionally skipped.",
     "known_failures": [
-      "No model-backed VerilogEval or ChipBench batch was run because it would consume model quota.",
-      "No production Linux or authoritative formal-Gate validation was run.",
-      "TODO: add CVDP functional repair after its repository Provider, profile, and functional-simulation adapter exist."
+      "Pi Summarizer required-read enforcement is not implemented; an audited stochastic replay falsely claimed present RTL evidence was absent.",
+      "Experience is not automatically invoked at Case End and Memory modes are not exposed.",
+      "Memory Store, Selector, Consolidator, and snapshot publication are not implemented.",
+      "CVDP still has no repository Provider, profile, or functional-simulation adapter."
     ]
   },
   "cognitive_state": {
     "failure_count": 1,
-    "current_mode": "guarded_landing",
+    "current_mode": "experience_milestone_handoff",
     "tried_approaches": [
-      "Placed functional validation before final manifest publication to avoid stale final evidence",
-      "Used public mismatch counts and first-mismatch timing without exposing hidden assets",
-      "Counted each extra Agent turn against a fixed repair budget even when compilation failed",
-      "Preserved first compile-pass semantics for compile-only metrics while retaining total Agent turns",
-      "Used the Corepack-pinned pnpm after the global pnpm version gate rejected the first typecheck"
+      "Separated deterministic eligibility from Pi semantic summarization",
+      "Bound Experience output to public provenance, kind, language, and tool",
+      "Required auditable semantic rejection instead of an unexplained default",
+      "Versioned Summary evidence by combined prompt/request identity",
+      "Validated a real mismatch-repair-pass Experience trajectory with an empty fixed snapshot"
     ],
-    "blocked_on": "None"
+    "blocked_on": "None; required-read enforcement is the next scoped implementation task."
   },
   "handoff": {
-    "last_summary": "Case-by-case functional mismatch repair for VerilogEval and ChipBench passed guarded review and the full local validation matrix; CVDP support is deferred as a TODO.",
-    "resume_from": "Freeze Memory V1 against the new attempt-scoped functional mismatch and repair evidence."
+    "last_summary": "Experience V1 and its real Pi repair regression are complete; Summarizer requests plus evidence paths derive runId only from the sealed Run, and direct Pi calls enforce branded and runtime-validated Run IDs.",
+    "resume_from": "Add required-read enforcement to the Pi Experience Summarizer, then wire Memory modes and Case End Experience before implementing the Store."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

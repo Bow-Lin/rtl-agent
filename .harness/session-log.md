@@ -1,5 +1,34 @@
 # Session Log
 
+## Entry: Freeze Memory V1 Contract
+
+### Summary
+
+Accepted the operator-defined Memory V1 design and recorded it in `docs/memory-v1.md`. The contract
+uses one fixed snapshot per Batch, Case-level factual Experience, Batch-level consolidation, Pi-only
+selection, Markdown Memory items, sequential snapshot IDs, and held-out `frozen` evaluation. It
+explicitly excludes databases, embeddings, vector retrieval, confidence, failed-trajectory
+learning, automatic skill promotion, and online test-set updates.
+
+### Key Boundary
+
+The requested real single-Case Pi regression must validate an Experience Record, but the repository
+does not yet contain an Experience Summarizer. The next slice therefore implements only Experience
+schema, eligibility, Pi summarization, and bounded failure evidence. The real repairable Build Set
+Case follows that slice; Store, Selector, and Consolidator follow only after the regression passes.
+
+The installed Pi 0.81.1 documentation confirms `before_agent_start` and `context`. Memory selection
+will occur outside Pi, and one `Relevant RTL Memory` block will be injected through
+`before_agent_start` for each bounded turn without modifying Pi core.
+
+### Validation
+
+- Documentation Prettier and repository format checks: passed.
+- `git diff --check`: passed.
+- Git Bash Harness check: passed.
+- No Pi/model call, RTL generation, compile, simulation, Experience generation, consolidation, or
+  snapshot publication occurred.
+
 ## Entry: Guarded Landing Review for Case-by-Case Functional Simulation
 
 ### Summary
@@ -3210,3 +3239,96 @@ separate.
   build, formatting, peer checks, real Icarus integration, `git diff --check`, and the Git Bash
   Harness check.
 - No model-backed batch, production Linux Gate, or authoritative functional evaluation was run.
+
+## 2026-08-10 - Implement Memory V1 Experience milestone
+
+### Outcome
+
+Implemented the first frozen Memory V1 slice without adding long-term storage. The new
+backend-neutral Experience contract distinguishes ordinary first-functional-pass observations from
+`simulation_debug`, while a deterministic classifier—not Pi—decides whether sealed Run,
+Attempt-compile, final-recompile, and functional evidence form a successful repair trajectory.
+Infrastructure-invalid, compile-failed, exhausted, and final-failed paths are excluded.
+
+Added a Pi-only Experience Summarizer with a dedicated read/edit-only extension. Its isolated
+workspace contains only the public spec, abstract functional facts, and initial/final candidate RTL;
+only `summary.json` is mutable. The output is strictly rebound to provenance, Experience kind,
+language, tool, and any caller-supplied circuit type. It receives one bounded schema-repair turn,
+records CREATED/SKIPPED/FAILED Case evidence, adds no confidence field, and never changes the Case
+compile or functional result. Semantic rejection now names the missing confirmation fact and a
+bounded explanation. Prompt and request identities are preserved in metadata and combined into one
+full SHA-256 workspace directory, preventing overwrites without creating overlong Windows paths.
+
+### Real Regression
+
+- Fixed an empty pre-Store snapshot sentinel with zero selectable Memory and repair budget 3.
+- Ran real Pi 0.81.1 / `kimi-coding` / `k3` Case-by-Case evaluations. First-pass cases remained
+  ordinary observations, and ambiguous initialization/spec-reference repairs were rejected.
+- Batch `b-20260810-006`, Run `run_7e3ca297-f99b-42c9-8763-3b3675ff5c81`, Case
+  `Prob155_lemmings4` produced the required closed loop: Attempt 1 compile/final-recompile passed,
+  functional simulation had 114/1003 mismatches, one Pi repair ran, Attempt 2 compile/final-
+  recompile passed, and functional simulation had 0/1003 mismatches.
+- Pi produced a current-schema-valid CREATED `simulation_debug` Experience abstracting counter
+  cycle alignment, inclusive landing threshold, and saturation against long-duration wraparound.
+  It remained isolated in ignored Batch evidence; no Memory snapshot or Experience Pool changed.
+- A later stochastic replay falsely claimed the present RTL evidence was absent. The new audited
+  rejection exposed the precise failure. Required-read enforcement is the next task before
+  automatic Case End wiring; unbounded model retries are not an accepted workaround.
+
+### Validation
+
+- focused Experience suite: 9 tests passed;
+- root lint and typecheck passed;
+- full repository: 40 files passed / 1 skipped; 323 tests passed / 2 skipped;
+- root format check and `git diff --check` passed;
+- real Pi/Icarus evaluation evidence passed as described above and remains non-authoritative;
+- Store, Selector, Consolidator, mode CLI wiring, snapshot publication, production Linux Gate, and
+  CVDP support were not implemented.
+
+## 2026-08-10 - Harden Experience terminal eligibility
+
+### Outcome
+
+Fixed the guarded-landing P2 in `classifyExperienceEligibility`. An earlier functional pass can no
+longer become Experience when a later Agent attempt makes the sealed Run end unsuccessfully, and
+an eligible pass must match `run.attemptCount` with a terminal `COMPILE_PASSED` outcome. Added
+status-specific landed-fact checks so contradictory `PASSED` or `MISMATCH` counts/exit codes fail
+closed as `TRAJECTORY_INVALID`. Existing repair-compile-failure classification remains unchanged.
+
+### Validation
+
+- focused Experience suite: 11 tests passed;
+- root lint and typecheck passed;
+- full repository: 40 files passed / 1 skipped; 325 tests passed / 2 skipped;
+- root format check and `git diff --check` passed;
+- Git Bash Harness check passed using its explicit installed path because `bash` is not on the
+  PowerShell PATH.
+
+The first focused Vitest invocation used a package-relative path that the root Vitest include did
+not match; rerunning with the repository-relative path passed. No test failure occurred.
+
+## 2026-08-10 - Bind Experience evidence to the sealed Run ID
+
+### Outcome
+
+Removed caller-supplied `runId` from the best-effort Experience request. The boundary now parses the
+sealed Run once, injects `run.runId` into the Summarizer request, and uses that same validated ID for
+the Case-result evidence directory. A regression supplies an extra traversal-shaped caller field
+from plain JavaScript data and proves that it is ignored in favor of the sealed Run ID.
+
+The directly exported Pi Summarizer request now requires branded `RunId`, reparses it at runtime
+before any workspace/source path or request digest is constructed, and uses only the normalized
+request afterward. A direct-call regression proves a traversal-shaped runtime value is rejected
+before Pi or filesystem work starts.
+
+The operator explicitly retained the fixed-dataset assumption and declined an additional
+`datasetVersion` equality check as unnecessary for the current evaluation scope.
+
+### Validation
+
+- focused Experience suite: 12 tests passed;
+- root typecheck and lint passed;
+- full repository: 40 files passed / 1 skipped; 326 tests passed / 2 skipped;
+- formatting was mechanically corrected with the repository Prettier after the first format check
+  identified the changed function layout; final format, `git diff --check`, and Harness checks
+  passed.

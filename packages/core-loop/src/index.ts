@@ -18,6 +18,7 @@ export * from "./errors.js";
 export * from "./evaluation-contracts.js";
 export * from "./evaluation-metrics.js";
 export * from "./evidence.js";
+export * from "./experience.js";
 export * from "./filesystem.js";
 export * from "./fixture-provider.js";
 export * from "./functional-repair-contracts.js";

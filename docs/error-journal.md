@@ -457,6 +457,41 @@ source status unless that text still describes the mapped outcome.
 - `packages/core-loop/src/observed-issues.ts`
 - `packages/core-loop/test/observed-issues.test.ts`
 
+## 2026-08-10 - Pi Experience summaries repeatedly chose an unauditable default rejection
+
+### Symptom
+
+Several real, deterministically eligible repair trajectories returned only
+`ROOT_CAUSE_UNCONFIRMED`. One later replay claimed that no public RTL or verification facts were
+available even though the isolated workspace contained both RTL snapshots and the structured
+compile/simulation facts.
+
+### Root Cause
+
+The initial rejection schema required no explanation or indication of which confirmation fact was
+missing. This made rejection the cheapest model output and left orchestration unable to distinguish
+a genuine specification ambiguity from failure to inspect the listed evidence.
+
+### Fix
+
+Require every semantic rejection to name one of three missing facts and provide a bounded public-
+evidence explanation. Clarify the positive confirmation rule and preserve every prompt/request
+version in a digest-bound workspace. A real `Prob155_lemmings4` replay then produced a valid
+CREATED Experience; a later false rejection became directly diagnosable rather than silently
+accepted as an opaque decision.
+
+### Prevention
+
+Before automatic Case End wiring, require execution-level proof that Pi read `spec.md`, both
+context files, and at least one initial and final RTL file. Do not solve stochastic rejection by
+unbounded retries, and never promote a rejected trajectory to Experience outside the schema.
+
+### Related Files
+
+- `packages/core-loop/src/experience.ts`
+- `packages/core-loop/test/experience.test.ts`
+- `.pi/extensions/rtl-experience-summarizer-policy.mjs`
+
 ## 2026-08-04 - Real Pi I2C coverage turns can exhaust the fixed turn deadline before editing
 
 ### Symptom

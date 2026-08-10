@@ -1667,6 +1667,93 @@ final per-case result records the final Agent attempt and completed repair count
 does not start until this loop finishes. The evidence remains non-authoritative and no model-backed
 dataset batch or production Linux Gate is implied by the local implementation tests.
 
+## 2026-08-10 - Freeze Memory V1 at Batch Boundaries
+
+### Context
+
+Case-by-case functional simulation and bounded mismatch repair now provide the trajectory needed
+for `simulation_debug` learning. Updating long-term Memory after every Case would let earlier Cases
+change the context seen by later Cases in the same Batch, weaken reproducibility, and encourage
+case-specific overfitting.
+
+### Decision
+
+Adopt Case-level Experience plus Batch-level Memory consolidation. Every Batch fixes one snapshot
+`M_n`; initial generation and each mismatch repair may independently select up to three Memories
+from that same snapshot. Case End produces Experience only. Batch End may consolidate eligible
+Experiences into `M_n+1`, and no Case in the current Batch can read the new snapshot.
+
+Freeze modes `off`, `read_write`, and `frozen`; held-out evaluation defaults to `frozen`. V1 uses
+Pi only, deterministic metadata filtering followed by Pi catalog selection, Markdown Memory items,
+sequential snapshot IDs, and no database, embedding, vector retrieval, confidence, failure learning,
+or automatic skill promotion. Only a successful mismatch → repair → compile pass → simulation pass
+trajectory is eligible as `simulation_debug`. First-try passes may produce ordinary factual
+Experience. Dataset identity remains provenance rather than Memory scope.
+
+The complete contract, file layout, failure semantics, consolidation operations, content bans, and
+pollution boundary are defined in `docs/memory-v1.md`.
+
+### Consequences
+
+The Experience layer must precede the requested real single-Case Pi regression because that
+regression includes Experience summarization. After the minimal Experience schema, eligibility, and
+Pi summarizer exist, run one repairable Build Set Case and prove that feedback reaches Pi, repair
+passes compile/simulation, Experience is correct, and neither the current Case nor another Case in
+the Batch can consume it. Only then implement the complete Store, Selector, and Consolidator path.
+
 This support boundary currently covers VerilogEval and ChipBench only. CVDP composition is a
 deferred TODO until the repository has a CVDP Provider, evaluation profile, and functional-
 simulation adapter; the current generic CLI injection boundary does not constitute CVDP support.
+
+## 2026-08-10 - Implement Experience Before Memory Storage
+
+### Context
+
+Memory V1 requires a factual Case-level record before Store, Selector, or Consolidator can be
+validated. Model judgment must not decide whether a compile/simulation trajectory succeeded, and a
+Summarizer failure must not rewrite the Case outcome. Real Pi trials also showed that a bare
+`ROOT_CAUSE_UNCONFIRMED` alternative encourages unauditable default rejection.
+
+### Decision
+
+Implement a backend-neutral Experience v1 schema and a deterministic eligibility classifier over
+the sealed Run result, compile observations, and attempt-scoped functional results. A first
+functional pass is only a `design_observation`. `simulation_debug` requires a landed mismatch,
+later repair Attempt, successful Attempt compile and final recompile, and final functional pass.
+Infrastructure-invalid, exhausted, compile-failed, and final-failed trajectories remain
+ineligible.
+
+An eligible functional pass must also be the Run's terminal Agent attempt and the sealed Run must
+end in `COMPILE_PASSED`. A `PASSED` result requires zero mismatches and successful compile/simulation
+exit codes; a `MISMATCH` result requires a positive mismatch count and successful
+compile/simulation exit codes. Structurally valid but contradictory landed facts are classified as
+`TRAJECTORY_INVALID` rather than learned from.
+
+At the best-effort Case End boundary, `runId` has one source of truth: the schema-validated sealed
+Run. Callers do not provide a second request-level `runId`; the orchestrator derives both the
+Summarizer request identity and the Case-result evidence directory from `run.runId`. The direct Pi
+Summarizer request uses the branded `RunId` type and reparses it with `RunIdSchema` before any path
+or digest construction, so plain JavaScript callers cannot bypass the boundary. Memory V1 currently
+assumes the configured dataset version is fixed within an evaluation scope, so no additional
+dataset-version equality rule is added to Experience eligibility in this slice.
+
+Run the Pi Summarizer in an isolated read/edit-only workspace containing only the public spec,
+abstract functional facts, and initial/final candidate RTL. It may edit only `summary.json`, gets
+one bounded schema-repair turn, binds CREATED output back to dataset/split/case/kind/language/tool,
+and records failures as bounded Case evidence. A semantic rejection must identify the exact
+missing confirmation fact and explain it. Version Summary workspaces by a combined full SHA-256 of
+the prompt and request identities while recording both component digests in metadata.
+
+### Consequences
+
+The real Pi regression `b-20260810-006` produced the required closed loop for
+`Prob155_lemmings4`: 114/1003 mismatches, one repair, successful compile/final recompile, then
+0/1003 mismatches. Pi produced a schema-valid `simulation_debug` Experience that remains valid
+under the final schema. Other real trials correctly demonstrated first-pass ordinary Experience
+and rejection of trajectories whose passing repair depended on an unstated initialization or an
+ambiguous public specification.
+
+Store, Selector, Consolidator, Memory modes, automatic Case End wiring, and snapshot publication
+remain outside this slice. Before automatic wiring, add an execution-level check that Pi actually
+reads the listed spec/context/initial/final RTL files; an audited rejection in a later stochastic
+replay exposed a false claim that those present files were absent.
