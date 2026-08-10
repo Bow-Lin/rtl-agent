@@ -12,6 +12,7 @@ import {
   FixtureCaseRefSchema,
   FixtureIdSchema,
   FixtureIdentitySchema,
+  MAX_AGENT_TURN_ATTEMPT,
   RunIdSchema,
 } from "./contracts.js";
 import { sha256Jcs } from "./filesystem.js";
@@ -89,6 +90,11 @@ export const EvaluationProfileSchema = z
     compilerCapability: CompilerCapabilityLockSchema,
     thresholds: EvaluationThresholdsSchema,
     humanReview: HumanReviewPlanSchema,
+    functionalRepair: z
+      .strictObject({
+        maxIterations: z.int().nonnegative().max(10),
+      })
+      .optional(),
   })
   .superRefine((value, context) => {
     if (!value.dataset.splits.includes(value.selection.split)) {
@@ -103,6 +109,16 @@ export const EvaluationProfileSchema = z
         code: "custom",
         path: ["runProfile", "compilerProfileId"],
         message: "Run profile and compiler capability lock must select the same profile",
+      });
+    }
+    if (
+      value.functionalRepair !== undefined &&
+      value.runProfile.maxAttempts + value.functionalRepair.maxIterations > MAX_AGENT_TURN_ATTEMPT
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["functionalRepair", "maxIterations"],
+        message: "Compile and functional repair attempts exceed the Agent turn limit",
       });
     }
     if (
@@ -131,6 +147,7 @@ export const CoreLoopRunStateSchema = z.strictObject({
     "COMPILE_PREPARING",
     "COMPILING",
     "FINAL_RECOMPILING",
+    "FUNCTIONAL_SIMULATING",
     "COMPLETED",
   ]),
   at: IsoTimestampSchema,
@@ -275,6 +292,7 @@ export const FailureStageSchema = z.enum([
   "ATTEMPT_PREPARATION",
   "ATTEMPT_COMPILE",
   "FINAL_RECOMPILE",
+  "FUNCTIONAL_SIMULATION",
   "FINAL_VALIDATION",
   "EVIDENCE_WRITE",
   "ORCHESTRATOR",
@@ -284,7 +302,7 @@ export const FailureOriginSchema = z.enum(["EVALUATION", "INFRASTRUCTURE"]);
 
 export const CompileObservationSchema = z.strictObject({
   phase: z.enum(["ATTEMPT", "FINAL_RECOMPILE"]),
-  attempt: z.int().positive().max(3),
+  attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
   status: z.enum(["COMPILE_PASSED", "COMPILE_ERROR", "TIMEOUT", "TOOL_ERROR"]),
   durationMs: z.int().nonnegative(),
   issues: z.array(CompileIssueSchema).max(500),
@@ -296,11 +314,11 @@ const runExecutionCommon = {
   fixtureId: FixtureIdSchema,
   fixtureIdentity: FixtureIdentitySchema,
   category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
-  attemptCount: z.int().nonnegative().max(3),
+  attemptCount: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
   startedAt: IsoTimestampSchema,
   completedAt: IsoTimestampSchema,
   durationMs: z.int().nonnegative(),
-  compileObservations: z.array(CompileObservationSchema).max(6),
+  compileObservations: z.array(CompileObservationSchema).max(MAX_AGENT_TURN_ATTEMPT * 2),
   firstAttemptCompileError: z.boolean(),
 } as const;
 
@@ -310,7 +328,7 @@ export const CompleteRunExecutionResultSchema = z
     status: z.literal("COMPLETE"),
     evaluationValidity: z.enum(["EVALUATION_VALID", "INFRASTRUCTURE_INVALID"]),
     failureStage: FailureStageSchema.nullable(),
-    passAttempt: z.int().positive().max(3).nullable(),
+    passAttempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT).nullable(),
     finalResult: FinalResultSchema,
   })
   .superRefine((value, context) => {
@@ -494,7 +512,10 @@ export const MetricSliceSchema = z.strictObject({
 
 export const BatchMetricsSchema = z.strictObject({
   schemaVersion: SchemaVersionSchema,
-  maxAttempts: z.int().min(1).max(3),
+  maxAttempts: z
+    .int()
+    .min(1)
+    .max(MAX_AGENT_TURN_ATTEMPT - 1),
   overall: MetricSliceSchema,
   blankGeneration: MetricSliceSchema,
   promptedFunctionalRepair: MetricSliceSchema,

@@ -8,6 +8,7 @@ import {
   BatchInputManifestSchema,
   EvaluationProfileSchema,
   IcarusCapabilitySchema,
+  CandidateFunctionalValidationSchema,
   evaluateCoreLoopBatch,
   sha256Bytes,
   writeCoreLoopBatchReview,
@@ -34,6 +35,116 @@ afterEach(async () => {
 });
 
 describe("Core Loop batch preflight and evaluation", () => {
+  it("repairs a functional mismatch before sealing the case", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+    ]);
+    const profile = await testEvaluationProfile(provider);
+    const events: string[] = [];
+    const agent = new ScriptedAgentAdapter(
+      [
+        {
+          outcome: "RTL_CHANGED",
+          source: "module dut(input logic a, output logic y); assign y = 1'b0; endmodule\n",
+        },
+        {
+          outcome: "RTL_CHANGED",
+          source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+        },
+      ],
+      () => events.push(`agent-${String(agent.inputs.length + 1)}`),
+    );
+
+    const execution = await evaluateCoreLoopBatch({
+      provider,
+      providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      profile,
+      agentAdapter: agent,
+      compilerAdapter: new ScriptedCompilerAdapter([
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+      ]),
+      batchesRoot: path.join(root, "batches"),
+      functionalRepair: {
+        maxIterations: 3,
+        validateCandidate: async ({ attempt, repairIteration }) => {
+          events.push(`functional-${String(repairIteration)}`);
+          return attempt === 1
+            ? CandidateFunctionalValidationSchema.parse({
+                status: "MISMATCH",
+                feedbackPath: "context/functional-simulation-feedback.json",
+              })
+            : { status: "ACCEPT" as const };
+        },
+      },
+    });
+
+    expect(events).toEqual(["agent-1", "functional-0", "agent-2", "functional-1"]);
+    expect(agent.inputs).toHaveLength(2);
+    expect(agent.inputs[1]).toMatchObject({
+      attempt: 2,
+      functionalSimulationFeedbackPath: "context/functional-simulation-feedback.json",
+    });
+    expect(execution.result.runs[0]).toMatchObject({
+      status: "COMPLETE",
+      attemptCount: 2,
+      passAttempt: 1,
+    });
+  });
+
+  it("stops after the configured number of functional repair turns", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+    ]);
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter(
+      Array.from({ length: 4 }, () => ({
+        outcome: "RTL_CHANGED" as const,
+        source: `module dut(input logic a, output logic y); assign y = a; endmodule\n`,
+      })),
+    );
+    let functionalChecks = 0;
+
+    const execution = await evaluateCoreLoopBatch({
+      provider,
+      providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      profile,
+      agentAdapter: agent,
+      compilerAdapter: new ScriptedCompilerAdapter([
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_ERROR",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+      ]),
+      batchesRoot: path.join(root, "batches"),
+      functionalRepair: {
+        maxIterations: 3,
+        validateCandidate: async () => {
+          functionalChecks += 1;
+          return CandidateFunctionalValidationSchema.parse({
+            status: "MISMATCH",
+            feedbackPath: "context/functional-simulation-feedback.json",
+          });
+        },
+      },
+    });
+
+    expect(agent.inputs.map((input) => input.attempt)).toEqual([1, 2, 3, 4]);
+    expect(functionalChecks).toBe(3);
+    expect(agent.inputs[2]).toMatchObject({
+      attempt: 3,
+      previousCompileResultPath: "context/previous-compile-result.json",
+    });
+    expect(execution.result.runs[0]).toMatchObject({ attemptCount: 4, passAttempt: 1 });
+  });
+
   it("awaits each case completion hook before starting the next Agent turn", async () => {
     const root = await temporaryRoot();
     const provider = new EvaluationTestProvider([

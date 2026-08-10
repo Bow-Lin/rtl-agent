@@ -1634,3 +1634,39 @@ The report at
 decision does not modify the active guidance file, rerun a case, or rewrite batch evidence. Future
 guidance work should keep targeted fixes separate from the repeated evaluation needed to estimate
 model variance.
+
+## 2026-08-10 - Repair Functional Mismatches Before Sealing Each Case
+
+### Context
+
+VerilogEval and ChipBench now compile and functionally simulate each case before starting the next
+case, but a nonzero mismatch remained terminal. Running a repair after the existing run completion
+boundary would mutate RTL after `final-rtl-manifest.json` and `final-result.json` had already sealed
+the candidate, leaving final evidence bound to stale RTL.
+
+### Decision
+
+Move candidate functional validation inside the run lifecycle, after the locked final recompile and
+before final manifest publication. A mismatch may schedule a bounded extra Agent turn; that turn
+receives only a structured public mismatch summary, then the candidate is compiled, recompiled, and
+simulated against the same privately materialized verification assets. Hidden reference RTL and
+testbench files never enter the Agent workspace or feedback.
+
+Expose `--functional-repair-iterations <0-10>` on `run` and `evaluate`. It means maximum extra Agent
+turns after the initial functional mismatch, defaults to 3, and is recorded in the evaluation
+profile and functional result. Zero disables regeneration. Every repair turn consumes the budget,
+including one that produces a compile error; the initial generation does not consume it. Preserve
+the first successful compile attempt for compile-only metrics while recording the total Agent turn
+count and per-case functional repair count separately.
+
+### Consequences
+
+A case is sealed only after functional pass, verification-invalid termination, exhausted repair
+budget, or another terminal run outcome. Every simulated candidate has attempt-scoped evidence, the
+final per-case result records the final Agent attempt and completed repair count, and the next case
+does not start until this loop finishes. The evidence remains non-authoritative and no model-backed
+dataset batch or production Linux Gate is implied by the local implementation tests.
+
+This support boundary currently covers VerilogEval and ChipBench only. CVDP composition is a
+deferred TODO until the repository has a CVDP Provider, evaluation profile, and functional-
+simulation adapter; the current generic CLI injection boundary does not constitute CVDP support.

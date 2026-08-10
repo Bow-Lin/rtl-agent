@@ -1,6 +1,7 @@
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import path from "node:path";
 
+import { LogicalPathSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
 import { CapturedOutputSchema, FixtureCaseRefSchema } from "./contracts.js";
@@ -13,11 +14,13 @@ import {
   copyRegularTreeToEvidence,
   ensureJsonEvidence,
   writeJsonEvidenceExclusive,
+  writeJsonReplacingAtomic,
 } from "./evidence.js";
 import type { RunExecutionResult } from "./evaluation-contracts.js";
 import { asHostDirectoryForProvider } from "./fixture-provider.js";
 import type { HostDirectory } from "./fixture-provider.js";
 import { scanRegularFiles, sha256Jcs } from "./filesystem.js";
+import { FunctionalSimulationFeedbackSchema } from "./functional-repair-contracts.js";
 
 export const FunctionalCaseStatusSchema = z.enum([
   "PASSED",
@@ -53,6 +56,8 @@ export const FunctionalCaseResultSchema = z.strictObject({
   simulationDurationMs: z.int().nonnegative(),
   stdout: CapturedOutputSchema.nullable(),
   stderr: CapturedOutputSchema.nullable(),
+  agentAttempt: z.int().positive().default(1),
+  repairIterations: z.int().nonnegative().default(0),
 });
 
 export const FunctionalSimulationResultSchema = z.strictObject({
@@ -67,6 +72,7 @@ export const FunctionalSimulationResultSchema = z.strictObject({
   functionalFailed: z.int().nonnegative(),
   functionalNotRun: z.int().nonnegative(),
   verificationInvalid: z.int().nonnegative().default(0),
+  maxRepairIterations: z.int().nonnegative().default(0),
   cases: z.array(FunctionalCaseResultSchema),
 });
 
@@ -103,6 +109,11 @@ export interface EvaluateFunctionalSimulationCaseOptions {
   readonly caseRef: FixtureCaseRef;
   readonly runId: string;
   readonly run: RunExecutionResult | undefined;
+  readonly candidateCompilePassed?: boolean;
+  readonly agentAttempt?: number;
+  readonly repairIteration?: number;
+  readonly publishResult?: boolean;
+  readonly publishCandidate?: boolean;
   readonly provider: FunctionalVerificationProvider;
   readonly iverilogExecutable: string;
   readonly vvpExecutable?: string;
@@ -112,6 +123,7 @@ export interface EvaluateFunctionalSimulationCaseOptions {
 export interface PublishFunctionalSimulationBatchOptions {
   readonly execution: CoreLoopBatchExecution;
   readonly caseResults: readonly FunctionalCaseResult[];
+  readonly maxRepairIterations?: number;
 }
 
 function emptyProcessFields() {
@@ -231,12 +243,72 @@ async function publishFunctionalCaseResult(
   return result;
 }
 
+export async function publishFunctionalSimulationCase(options: {
+  readonly batchDirectory: string;
+  readonly caseIndex: number;
+  readonly caseRef: FixtureCaseRef;
+  readonly runId: string;
+  readonly result: FunctionalCaseResult;
+}): Promise<FunctionalCaseResult> {
+  await publishCandidate(options.batchDirectory, options.caseRef, options.runId);
+  return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, options.result);
+}
+
+export async function writeFunctionalSimulationFeedback(options: {
+  readonly runDirectory: string;
+  readonly workspaceDirectory: string;
+  readonly result: FunctionalCaseResult;
+}): Promise<ReturnType<typeof LogicalPathSchema.parse>> {
+  if (
+    options.result.status !== "MISMATCH" ||
+    options.result.mismatches === null ||
+    options.result.mismatches === 0 ||
+    options.result.samples === null
+  ) {
+    throw new TypeError("Functional simulation feedback requires a mismatch result");
+  }
+  const feedback = FunctionalSimulationFeedbackSchema.parse({
+    schemaVersion: 1,
+    runId: options.result.runId,
+    attempt: options.result.agentAttempt,
+    repairIteration: options.result.repairIterations,
+    mismatches: options.result.mismatches,
+    samples: options.result.samples,
+    outputMismatches: options.result.outputMismatches ?? [],
+    instruction:
+      "Repair the candidate RTL against spec.md using only this public mismatch summary, then leave the updated RTL under rtl/.",
+  });
+  const feedbackPath = LogicalPathSchema.parse("context/functional-simulation-feedback.json");
+  await writeJsonReplacingAtomic(
+    path.join(options.workspaceDirectory, "context", "functional-simulation-feedback.json"),
+    feedback,
+  );
+  await writeJsonEvidenceExclusive(
+    options.runDirectory,
+    `evidence/attempts/${String(options.result.agentAttempt)}/functional-simulation-feedback.json`,
+    feedback,
+  );
+  return feedbackPath;
+}
+
 async function materializeVerification(
   provider: FunctionalVerificationProvider,
   caseRef: FixtureCaseRef,
   destination: string,
 ): Promise<FunctionalVerificationMaterialization> {
   await mkdir(destination, { recursive: true });
+  const existing = await Promise.all(
+    ["reference.sv", "testbench.sv"].map((name) =>
+      lstat(path.join(destination, name)).catch(() => undefined),
+    ),
+  );
+  if (existing.every((entry) => entry?.isFile() === true && !entry.isSymbolicLink())) {
+    return {
+      referenceLogicalPath: "reference.sv",
+      testbenchLogicalPath: "testbench.sv",
+      testbenchTopModule: "tb",
+    };
+  }
   return FunctionalVerificationMaterializationSchema.parse(
     await provider.materializeVerification(caseRef, asHostDirectoryForProvider(destination)),
   );
@@ -247,17 +319,38 @@ export async function evaluateFunctionalSimulationCase(
 ): Promise<FunctionalCaseResult> {
   const runner = options.processRunner ?? executeCompilerProcess;
   const caseRef = FixtureCaseRefSchema.parse(options.caseRef);
-  await publishCandidate(options.batchDirectory, caseRef, options.runId);
+  const agentAttempt = options.agentAttempt ?? 1;
+  const repairIterations = options.repairIteration ?? 0;
+  const shouldPublishResult = options.publishResult ?? true;
+  const finish = async (rawResult: unknown): Promise<FunctionalCaseResult> => {
+    const result = FunctionalCaseResultSchema.parse(rawResult);
+    if (options.candidateCompilePassed === true) {
+      await writeJsonEvidenceExclusive(
+        options.batchDirectory,
+        `${BATCH_INTERNAL_DIRECTORY}/runs/${options.runId}/evidence/attempts/${String(agentAttempt)}/functional-simulation-result.json`,
+        result,
+      );
+    }
+    if (options.publishCandidate ?? true) {
+      await publishCandidate(options.batchDirectory, caseRef, options.runId);
+    }
+    return shouldPublishResult
+      ? publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, result)
+      : result;
+  };
   if (
-    options.run?.status !== "COMPLETE" ||
-    options.run.evaluationValidity !== "EVALUATION_VALID" ||
-    options.run.finalResult.outcome !== "COMPILE_PASSED"
+    options.candidateCompilePassed !== true &&
+    (options.run?.status !== "COMPLETE" ||
+      options.run.evaluationValidity !== "EVALUATION_VALID" ||
+      options.run.finalResult.outcome !== "COMPILE_PASSED")
   ) {
-    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+    return finish({
       schemaVersion: 1,
       caseRef,
       runId: options.runId,
       status: "CANDIDATE_NOT_COMPILE_PASSED",
+      agentAttempt,
+      repairIterations,
       ...emptyProcessFields(),
     });
   }
@@ -268,7 +361,11 @@ export async function evaluateFunctionalSimulationCase(
     "verification",
     String(options.caseIndex + 1).padStart(4, "0"),
   );
-  const candidateDirectory = path.join(verificationDirectory, "candidate");
+  const roundDirectory =
+    options.agentAttempt === undefined
+      ? verificationDirectory
+      : path.join(verificationDirectory, "rounds", String(agentAttempt).padStart(4, "0"));
+  const candidateDirectory = path.join(roundDirectory, "candidate");
   const assetDirectory = path.join(verificationDirectory, "assets");
   await mkdir(candidateDirectory, { recursive: true });
   await copyRegularTreeToEvidence(
@@ -280,14 +377,14 @@ export async function evaluateFunctionalSimulationCase(
       "workspace",
       "rtl",
     ),
-    verificationDirectory,
+    roundDirectory,
     "candidate",
   );
   const assets = await materializeVerification(options.provider, caseRef, assetDirectory);
   const candidateSources = (await scanRegularFiles(candidateDirectory)).map(
     (file) => file.hostPath,
   );
-  const simulationImage = path.join(verificationDirectory, "simulation.vvp");
+  const simulationImage = path.join(roundDirectory, "simulation.vvp");
   const compile = await runner(
     processOptions(
       options.iverilogExecutable,
@@ -301,15 +398,17 @@ export async function evaluateFunctionalSimulationCase(
         path.join(assetDirectory, assets.referenceLogicalPath),
         path.join(assetDirectory, assets.testbenchLogicalPath),
       ],
-      verificationDirectory,
+      roundDirectory,
     ),
   );
   if (compile.timedOut) {
-    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+    return finish({
       schemaVersion: 1,
       caseRef,
       runId: options.runId,
       status: "SIMULATION_COMPILE_TIMEOUT",
+      agentAttempt,
+      repairIterations,
       ...emptyProcessFields(),
       compileExitCode: compile.exitCode,
       compileDurationMs: compile.durationMs,
@@ -323,11 +422,13 @@ export async function evaluateFunctionalSimulationCase(
     !compile.closeConfirmed ||
     compile.exitCode !== 0
   ) {
-    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+    return finish({
       schemaVersion: 1,
       caseRef,
       runId: options.runId,
       status: "SIMULATION_COMPILE_ERROR",
+      agentAttempt,
+      repairIterations,
       ...emptyProcessFields(),
       compileExitCode: compile.exitCode,
       compileDurationMs: compile.durationMs,
@@ -340,7 +441,7 @@ export async function evaluateFunctionalSimulationCase(
     processOptions(
       options.vvpExecutable ?? vvpExecutableForIcarus(options.iverilogExecutable),
       [simulationImage],
-      verificationDirectory,
+      roundDirectory,
     ),
   );
   const mismatch = parseMismatch(simulation.stdout);
@@ -357,11 +458,13 @@ export async function evaluateFunctionalSimulationCase(
         : mismatch.mismatches === 0
           ? "PASSED"
           : "MISMATCH";
-  return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+  return finish({
     schemaVersion: 1,
     caseRef,
     runId: options.runId,
     status,
+    agentAttempt,
+    repairIterations,
     mismatches: mismatch?.mismatches ?? null,
     samples: mismatch?.samples ?? null,
     outputMismatches,
@@ -458,6 +561,7 @@ export async function publishFunctionalSimulationBatch(
     functionalFailed,
     functionalNotRun,
     verificationInvalid,
+    maxRepairIterations: options.maxRepairIterations ?? 0,
     cases: caseResults,
   });
   await writeJsonEvidenceExclusive(
@@ -477,6 +581,7 @@ export async function publishFunctionalSimulationBatch(
     functionalFailed: result.functionalFailed,
     functionalNotRun: result.functionalNotRun,
     verificationInvalid: result.verificationInvalid,
+    maxRepairIterations: result.maxRepairIterations,
     rtlDirectory: "rtl",
     internalEvidenceDirectory: `${BATCH_INTERNAL_DIRECTORY}/evidence`,
   });

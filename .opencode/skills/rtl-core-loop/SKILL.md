@@ -21,6 +21,10 @@ repair, use structured compiler issues to make a local correction and preserve
 unrelated behavior. Give combinational logic complete assignments. Make clock
 and reset edges and reset values explicit in sequential logic.
 
+When `functionalSimulationFeedbackPath` is present, use its bounded public
+mismatch summary together with `spec.md` to repair the candidate RTL. Do not
+guess, request, or reconstruct the hidden reference RTL or dataset testbench.
+
 Do not evade an error by changing the top module, deleting required ports,
 hiding a source, weakening the spec, or replacing the design with an empty
 module. In normal RTL mode, do not generate testbenches. In

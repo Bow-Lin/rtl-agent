@@ -32,6 +32,7 @@ import { listFixtureCases } from "./catalog.js";
 import { sha256Jcs } from "./filesystem.js";
 import { createCoreLoopRun } from "./materialize.js";
 import type { CoreLoopRun } from "./materialize.js";
+import type { CandidateFunctionalValidation } from "./functional-repair-contracts.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import {
   agentCapabilityMatches,
@@ -67,6 +68,12 @@ export interface EvaluateCoreLoopBatchOptions {
   readonly batchIdFactory?: () => BatchId;
   readonly clock?: RunClock;
   readonly onCaseStart?: (progress: CoreLoopBatchCaseProgress) => void;
+  readonly functionalRepair?: {
+    readonly maxIterations: number;
+    readonly validateCandidate: (
+      context: CoreLoopBatchCandidateValidation,
+    ) => Promise<CandidateFunctionalValidation>;
+  };
   readonly onCaseComplete?: (completion: CoreLoopBatchCaseCompletion) => Promise<void>;
 }
 
@@ -80,6 +87,13 @@ export interface CoreLoopBatchCaseProgress {
 export interface CoreLoopBatchCaseCompletion extends CoreLoopBatchCaseProgress {
   readonly batchDirectory: string;
   readonly run: RunExecutionResult;
+}
+
+export interface CoreLoopBatchCandidateValidation extends CoreLoopBatchCaseProgress {
+  readonly batchDirectory: string;
+  readonly run: CoreLoopRun;
+  readonly attempt: number;
+  readonly repairIteration: number;
 }
 
 export interface CoreLoopBatchExecution {
@@ -462,6 +476,24 @@ export async function evaluateCoreLoopBatch(
         compilerAdapter: options.compilerAdapter,
         lockedAgentCapability: actualAgentCapability,
         lockedCompilerCapability: profile.compilerCapability,
+        ...(options.functionalRepair === undefined
+          ? {}
+          : {
+              functionalRepair: {
+                maxIterations: options.functionalRepair.maxIterations,
+                validateCandidate: async ({ run, attempt, repairIteration }) =>
+                  options.functionalRepair!.validateCandidate({
+                    batchDirectory,
+                    caseIndex: validated.validation.caseIndex,
+                    caseNumber: validated.validation.caseIndex + 1,
+                    caseCount: cases.length,
+                    caseRef: validated.validation.caseRef,
+                    run,
+                    attempt,
+                    repairIteration,
+                  }),
+              },
+            }),
         clock,
       });
       runs.push(result);

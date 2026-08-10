@@ -122,7 +122,12 @@ single `Mismatches: N in M samples` summary. Reference and testbench files remai
 internal verification tree and are never copied into the Agent workspace or published RTL output.
 For the normal VerilogEval and ChipBench CLI, this functional step completes and writes
 `_internal/evidence/functional-cases/<case-number>.json` before the next case's Agent turn starts;
-the final batch aggregate keeps the existing evidence and summary schemas. The resulting
+on mismatch it may run bounded RTL regeneration, candidate compile, and the same functional
+simulation again before sealing the case. `--functional-repair-iterations <0-10>` controls the
+maximum extra Agent turns, defaults to 3, and accepts 0 to disable repair. Each simulated candidate
+is retained below the run's attempt evidence; Agent feedback contains only bounded mismatch counts
+and timing hints, never the hidden reference or testbench. The final batch aggregate keeps backward
+compatible evidence and summary schemas. The resulting
 `FUNCTIONAL_SIMULATION` evidence is non-authoritative. Configure
 `RTL_AGENT_IVERILOG_EXECUTABLE` and optionally `RTL_AGENT_VVP_EXECUTABLE` when the tools are not on
 `PATH`.

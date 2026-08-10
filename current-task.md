@@ -2,44 +2,50 @@
 
 ## Goal
 
-Prepare the Core Loop for Memory V1 by running VerilogEval and ChipBench functional simulation
-case by case: each case must finish Agent generation, candidate compile/repair, and functional
-verification before the next case's Agent turn starts.
+After each VerilogEval or ChipBench candidate is generated and compiled, run functional simulation
+inside the same case lifecycle. If the result is a mismatch, perform a bounded RTL
+debug/regeneration loop before moving to the next case. The maximum extra repair turns are
+operator-configurable and default to 3.
 
 ## Current Status
 
-Implemented and validated. The batch evaluator exposes an awaited optional case-completion
-boundary. The VerilogEval and ChipBench CLI uses it to run Icarus/VVP functional verification and
-persist per-case evidence immediately after each completed compile run. The existing batch
-functional execution API and ChipBench/VerilogEval forwarding wrappers were removed; the final
-summary schemas remain compatible.
+Implemented and validated. Candidate functional simulation now runs before final RTL evidence is
+sealed. A mismatch writes a structured public feedback file and schedules another Agent turn; that
+candidate is compiled, final-recompiled, and simulated with the same private verification assets.
+The loop ends on functional pass, invalid verification, another terminal run outcome, or exhausted
+repair budget.
 
-A completion-boundary infrastructure failure no longer discards the compile batch result: later
-completion callbacks are skipped, compile-only case processing finishes, the batch result is
-published, and the original failure is then reported.
+Both `run` and `evaluate` accept `--functional-repair-iterations <0-10>`. The default is 3 and zero
+disables repair. Initial generation does not consume the repair budget; every extra Agent turn does,
+including a turn that produces a compile error. The selected maximum is part of evaluation-profile
+identity and final functional evidence. Per-attempt simulation evidence and final per-case repair
+counts are retained without exposing reference RTL or dataset testbenches to the Agent.
 
-The complete 13-file change set passed a fresh guarded landing review with no P1/P2 finding and is
-ready to commit on `master`.
+The complete change set passed guarded landing review for the confirmed VerilogEval/ChipBench
+scope and is ready to commit on `master`.
 
 ## Validation
 
-- Focused batch, functional-simulation, and CLI tests: 42 passed
-- Full repository tests: 39 passed / 1 skipped files; 307 passed / 2 skipped tests
-- Frozen dependency install: passed
-- Typecheck, build, lint, Prettier, and peer dependency checks: passed
+- Focused lifecycle, simulation, Agent-input, and CLI tests: 5 files / 72 tests passed
+- Full repository tests: 39 passed / 1 skipped files; 314 passed / 2 skipped tests
+- Frozen dependency install, typecheck, build, lint, Prettier, and peer dependency checks: passed
 - Real Icarus integration: 2 passed / 1 skipped files; 7 passed / 1 skipped tests
 - `git diff --check` and the Git Bash Harness check: passed
 
-No model-backed dataset batch was run because it would consume model quota. No production Linux,
-formal-Gate, or authoritative functional-verification claim is made.
+No model-backed VerilogEval/ChipBench batch was run because it would consume model quota. No
+production Linux or authoritative Gate claim is made.
 
 ## Next Boundary
 
-Freeze the Memory V1 execution contract before implementation: Pi-only/backend scope, Memory root
-and snapshot identity, read/write/frozen semantics, structured Selector/Extractor/Manager output,
-and the policy for consuming the new per-case functional evidence. A functional mismatch still
-does not trigger an RTL repair turn.
+Return to the Memory V1 contract. Functional mismatch and repair-attempt evidence now exists for
+future `simulation_debug` extraction, but Memory read/write/frozen semantics, backend scope,
+snapshot identity, structured selection, and extraction policy still need to be frozen before
+Memory implementation.
+
+TODO: add the same functional-simulation and bounded-repair composition for CVDP after its
+repository Provider, evaluation profile, and functional-simulation adapter exist. The current
+support guarantee is limited to VerilogEval and ChipBench.
 
 ## Last Updated
 
-2026-08-10T10:09:36+08:00
+2026-08-10T10:56:48+08:00

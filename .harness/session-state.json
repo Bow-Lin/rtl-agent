@@ -1,70 +1,78 @@
 {
-  "task_id": "case-by-case-functional-simulation",
+  "task_id": "case-functional-mismatch-repair",
   "status": "complete",
   "current_phase": "guarded_landing_ready",
-  "last_updated": "2026-08-10T10:09:36+08:00",
+  "last_updated": "2026-08-10T10:56:48+08:00",
   "active_plan": [
-    "Inspect the batch evaluator and functional-simulation composition boundary",
-    "Run functional simulation after each completed case and before the next Agent turn",
-    "Preserve existing batch summaries and validate the changed lifecycle"
+    "Run functional simulation before each case is sealed",
+    "Route structured mismatch feedback into bounded RTL repair turns",
+    "Record the default-three repair policy in experiment identity and evidence"
   ],
   "next_3_steps": [
     "Freeze the Memory V1 execution and experiment-identity contract",
-    "Implement the Markdown Memory store and deterministic stage/scope filter",
-    "Integrate Pi structured selection and per-case extraction behind read/write/frozen controls"
+    "Define simulation_debug extraction from per-attempt functional evidence",
+    "Implement the Markdown Memory store and deterministic stage/scope filter"
   ],
   "changed_files": [
+    ".opencode/agents/rtl-core-loop.md",
+    ".opencode/skills/rtl-core-loop/SKILL.md",
     "apps/rtl-core-loop/src/index.ts",
-    "packages/core-loop/src/batch-evaluator.ts",
-    "packages/core-loop/src/chipbench-simulation.ts (deleted)",
-    "packages/core-loop/src/index.ts",
-    "packages/core-loop/src/verilog-eval-simulation.ts",
-    "packages/core-loop/test/batch-evaluator.test.ts",
-    "packages/core-loop/test/chipbench-simulation.test.ts",
-    "packages/core-loop/test/verilog-eval-simulation.test.ts",
+    "apps/rtl-core-loop/test/cli.test.ts",
     "docs/decisions.md",
     "docs/verification.md",
+    "packages/core-loop/src/agent-adapter.ts",
+    "packages/core-loop/src/batch-evaluator.ts",
+    "packages/core-loop/src/compiler-contracts.ts",
+    "packages/core-loop/src/contracts.ts",
+    "packages/core-loop/src/evaluation-contracts.ts",
+    "packages/core-loop/src/functional-repair-contracts.ts",
+    "packages/core-loop/src/index.ts",
+    "packages/core-loop/src/pi-agent-adapter.ts",
+    "packages/core-loop/src/run-orchestrator.ts",
+    "packages/core-loop/src/verilog-eval-simulation.ts",
+    "packages/core-loop/test/agent-adapter.test.ts",
+    "packages/core-loop/test/batch-evaluator.test.ts",
+    "packages/core-loop/test/verilog-eval-simulation.test.ts",
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md"
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm install --frozen-lockfile",
-      "corepack pnpm exec vitest run packages/core-loop/test/batch-evaluator.test.ts packages/core-loop/test/verilog-eval-simulation.test.ts packages/core-loop/test/chipbench-simulation.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm typecheck",
-      "corepack pnpm test",
-      "corepack pnpm build",
-      "corepack pnpm lint",
-      "corepack pnpm format:check",
-      "corepack pnpm peers check",
-      "corepack pnpm --filter @rtl-agent/core-loop test:integration:iverilog",
+      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/batch-evaluator.test.ts packages/core-loop/test/verilog-eval-simulation.test.ts packages/core-loop/test/chipbench-simulation.test.ts packages/core-loop/test/agent-adapter.test.ts apps/rtl-core-loop/test/cli.test.ts",
+      "corepack pnpm@11.13.0 install --frozen-lockfile",
+      "corepack pnpm@11.13.0 lint",
+      "corepack pnpm@11.13.0 typecheck",
+      "corepack pnpm@11.13.0 test",
+      "corepack pnpm@11.13.0 build",
+      "corepack pnpm@11.13.0 format:check",
+      "corepack pnpm@11.13.0 peers check",
+      "corepack pnpm@11.13.0 --filter @rtl-agent/core-loop test:integration:iverilog",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Guarded review found no P1/P2 issue. Frozen install, focused lifecycle tests, 307 ordinary tests, typecheck, build, lint, formatting, peer checks, real Icarus integration, diff checks, and the Harness check passed.",
+    "last_result": "Guarded review found no unresolved P1/P2 within the operator-confirmed VerilogEval/ChipBench scope. Focused 72-test coverage, 314 ordinary tests, frozen install, typecheck, build, lint, formatting, peer checks, real Icarus integration, diff checks, and the Harness check passed.",
     "known_failures": [
       "No model-backed VerilogEval or ChipBench batch was run because it would consume model quota.",
-      "Functional mismatches are classified and diagnosed but are not yet routed back to the RTL Agent for repair.",
-      "CVDP does not yet have a repository Provider, profile, or functional-simulation adapter."
+      "No production Linux or authoritative formal-Gate validation was run.",
+      "TODO: add CVDP functional repair after its repository Provider, profile, and functional-simulation adapter exist."
     ]
   },
   "cognitive_state": {
     "failure_count": 1,
     "current_mode": "guarded_landing",
     "tried_approaches": [
-      "Reviewed the complete tracked change set before touching Git state",
-      "Kept the compile-only batch evaluator generic through an optional awaited completion callback",
-      "Split functional evaluation into durable per-case execution and final aggregation",
-      "Removed the former batch-wide functional execution API and dataset forwarding wrappers",
-      "Deferred callback errors until after compile batch evidence is published",
-      "Corrected one branded RunId map-key type mismatch found by the first typecheck"
+      "Placed functional validation before final manifest publication to avoid stale final evidence",
+      "Used public mismatch counts and first-mismatch timing without exposing hidden assets",
+      "Counted each extra Agent turn against a fixed repair budget even when compilation failed",
+      "Preserved first compile-pass semantics for compile-only metrics while retaining total Agent turns",
+      "Used the Corepack-pinned pnpm after the global pnpm version gate rejected the first typecheck"
     ],
     "blocked_on": "None"
   },
   "handoff": {
-    "last_summary": "The case-by-case functional-simulation change set passed guarded review and the full available validation matrix with no remaining P1/P2 finding.",
-    "resume_from": "Define the Memory V1 contract against the new per-case completion boundary; do not assume simulation-mismatch repair exists."
+    "last_summary": "Case-by-case functional mismatch repair for VerilogEval and ChipBench passed guarded review and the full local validation matrix; CVDP support is deferred as a TODO.",
+    "resume_from": "Freeze Memory V1 against the new attempt-scoped functional mismatch and repair evidence."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

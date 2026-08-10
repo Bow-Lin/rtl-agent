@@ -3184,3 +3184,29 @@ Run `corepack pnpm core-loop:evaluate:chipbench:pi --split self-contained --case
 the published candidate and internal functional result, then decide whether to run the remaining 29
 self-contained cases. Keep generation, zero-shot debugging, and one-shot debugging reports
 separate.
+
+## 2026-08-10 - Add bounded per-case functional mismatch repair
+
+- Moved functional validation inside run finalization so repaired RTL is compiled and simulated
+  before `final-rtl-manifest.json` and `final-result.json` are written.
+- Added `--functional-repair-iterations <0-10>` to `run` and `evaluate`, defaulting to 3; zero
+  disables repair and the selected value is included in evaluation identity and functional output.
+- Added public structured functional feedback, Agent input validation, OpenCode/Pi instructions,
+  fixed repair-turn accounting, attempt-scoped simulation evidence, and hidden-asset reuse.
+- Preserved the first successful compile attempt for compile-only metrics while retaining total
+  repair turns and the final functional repair count separately.
+- Focused tests passed: 5 files / 72 tests. Full suite passed: 39 files / 1 skipped and 314 tests /
+  2 skipped. Frozen install, typecheck, build, lint, formatting, peer checks, real Icarus integration,
+  `git diff --check`, and the Git Bash Harness check also passed.
+- No model-backed dataset batch, production Linux Gate, or authoritative evaluation was run.
+
+## 2026-08-10 - Guarded landing review for functional mismatch repair
+
+- Reviewed the complete tracked and untracked change set before staging; no unresolved P1/P2
+  finding remains within the operator-confirmed VerilogEval/ChipBench scope.
+- The operator explicitly deferred CVDP support. A repository Provider, evaluation profile, and
+  functional-simulation adapter are recorded as a later TODO.
+- Fresh validation passed: frozen install, 72 focused tests, 314 ordinary tests, lint, typecheck,
+  build, formatting, peer checks, real Icarus integration, `git diff --check`, and the Git Bash
+  Harness check.
+- No model-backed batch, production Linux Gate, or authoritative functional evaluation was run.

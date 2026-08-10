@@ -88,6 +88,35 @@ class ChipBenchCliTestProvider implements FixtureProvider {
 }
 
 describe("rtl-core-loop CLI boundary", () => {
+  it.each(["-1", "11", "1.5", "three"])(
+    "rejects invalid functional repair iteration limit %s",
+    async (value) => {
+      const errors: string[] = [];
+      const exitCode = await runRtlCoreLoopCli(
+        [
+          "run",
+          "--profile",
+          "missing-profile",
+          "--case",
+          "case/001",
+          "--functional-repair-iterations",
+          value,
+        ],
+        new EvaluationTestProvider(),
+        () => undefined,
+        (line) => errors.push(line),
+      );
+
+      expect(exitCode).toBe(2);
+      expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+        error: {
+          code: "EVALUATION_PROFILE_INVALID",
+          message: "--functional-repair-iterations must be an integer from 0 to 10",
+        },
+      });
+    },
+  );
+
   it("prepares the pinned dataset through an injected cache boundary", async () => {
     const output: string[] = [];
     const errors: string[] = [];
@@ -512,12 +541,16 @@ describe("rtl-core-loop CLI boundary", () => {
         "Prob001",
         "--end",
         "Prob002",
+        "--functional-repair-iterations",
+        "0",
       ],
       expectedCaseIds: ["Prob001_zero", "Prob002_one"],
+      expectedFunctionalRepairIterations: 0,
     },
     {
       arguments: ["evaluate", "--profile", "evaluation-test-v1", "--cases", "Prob010,Prob001"],
       expectedCaseIds: ["Prob001_zero", "Prob010_ten"],
+      expectedFunctionalRepairIterations: 3,
     },
   ])("runs a derived profile for selectable evaluation cases", async (example) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "rtl-core-loop-cli-selection-"));
@@ -577,6 +610,24 @@ describe("rtl-core-loop CLI boundary", () => {
       expect(result.result.caseCount).toBe(2);
       expect(result.result.batchDirectory).toContain(result.result.batchId);
       expect(agent.inputs).toHaveLength(example.expectedCaseIds.length);
+      const storedProfile = EvaluationProfileSchema.parse(
+        JSON.parse(
+          await readFile(
+            path.join(
+              root,
+              "batches",
+              result.result.batchId,
+              "_internal",
+              "evidence",
+              "evaluation-profile.json",
+            ),
+            "utf8",
+          ),
+        ) as unknown,
+      );
+      expect(storedProfile.functionalRepair?.maxIterations).toBe(
+        example.expectedFunctionalRepairIterations,
+      );
       await expect(
         readFile(path.join(root, "knowledge", "observed-issues.md"), "utf8"),
       ).resolves.toContain(`<!-- batch:${result.result.batchId} -->`);

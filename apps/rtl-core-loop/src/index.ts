@@ -23,7 +23,9 @@ import {
   createBaselineWorkspaceManifest,
   evaluateCoreLoopBatch,
   evaluateFunctionalSimulationCase,
+  publishFunctionalSimulationCase,
   publishFunctionalSimulationBatch,
+  writeFunctionalSimulationFeedback,
   createRunId,
   icarusExecutableFromEnvironment,
   listFixtureCases,
@@ -117,6 +119,20 @@ interface ParsedEvaluationCommand {
   readonly dataset?: DatasetName;
   readonly split?: string;
   readonly selection?: EvaluationCaseSelectionRequest;
+  readonly functionalRepairIterations: number;
+}
+
+const DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS = 3;
+
+function parseFunctionalRepairIterations(value: string | undefined): number {
+  if (value === undefined) return DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS;
+  if (!/^(?:0|[1-9]|10)$/u.test(value)) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "--functional-repair-iterations must be an integer from 0 to 10",
+    );
+  }
+  return Number(value);
 }
 
 function configuredVerilogEvalCacheRoot(
@@ -170,6 +186,9 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
   const options = parseNamedOptions(arguments_.slice(1));
   const profileId = options.get("--profile");
   const mismatchAnalyzerBackend = parseMismatchAnalyzerBackend(options.get("--analyzer"));
+  const functionalRepairIterations = parseFunctionalRepairIterations(
+    options.get("--functional-repair-iterations"),
+  );
   if (profileId === undefined) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
@@ -179,11 +198,18 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
 
   if (command === "run") {
     const caseId = options.get("--case");
-    const allowedOptions = new Set(["--profile", "--case", "--analyzer"]);
+    const allowedOptions = new Set([
+      "--profile",
+      "--case",
+      "--analyzer",
+      "--functional-repair-iterations",
+    ]);
     if (
       caseId === undefined ||
       [...options.keys()].some((name) => !allowedOptions.has(name)) ||
-      options.size !== (mismatchAnalyzerBackend === undefined ? 2 : 3)
+      options.size !==
+        (mismatchAnalyzerBackend === undefined ? 2 : 3) +
+          (options.has("--functional-repair-iterations") ? 1 : 0)
     ) {
       throw new CoreLoopException(
         "EVALUATION_PROFILE_INVALID",
@@ -193,6 +219,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     return {
       profileId,
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
+      functionalRepairIterations,
       selection: { kind: "CASES", cases: [caseId] },
     };
   }
@@ -238,6 +265,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     "--begin",
     "--end",
     "--cases",
+    "--functional-repair-iterations",
   ]);
   if ([...options.keys()].some((name) => !allowedOptions.has(name))) {
     throw new CoreLoopException(
@@ -252,14 +280,17 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     (mismatchAnalyzerBackend === undefined ? 0 : 1) -
     (dataset === undefined ? 0 : 1) -
     (split === undefined ? 0 : 1);
+  const functionalRepairOptionCount = options.has("--functional-repair-iterations") ? 1 : 0;
+  const adjustedSelectionOptionCount = selectionOptionCount - functionalRepairOptionCount;
   const parsedBackend = agentBackend as AgentBackend | undefined;
-  if (selectionOptionCount === 0) {
+  if (adjustedSelectionOptionCount === 0) {
     return {
       profileId,
       ...(parsedBackend === undefined ? {} : { agentBackend: parsedBackend }),
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
+      functionalRepairIterations,
     };
   }
 
@@ -267,7 +298,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
   const end = options.get("--end");
   const cases = options.get("--cases");
   if (
-    selectionOptionCount === 2 &&
+    adjustedSelectionOptionCount === 2 &&
     begin !== undefined &&
     end !== undefined &&
     cases === undefined
@@ -278,11 +309,12 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
+      functionalRepairIterations,
       selection: { kind: "RANGE", begin, end },
     };
   }
   if (
-    selectionOptionCount === 1 &&
+    adjustedSelectionOptionCount === 1 &&
     cases !== undefined &&
     begin === undefined &&
     end === undefined
@@ -300,6 +332,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
+      functionalRepairIterations,
       selection: { kind: "CASES", cases: selectors },
     };
   }
@@ -663,7 +696,7 @@ export async function runRtlCoreLoopCli(
           "Requested dataset or split does not match the evaluation profile",
         );
       }
-      const profile =
+      const selectedProfile =
         parsedCommand.selection === undefined
           ? EvaluationProfileSchema.parse(registered)
           : await resolveEvaluationProfileSelection(
@@ -671,6 +704,10 @@ export async function runRtlCoreLoopCli(
               registered,
               parsedCommand.selection,
             );
+      const profile = EvaluationProfileSchema.parse({
+        ...selectedProfile,
+        functionalRepair: { maxIterations: parsedCommand.functionalRepairIterations },
+      });
       if (agentAdapter === undefined) {
         if ("piVersion" in profile.agentCapability) {
           agentAdapter = new PiRtlAgentAdapter(
@@ -696,6 +733,8 @@ export async function runRtlCoreLoopCli(
           ? configuredProvider
           : undefined;
       const functionalCaseResults: FunctionalCaseResult[] = [];
+      const latestFunctionalResultByRunId = new Map<string, FunctionalCaseResult>();
+      const functionalRepairStartAttemptByRunId = new Map<string, number>();
       const functionalIverilogExecutable =
         functionalProvider === undefined ? undefined : icarusExecutableFromEnvironment(environment);
       const execution = await evaluateCoreLoopBatch({
@@ -717,20 +756,78 @@ export async function runRtlCoreLoopCli(
         ...(functionalProvider === undefined || functionalIverilogExecutable === undefined
           ? {}
           : {
-              onCaseComplete: async (completion: CoreLoop.CoreLoopBatchCaseCompletion) => {
-                functionalCaseResults.push(
-                  await evaluateFunctionalSimulationCase({
-                    batchDirectory: completion.batchDirectory,
-                    caseIndex: completion.caseIndex,
-                    caseRef: completion.caseRef,
-                    runId: completion.run.runId,
-                    run: completion.run,
+              functionalRepair: {
+                maxIterations: parsedCommand.functionalRepairIterations,
+                validateCandidate: async (candidate: CoreLoop.CoreLoopBatchCandidateValidation) => {
+                  const result = await evaluateFunctionalSimulationCase({
+                    batchDirectory: candidate.batchDirectory,
+                    caseIndex: candidate.caseIndex,
+                    caseRef: candidate.caseRef,
+                    runId: candidate.run.runId,
+                    run: undefined,
+                    candidateCompilePassed: true,
+                    agentAttempt: candidate.attempt,
+                    repairIteration: candidate.repairIteration,
+                    publishResult: false,
+                    publishCandidate: false,
                     provider: functionalProvider,
                     iverilogExecutable: functionalIverilogExecutable,
                     ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
                       ? {}
                       : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
-                  }),
+                  });
+                  latestFunctionalResultByRunId.set(candidate.run.runId, result);
+                  if (result.status !== "MISMATCH") return { status: "ACCEPT" } as const;
+                  if (candidate.repairIteration === 0) {
+                    functionalRepairStartAttemptByRunId.set(candidate.run.runId, candidate.attempt);
+                  }
+                  if (candidate.repairIteration >= parsedCommand.functionalRepairIterations) {
+                    return { status: "ACCEPT" } as const;
+                  }
+                  return {
+                    status: "MISMATCH",
+                    feedbackPath: await writeFunctionalSimulationFeedback({
+                      runDirectory: candidate.run.runDirectory,
+                      workspaceDirectory: candidate.run.workspaceDirectory,
+                      result,
+                    }),
+                  } as const;
+                },
+              },
+              onCaseComplete: async (completion: CoreLoop.CoreLoopBatchCaseCompletion) => {
+                const latest = latestFunctionalResultByRunId.get(completion.run.runId);
+                const compilePassed =
+                  completion.run.status === "COMPLETE" &&
+                  completion.run.evaluationValidity === "EVALUATION_VALID" &&
+                  completion.run.finalResult.outcome === "COMPILE_PASSED";
+                functionalCaseResults.push(
+                  latest !== undefined && compilePassed
+                    ? await publishFunctionalSimulationCase({
+                        batchDirectory: completion.batchDirectory,
+                        caseIndex: completion.caseIndex,
+                        caseRef: completion.caseRef,
+                        runId: completion.run.runId,
+                        result: latest,
+                      })
+                    : await evaluateFunctionalSimulationCase({
+                        batchDirectory: completion.batchDirectory,
+                        caseIndex: completion.caseIndex,
+                        caseRef: completion.caseRef,
+                        runId: completion.run.runId,
+                        run: completion.run,
+                        agentAttempt: completion.run.attemptCount,
+                        repairIteration: Math.max(
+                          0,
+                          completion.run.attemptCount -
+                            (functionalRepairStartAttemptByRunId.get(completion.run.runId) ??
+                              completion.run.attemptCount),
+                        ),
+                        provider: functionalProvider,
+                        iverilogExecutable: functionalIverilogExecutable,
+                        ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
+                          ? {}
+                          : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
+                      }),
                 );
               },
             }),
@@ -741,6 +838,7 @@ export async function runRtlCoreLoopCli(
           : await publishFunctionalSimulationBatch({
               execution,
               caseResults: functionalCaseResults,
+              maxRepairIterations: parsedCommand.functionalRepairIterations,
             });
       const hasMismatch =
         functionalResult?.cases.some((item) => item.status === "MISMATCH") ?? false;
@@ -782,6 +880,7 @@ export async function runRtlCoreLoopCli(
                   functionalFailed: functionalResult.functionalFailed,
                   functionalNotRun: functionalResult.functionalNotRun,
                   verificationInvalid: functionalResult.verificationInvalid,
+                  maxRepairIterations: functionalResult.maxRepairIterations,
                 }),
             batchDirectory: `.rtl-agent/batches/${execution.result.batchId}`,
             rtlDirectory: `.rtl-agent/batches/${execution.result.batchId}/rtl`,
@@ -794,7 +893,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

@@ -20,6 +20,7 @@ export * from "./evaluation-metrics.js";
 export * from "./evidence.js";
 export * from "./filesystem.js";
 export * from "./fixture-provider.js";
+export * from "./functional-repair-contracts.js";
 export * from "./include-scanner.js";
 export * from "./i2c-coverage-lock.js";
 export * from "./i2c-coverage-experiment.js";

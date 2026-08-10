@@ -12,6 +12,7 @@ import {
   VerilatorSimulationFeedbackSchema,
 } from "./coverage-experiment.js";
 import { CoreLoopException } from "./errors.js";
+import { FunctionalSimulationFeedbackSchema } from "./functional-repair-contracts.js";
 import { AgentTurnResultSchema, OpenCodeCapabilitySchema } from "./agent-contracts.js";
 import type {
   AgentCapability,
@@ -561,6 +562,32 @@ export async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopR
       throw new CoreLoopException(
         "AGENT_INPUT_INVALID",
         "Previous compile result does not precede this attempt in the same run",
+      );
+    }
+  }
+  if (input.functionalSimulationFeedbackPath !== undefined) {
+    const hostPath = resolveLogicalPath(
+      run.workspaceDirectory,
+      input.functionalSimulationFeedbackPath,
+    );
+    let rawFeedback: unknown;
+    try {
+      rawFeedback = JSON.parse(await readFile(hostPath, "utf8")) as unknown;
+    } catch {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Functional simulation feedback is missing or invalid JSON",
+      );
+    }
+    const feedback = FunctionalSimulationFeedbackSchema.safeParse(rawFeedback);
+    if (
+      !feedback.success ||
+      feedback.data.runId !== input.runId ||
+      feedback.data.attempt >= input.attempt
+    ) {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Functional simulation feedback does not precede this attempt in the same run",
       );
     }
   }

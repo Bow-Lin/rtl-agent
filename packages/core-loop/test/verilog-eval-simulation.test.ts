@@ -10,6 +10,7 @@ import {
   publishFunctionalSimulationBatch,
   sha256Bytes,
   VerilogEvalFunctionalResultSchema,
+  writeFunctionalSimulationFeedback,
 } from "../src/index.js";
 import type {
   CompilerProcessResult,
@@ -111,8 +112,10 @@ describe("VerilogEval functional simulation", () => {
         ],
       },
     } as unknown as CoreLoopBatchExecution;
+    let verificationMaterializations = 0;
     const provider = {
       materializeVerification: async (_caseRef: unknown, destination: HostDirectory) => {
+        verificationMaterializations += 1;
         const reference = Buffer.from("module RefModule; endmodule\n");
         const testbench = Buffer.from("module tb; endmodule\n");
         await Promise.all([
@@ -182,6 +185,46 @@ describe("VerilogEval functional simulation", () => {
         "utf8",
       ),
     ).resolves.toContain("RefModule");
+
+    if (caseResult.status === "MISMATCH") {
+      const runDirectory = path.join(root, "_internal", "runs", runId);
+      await mkdir(path.join(runDirectory, "workspace", "context"), { recursive: true });
+      await writeFunctionalSimulationFeedback({
+        runDirectory,
+        workspaceDirectory: path.join(runDirectory, "workspace"),
+        result: caseResult,
+      });
+      const feedback = await readFile(
+        path.join(runDirectory, "workspace", "context", "functional-simulation-feedback.json"),
+        "utf8",
+      );
+      expect(feedback).toContain('"mismatches": 3');
+      expect(feedback).toContain('"firstMismatchTime": 205');
+      expect(feedback).not.toContain("RefModule");
+      expect(feedback).not.toContain("testbench");
+
+      const repairedResult = await evaluateFunctionalSimulationCase({
+        batchDirectory: execution.batchDirectory,
+        caseIndex: 0,
+        caseRef,
+        runId,
+        run: undefined,
+        candidateCompilePassed: true,
+        agentAttempt: 2,
+        repairIteration: 1,
+        publishResult: false,
+        publishCandidate: false,
+        provider,
+        iverilogExecutable: path.resolve("iverilog.exe"),
+        processRunner: async () => processResult("Mismatches: 0 in 100 samples\n"),
+      });
+      expect(repairedResult).toMatchObject({
+        status: "PASSED",
+        agentAttempt: 2,
+        repairIterations: 1,
+      });
+      expect(verificationMaterializations).toBe(1);
+    }
 
     const legacyEvidence = JSON.parse(JSON.stringify(result)) as {
       verificationInvalid?: unknown;

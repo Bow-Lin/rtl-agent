@@ -503,6 +503,33 @@ describe("OpenCode RTL Agent adapter", () => {
     await expect(validateTurnInput(input, run)).resolves.toBeUndefined();
   });
 
+  it("validates bound functional mismatch feedback for a later RTL repair turn", async () => {
+    const root = await temporaryRoot();
+    const run = await createRun(root);
+    await writeFile(
+      path.join(run.workspaceDirectory, "context", "functional-simulation-feedback.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: run.runId,
+        attempt: 1,
+        repairIteration: 0,
+        mismatches: 3,
+        samples: 100,
+        outputMismatches: [{ outputPort: "done", mismatches: 3, firstMismatchTime: 205 }],
+        instruction:
+          "Repair the candidate RTL against spec.md using only this public mismatch summary, then leave the updated RTL under rtl/.",
+      })}\n`,
+      "utf8",
+    );
+    const input = AgentAttemptInputSchema.parse({
+      ...inputFor(run, ["rtl/dut.sv"]),
+      attempt: 2,
+      functionalSimulationFeedbackPath: "context/functional-simulation-feedback.json",
+    });
+
+    await expect(validateTurnInput(input, run)).resolves.toBeUndefined();
+  });
+
   it("kills the complete fake process tree before post-turn evidence is accepted", async () => {
     const root = await temporaryRoot();
     const fake = await createFakeOpenCode(root);

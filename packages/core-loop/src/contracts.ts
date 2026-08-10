@@ -279,6 +279,10 @@ export const AgentAttemptInputSchema = z
       (value) => value.startsWith("context/"),
       "Previous compile result must stay below context/",
     ).optional(),
+    functionalSimulationFeedbackPath: LogicalPathSchema.refine(
+      (value) => value.startsWith("context/"),
+      "Functional simulation feedback must stay below context/",
+    ).optional(),
     taskKind: z.literal("VERIFICATION_ASSET_GENERATION").optional(),
     protectedRtlPaths: z
       .array(LogicalPathSchema)
@@ -368,6 +372,23 @@ export const AgentAttemptInputSchema = z
         message: "Verification feedback is only valid for verification asset generation",
       });
     }
+    if (value.taskKind !== undefined && value.functionalSimulationFeedbackPath !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["functionalSimulationFeedbackPath"],
+        message: "Functional simulation feedback is only valid for RTL generation and repair",
+      });
+    }
+    if (
+      value.previousCompileResultPath !== undefined &&
+      value.functionalSimulationFeedbackPath !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["functionalSimulationFeedbackPath"],
+        message: "An Agent attempt may consume compile feedback or functional feedback, not both",
+      });
+    }
     const verificationFeedbackCount = [
       value.coverageFeedbackPath,
       value.verificationFeedbackPath,
@@ -394,7 +415,7 @@ export const CompileRequestSchema = z
   .strictObject({
     schemaVersion: SchemaVersionSchema,
     runId: RunIdSchema,
-    attempt: z.int().nonnegative().max(3),
+    attempt: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
     compilerProfileId: CompilerProfileIdSchema,
     topModule: SystemVerilogIdentifierSchema,
     workspaceRtlRoot: z.literal("rtl"),
@@ -437,7 +458,7 @@ const compileResultCommon = {
   authoritative: z.literal(false),
   claim: z.literal("COMPILE_ONLY"),
   runId: RunIdSchema,
-  attempt: z.int().nonnegative().max(3),
+  attempt: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
   compilerProfileId: CompilerProfileIdSchema,
   topModule: SystemVerilogIdentifierSchema,
   workspaceManifestDigest: Sha256DigestSchema,
@@ -484,7 +505,7 @@ const finalResultCommon = {
   normalizedFixtureDigest: Sha256DigestSchema,
   profileId: CoreLoopProfileIdSchema,
   compilerProfileId: CompilerProfileIdSchema,
-  attemptCount: z.int().nonnegative().max(3),
+  attemptCount: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
   finalRtlManifestDigest: Sha256DigestSchema,
   startedAt: IsoTimestampSchema,
   completedAt: IsoTimestampSchema,

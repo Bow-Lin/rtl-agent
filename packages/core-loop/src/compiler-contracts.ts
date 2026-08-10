@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   CapturedOutputSchema,
   CompileRequestSchema,
+  MAX_AGENT_TURN_ATTEMPT,
   RunIdSchema,
   ToolVersionSchema,
 } from "./contracts.js";
@@ -14,7 +15,7 @@ export const FIXED_ICARUS_PROFILE_ID = "iverilog-systemverilog-2012-null-v1" as 
 const preparationCommon = {
   schemaVersion: z.literal(1),
   runId: RunIdSchema,
-  attempt: z.int().nonnegative().max(3),
+  attempt: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
   compilerProfileId: z.literal(FIXED_ICARUS_PROFILE_ID),
   compilerInvoked: z.literal(false),
 } as const;

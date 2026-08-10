@@ -1,3 +1,4 @@
+import { rm } from "node:fs/promises";
 import path from "node:path";
 
 import { LogicalPathSchema } from "@rtl-agent/contracts";
@@ -7,7 +8,12 @@ import type { AgentCapability, AgentTurnResult } from "./agent-contracts.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import { prepareCompileRequest } from "./compile-preparation.js";
 import type { IcarusCapability } from "./compiler-contracts.js";
-import { AgentAttemptInputSchema, CompileResultSchema, FinalResultSchema } from "./contracts.js";
+import {
+  AgentAttemptInputSchema,
+  CompileResultSchema,
+  FinalResultSchema,
+  MAX_AGENT_TURN_ATTEMPT,
+} from "./contracts.js";
 import type { CompileRequest, CompileResult, FinalResult, ToolVersion } from "./contracts.js";
 import {
   CaseValidationResultSchema,
@@ -36,6 +42,8 @@ import {
 } from "./evidence.js";
 import { sha256Jcs } from "./filesystem.js";
 import type { CoreLoopRun } from "./materialize.js";
+import { CandidateFunctionalValidationSchema } from "./functional-repair-contracts.js";
+import type { CandidateFunctionalValidation } from "./functional-repair-contracts.js";
 import { createBaselineWorkspaceManifest, createFileManifest } from "./manifest.js";
 import type { FileManifest } from "./manifest.js";
 
@@ -80,7 +88,19 @@ export interface ExecuteCoreLoopRunOptions {
   readonly compilerAdapter: CoreLoopCompilerAdapter;
   readonly lockedAgentCapability: AgentCapability;
   readonly lockedCompilerCapability: CompilerCapabilityLock;
+  readonly functionalRepair?: {
+    readonly maxIterations: number;
+    readonly validateCandidate: (
+      context: CandidateFunctionalValidationContext,
+    ) => Promise<CandidateFunctionalValidation>;
+  };
   readonly clock?: RunClock;
+}
+
+export interface CandidateFunctionalValidationContext {
+  readonly run: CoreLoopRun;
+  readonly attempt: number;
+  readonly repairIteration: number;
 }
 
 export function compilerCapabilityLockFromCapability(
@@ -418,6 +438,20 @@ export async function executeValidatedCoreLoopRun(
   let attemptCount = 0;
   let sequence = validated.nextStateSequence;
   let activeStage: FailureStage = "ORCHESTRATOR";
+  let attemptLimit = run.request.profile.maxAttempts;
+  let functionalRepairStartAttempt: number | undefined;
+  let functionalSimulationFeedbackPath: string | undefined;
+  let firstCompilePassAttempt: number | undefined;
+
+  if (
+    options.functionalRepair !== undefined &&
+    (!Number.isInteger(options.functionalRepair.maxIterations) ||
+      options.functionalRepair.maxIterations < 0 ||
+      run.request.profile.maxAttempts + options.functionalRepair.maxIterations >
+        MAX_AGENT_TURN_ATTEMPT)
+  ) {
+    throw new TypeError("Functional repair iterations exceed the supported Agent attempt limit");
+  }
 
   if (validated.validation.status !== "VALID") {
     return incompleteResult(
@@ -486,7 +520,7 @@ export async function executeValidatedCoreLoopRun(
 
   let previousCompileResult = validated.baselineCompileResult;
   try {
-    for (let attempt = 1; attempt <= run.request.profile.maxAttempts; attempt += 1) {
+    for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
       attemptCount = attempt;
       const attemptRoot = `evidence/attempts/${String(attempt)}`;
       const sourceManifest = await rtlManifest(run);
@@ -502,9 +536,16 @@ export async function executeValidatedCoreLoopRun(
         ...(previousCompileResult === undefined
           ? {}
           : { previousCompileResultPath: "context/previous-compile-result.json" }),
+        ...(functionalSimulationFeedbackPath === undefined
+          ? {}
+          : { functionalSimulationFeedbackPath }),
       });
 
       if (previousCompileResult !== undefined) {
+        await rm(
+          path.join(run.workspaceDirectory, "context", "functional-simulation-feedback.json"),
+          { force: true },
+        );
         await writeJsonReplacingAtomic(
           path.join(run.workspaceDirectory, "context", "previous-compile-result.json"),
           previousCompileResult,
@@ -514,6 +555,10 @@ export async function executeValidatedCoreLoopRun(
           `${attemptRoot}/previous-compile-result.json`,
           previousCompileResult,
         );
+      } else if (functionalSimulationFeedbackPath !== undefined) {
+        await rm(path.join(run.workspaceDirectory, "context", "previous-compile-result.json"), {
+          force: true,
+        });
       }
       await writeJsonEvidenceExclusive(run.runDirectory, `${attemptRoot}/agent-input.json`, input);
       const beforeManifest = await createBaselineWorkspaceManifest(run.runDirectory);
@@ -649,7 +694,7 @@ export async function executeValidatedCoreLoopRun(
       }
 
       if (compileResult.status === "COMPILE_ERROR") {
-        if (attempt === run.request.profile.maxAttempts) {
+        if (attempt === attemptLimit) {
           return await complete({
             outcome: "MAX_ATTEMPTS",
             toolVersion: compileResult.toolVersion,
@@ -659,6 +704,7 @@ export async function executeValidatedCoreLoopRun(
           });
         }
         previousCompileResult = compileResult;
+        functionalSimulationFeedbackPath = undefined;
         continue;
       }
       if (compileResult.status === "TIMEOUT") {
@@ -726,12 +772,41 @@ export async function executeValidatedCoreLoopRun(
         finalCompileResult.status === "COMPILE_PASSED" &&
         finalCompileResult.toolVersion === compileResult.toolVersion
       ) {
+        firstCompilePassAttempt ??= attempt;
+        if (options.functionalRepair !== undefined) {
+          activeStage = "FUNCTIONAL_SIMULATION";
+          sequence = await writeState(run, sequence, "FUNCTIONAL_SIMULATING", clock);
+          const functionalValidation = CandidateFunctionalValidationSchema.parse(
+            await options.functionalRepair.validateCandidate({
+              run,
+              attempt,
+              repairIteration:
+                functionalRepairStartAttempt === undefined
+                  ? 0
+                  : attempt - functionalRepairStartAttempt,
+            }),
+          );
+          if (
+            functionalValidation.status === "MISMATCH" &&
+            (functionalRepairStartAttempt === undefined
+              ? options.functionalRepair.maxIterations > 0
+              : attempt < attemptLimit)
+          ) {
+            if (functionalRepairStartAttempt === undefined) {
+              functionalRepairStartAttempt = attempt;
+              attemptLimit = attempt + options.functionalRepair.maxIterations;
+            }
+            previousCompileResult = undefined;
+            functionalSimulationFeedbackPath = functionalValidation.feedbackPath;
+            continue;
+          }
+        }
         return await complete({
           outcome: "COMPILE_PASSED",
           toolVersion: finalCompileResult.toolVersion,
           evaluationValidity: "EVALUATION_VALID",
           failureStage: null,
-          passAttempt: attempt,
+          passAttempt: firstCompilePassAttempt,
         });
       }
       if (finalCompileResult.status === "TIMEOUT") {
