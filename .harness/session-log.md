@@ -1,5 +1,63 @@
 # Session Log
 
+## Entry: Guarded Landing Review for Case-by-Case Functional Simulation
+
+### Summary
+
+Reviewed the complete 13-file change set on `master` before touching Git state. The implementation,
+tests, removed wrappers, and handoff documentation all belong to the case-by-case functional-
+simulation task. No P1/P2 finding remains, so the change set is ready for guarded commit and push.
+
+### Validation
+
+- `corepack pnpm install --frozen-lockfile`: passed
+- focused batch, functional-simulation, and CLI suite: 4 files and 42 tests passed
+- full repository: 39 files passed / 1 skipped; 307 tests passed / 2 skipped
+- typecheck, build, lint, Prettier, and peer dependency checks: passed
+- real Icarus integration: 2 files passed / 1 skipped; 7 tests passed / 1 skipped
+- `git diff --check` and the explicit Git Bash Harness check: passed
+
+No model-backed dataset batch, Linux formal Gate, or authoritative functional-verification run was
+performed or claimed.
+
+## Entry: Run Functional Simulation Case by Case
+
+### Summary
+
+Changed the normal VerilogEval and ChipBench lifecycle so each valid case completes its Agent turn,
+candidate compile/repair, hidden-reference functional compile, and VVP simulation before the next
+case's Agent turn starts. This is preparation for Memory V1; no Memory implementation or
+simulation-mismatch repair turn was added.
+
+### Implementation
+
+- Added an optional awaited `onCaseComplete` boundary to the generic batch evaluator.
+- Split functional simulation into a reusable single-case executor and a final batch aggregator.
+- Persisted each outcome immediately below
+  `_internal/evidence/functional-cases/<case-number>.json`.
+- Removed the former batch-wide execution API and the ChipBench/VerilogEval forwarding wrappers.
+- Removed four obsolete ignored `dist` outputs left behind by TypeScript's clean mode after their
+  source module was deleted; the normal build then regenerated only current outputs.
+- Kept `functional-simulation-result.json`, `summary.json`, candidate publication, hidden
+  verification layout, and result classifications.
+- Deferred a completion-callback exception until after the compile batch result is published;
+  later completion callbacks are skipped while remaining compile-only case processing completes.
+
+### Validation
+
+- Focused batch, functional-simulation, and CLI suites: 4 files and 42 tests passed.
+- Full repository: 39 files passed / 1 skipped; 307 tests passed / 2 skipped.
+- Typecheck, build, lint, Prettier, and peer dependency checks: passed.
+- Real Icarus integration: 2 files passed / 1 skipped; 7 tests passed / 1 skipped.
+- Final `git diff --check` and the Git Bash Harness check: passed.
+
+### Evidence Limits
+
+- No model-backed dataset batch was run because it would consume model quota.
+- Functional mismatch diagnosis remains post-batch and does not trigger an RTL repair turn.
+- The result remains non-authoritative Windows benchmark evidence and does not establish Linux,
+  formal-Gate, production, or CVDP readiness.
+
 ## Entry: Guarded Landing Review for Accumulated Core Loop Changes
 
 ### Summary

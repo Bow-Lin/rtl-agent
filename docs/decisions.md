@@ -26,6 +26,36 @@ What tradeoffs or future implications does this create?
 
 ## Decisions
 
+## 2026-08-10 - Run Functional Simulation Before Advancing to the Next Case
+
+### Context
+
+VerilogEval and ChipBench previously completed every selected Agent/compile run before starting a
+second batch-wide functional-simulation pass. A later Memory workflow needs each completed case's
+functional outcome to exist before the next case starts, while the existing compile-only batch
+contracts and final functional summary must remain compatible.
+
+### Decision
+
+Add one awaited, optional case-completion boundary to the Core Loop batch evaluator. The
+VerilogEval and ChipBench CLI composition uses that boundary to compile and run the hidden
+reference/testbench verification for the completed case, then persists a per-case functional
+result before the next Agent turn begins. Remove the former batch-wide functional execution API and
+the dataset-specific forwarding wrappers so there is only one supported lifecycle. The final
+`functional-simulation-result.json` and `summary.json` retain their schemas.
+
+If the completion boundary throws, continue the compile-only processing needed to publish the
+batch result, skip later completion callbacks, and then report the original failure. Do not add a
+functional-mismatch repair turn in this change; mismatch diagnosis remains post-batch processing.
+
+### Consequences
+
+Normal VerilogEval and ChipBench execution now follows Agent/compile/functional order per case, so
+a later Memory extractor can consume durable functional evidence before the following case. The
+removed batch-wide API can no longer bypass that order. The change does not make functional
+simulation authoritative, does not route mismatches back to the RTL Agent, and does not add CVDP
+support.
+
 ## 2026-07-14 - Use Standard Harness
 
 ### Context

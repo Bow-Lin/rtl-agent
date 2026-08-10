@@ -120,7 +120,10 @@ materializes the locked `_ref.sv` and `_test.sv`, compiles candidate/reference/t
 Icarus SystemVerilog 2012 using top `tb`, runs VVP under the fixed timeout boundary, and parses the
 single `Mismatches: N in M samples` summary. Reference and testbench files remain below the batch's
 internal verification tree and are never copied into the Agent workspace or published RTL output.
-The resulting `FUNCTIONAL_SIMULATION` evidence is non-authoritative. Configure
+For the normal VerilogEval and ChipBench CLI, this functional step completes and writes
+`_internal/evidence/functional-cases/<case-number>.json` before the next case's Agent turn starts;
+the final batch aggregate keeps the existing evidence and summary schemas. The resulting
+`FUNCTIONAL_SIMULATION` evidence is non-authoritative. Configure
 `RTL_AGENT_IVERILOG_EXECUTABLE` and optionally `RTL_AGENT_VVP_EXECUTABLE` when the tools are not on
 `PATH`.
 

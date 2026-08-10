@@ -67,6 +67,7 @@ export interface EvaluateCoreLoopBatchOptions {
   readonly batchIdFactory?: () => BatchId;
   readonly clock?: RunClock;
   readonly onCaseStart?: (progress: CoreLoopBatchCaseProgress) => void;
+  readonly onCaseComplete?: (completion: CoreLoopBatchCaseCompletion) => Promise<void>;
 }
 
 export interface CoreLoopBatchCaseProgress {
@@ -74,6 +75,11 @@ export interface CoreLoopBatchCaseProgress {
   readonly caseNumber: number;
   readonly caseCount: number;
   readonly caseRef: FixtureCaseRef;
+}
+
+export interface CoreLoopBatchCaseCompletion extends CoreLoopBatchCaseProgress {
+  readonly batchDirectory: string;
+  readonly run: RunExecutionResult;
 }
 
 export interface CoreLoopBatchExecution {
@@ -433,6 +439,8 @@ export async function evaluateCoreLoopBatch(
   );
 
   const runs: RunExecutionResult[] = [];
+  let caseCompletionFailed = false;
+  let caseCompletionError: unknown;
   const baselineInfrastructureInvalid = validations.some(
     (validation) => validation.status === "INFRASTRUCTURE_INVALID",
   );
@@ -457,6 +465,21 @@ export async function evaluateCoreLoopBatch(
         clock,
       });
       runs.push(result);
+      if (options.onCaseComplete !== undefined && !caseCompletionFailed) {
+        try {
+          await options.onCaseComplete({
+            batchDirectory,
+            caseIndex: validated.validation.caseIndex,
+            caseNumber: validated.validation.caseIndex + 1,
+            caseCount: cases.length,
+            caseRef: validated.validation.caseRef,
+            run: result,
+          });
+        } catch (error) {
+          caseCompletionFailed = true;
+          caseCompletionError = error;
+        }
+      }
       if (
         result.status === "INCOMPLETE" ||
         (result.status === "COMPLETE" && result.evaluationValidity === "INFRASTRUCTURE_INVALID")
@@ -496,5 +519,6 @@ export async function evaluateCoreLoopBatch(
     internalPath("evidence/batch-result.json"),
     result,
   );
+  if (caseCompletionFailed) throw caseCompletionError;
   return { batchDirectory, inputManifest, result };
 }

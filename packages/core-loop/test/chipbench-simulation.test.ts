@@ -5,8 +5,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  ChipBenchFunctionalResultSchema,
-  evaluateChipBenchFunctionalBatch,
+  evaluateFunctionalSimulationCase,
+  FixtureCaseRefSchema,
+  FunctionalSimulationResultSchema,
+  publishFunctionalSimulationBatch,
   sha256Bytes,
 } from "../src/index.js";
 import type {
@@ -42,7 +44,7 @@ describe("ChipBench functional simulation", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "rtl-agent-chipbench-simulation-test-"));
     roots.push(root);
     const runId = "run_123e4567-e89b-42d3-a456-426614174000";
-    const caseRef = {
+    const caseRef = FixtureCaseRefSchema.parse({
       schemaVersion: 1,
       fixtureId: "cb-sc-p000",
       identity: {
@@ -52,7 +54,7 @@ describe("ChipBench functional simulation", () => {
         caseId: "Prob000_mux",
       },
       caseSourceDigest: `sha256:${"a".repeat(64)}`,
-    } as const;
+    });
     const rtlDirectory = path.join(root, "_internal", "runs", runId, "workspace", "rtl");
     await mkdir(rtlDirectory, { recursive: true });
     await writeFile(path.join(rtlDirectory, "dut.sv"), "module TopModule; endmodule\n");
@@ -91,8 +93,12 @@ describe("ChipBench functional simulation", () => {
     } as unknown as ChipBenchFixtureProvider;
     const invocations: CompilerProcessOptions[] = [];
     const results = [processResult(), processResult("Mismatches: 2 in 100 samples\n")];
-    const result = await evaluateChipBenchFunctionalBatch({
-      execution,
+    const caseResult = await evaluateFunctionalSimulationCase({
+      batchDirectory: execution.batchDirectory,
+      caseIndex: 0,
+      caseRef,
+      runId,
+      run: execution.result.runs[0],
       provider,
       iverilogExecutable: path.resolve("iverilog.exe"),
       processRunner: async (options) => {
@@ -100,8 +106,12 @@ describe("ChipBench functional simulation", () => {
         return results.shift()!;
       },
     });
+    const result = await publishFunctionalSimulationBatch({
+      execution,
+      caseResults: [caseResult],
+    });
 
-    expect(ChipBenchFunctionalResultSchema.parse(result)).toMatchObject({
+    expect(FunctionalSimulationResultSchema.parse(result)).toMatchObject({
       claim: "FUNCTIONAL_SIMULATION",
       status: "COMPLETED",
       compilePassed: 1,

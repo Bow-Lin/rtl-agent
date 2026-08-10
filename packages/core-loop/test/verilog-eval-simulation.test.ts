@@ -5,7 +5,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  evaluateVerilogEvalFunctionalBatch,
+  evaluateFunctionalSimulationCase,
+  FixtureCaseRefSchema,
+  publishFunctionalSimulationBatch,
   sha256Bytes,
   VerilogEvalFunctionalResultSchema,
 } from "../src/index.js";
@@ -79,7 +81,7 @@ describe("VerilogEval functional simulation", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "rtl-agent-functional-test-"));
     roots.push(root);
     const runId = "run_123e4567-e89b-42d3-a456-426614174000";
-    const caseRef = {
+    const caseRef = FixtureCaseRefSchema.parse({
       schemaVersion: 1,
       fixtureId: "ve2-p001-zero",
       identity: {
@@ -89,7 +91,7 @@ describe("VerilogEval functional simulation", () => {
         caseId: "Prob001_zero",
       },
       caseSourceDigest: `sha256:${"a".repeat(64)}`,
-    } as const;
+    });
     const rtlDirectory = path.join(root, "_internal", "runs", runId, "workspace", "rtl");
     await mkdir(rtlDirectory, { recursive: true });
     await writeFile(path.join(rtlDirectory, "TopModule.sv"), "module TopModule; endmodule\n");
@@ -130,11 +132,19 @@ describe("VerilogEval functional simulation", () => {
       processResult("", example.compileExitCode),
       ...(example.simulationOutput === undefined ? [] : [processResult(example.simulationOutput)]),
     ];
-    const result = await evaluateVerilogEvalFunctionalBatch({
-      execution,
+    const caseResult = await evaluateFunctionalSimulationCase({
+      batchDirectory: execution.batchDirectory,
+      caseIndex: 0,
+      caseRef,
+      runId,
+      run: execution.result.runs[0],
       provider,
       iverilogExecutable: path.resolve("iverilog.exe"),
       processRunner: async () => results.shift()!,
+    });
+    const result = await publishFunctionalSimulationBatch({
+      execution,
+      caseResults: [caseResult],
     });
 
     expect(result).toMatchObject({
@@ -160,6 +170,9 @@ describe("VerilogEval functional simulation", () => {
     await expect(readFile(path.join(root, "summary.json"), "utf8")).resolves.toContain(
       `"functionalPassed": ${example.functionalPassed}`,
     );
+    await expect(
+      readFile(path.join(root, "_internal", "evidence", "functional-cases", "0001.json"), "utf8"),
+    ).resolves.toContain(`"status": "${example.expectedStatus}"`);
     await expect(
       readFile(path.join(root, "rtl", "Prob001_zero", "reference.sv")),
     ).rejects.toThrow();

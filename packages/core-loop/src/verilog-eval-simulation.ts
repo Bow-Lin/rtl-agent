@@ -9,11 +9,15 @@ import { BATCH_INTERNAL_DIRECTORY, type CoreLoopBatchExecution } from "./batch-e
 import { FIXED_ICARUS_PROFILE, controlledIcarusEnvironment } from "./compiler-profile.js";
 import { executeCompilerProcess } from "./compiler-process.js";
 import type { CompilerProcessOptions, CompilerProcessResult } from "./compiler-process.js";
-import { copyRegularTreeToEvidence, writeJsonEvidenceExclusive } from "./evidence.js";
+import {
+  copyRegularTreeToEvidence,
+  ensureJsonEvidence,
+  writeJsonEvidenceExclusive,
+} from "./evidence.js";
+import type { RunExecutionResult } from "./evaluation-contracts.js";
 import { asHostDirectoryForProvider } from "./fixture-provider.js";
 import type { HostDirectory } from "./fixture-provider.js";
-import { scanRegularFiles } from "./filesystem.js";
-import type { VerilogEvalFixtureProvider } from "./verilog-eval-provider.js";
+import { scanRegularFiles, sha256Jcs } from "./filesystem.js";
 
 export const FunctionalCaseStatusSchema = z.enum([
   "PASSED",
@@ -67,6 +71,7 @@ export const FunctionalSimulationResultSchema = z.strictObject({
 });
 
 export const VerilogEvalFunctionalResultSchema = FunctionalSimulationResultSchema;
+export type FunctionalCaseResult = z.infer<typeof FunctionalCaseResultSchema>;
 export type FunctionalSimulationResult = z.infer<typeof FunctionalSimulationResultSchema>;
 export type VerilogEvalFunctionalResult = FunctionalSimulationResult;
 type ProcessRunner = (options: CompilerProcessOptions) => Promise<CompilerProcessResult>;
@@ -92,19 +97,21 @@ export interface FunctionalVerificationProvider {
   ): Promise<FunctionalVerificationMaterialization>;
 }
 
-export interface EvaluateFunctionalSimulationOptions {
-  readonly execution: CoreLoopBatchExecution;
+export interface EvaluateFunctionalSimulationCaseOptions {
+  readonly batchDirectory: string;
+  readonly caseIndex: number;
+  readonly caseRef: FixtureCaseRef;
+  readonly runId: string;
+  readonly run: RunExecutionResult | undefined;
   readonly provider: FunctionalVerificationProvider;
   readonly iverilogExecutable: string;
   readonly vvpExecutable?: string;
   readonly processRunner?: ProcessRunner;
 }
 
-export interface EvaluateVerilogEvalFunctionalOptions extends Omit<
-  EvaluateFunctionalSimulationOptions,
-  "provider"
-> {
-  readonly provider: VerilogEvalFixtureProvider;
+export interface PublishFunctionalSimulationBatchOptions {
+  readonly execution: CoreLoopBatchExecution;
+  readonly caseResults: readonly FunctionalCaseResult[];
 }
 
 function emptyProcessFields() {
@@ -193,12 +200,12 @@ function outputDirectoryName(caseRef: FixtureCaseRef): string {
 }
 
 async function publishCandidate(
-  execution: CoreLoopBatchExecution,
+  batchDirectory: string,
   caseRef: FixtureCaseRef,
   runId: string,
 ): Promise<void> {
   const source = path.join(
-    execution.batchDirectory,
+    batchDirectory,
     BATCH_INTERNAL_DIRECTORY,
     "runs",
     runId,
@@ -207,11 +214,21 @@ async function publishCandidate(
   );
   const files = await scanRegularFiles(source).catch(() => []);
   if (files.length === 0) return;
-  await copyRegularTreeToEvidence(
-    source,
-    execution.batchDirectory,
-    `rtl/${outputDirectoryName(caseRef)}`,
-  );
+  await copyRegularTreeToEvidence(source, batchDirectory, `rtl/${outputDirectoryName(caseRef)}`);
+}
+
+function functionalCaseEvidencePath(caseIndex: number): string {
+  return `${BATCH_INTERNAL_DIRECTORY}/evidence/functional-cases/${String(caseIndex + 1).padStart(4, "0")}.json`;
+}
+
+async function publishFunctionalCaseResult(
+  batchDirectory: string,
+  caseIndex: number,
+  rawResult: unknown,
+): Promise<FunctionalCaseResult> {
+  const result = FunctionalCaseResultSchema.parse(rawResult);
+  await writeJsonEvidenceExclusive(batchDirectory, functionalCaseEvidencePath(caseIndex), result);
+  return result;
 }
 
 async function materializeVerification(
@@ -225,152 +242,188 @@ async function materializeVerification(
   );
 }
 
-export async function evaluateFunctionalSimulationBatch(
-  options: EvaluateFunctionalSimulationOptions,
-): Promise<FunctionalSimulationResult> {
+export async function evaluateFunctionalSimulationCase(
+  options: EvaluateFunctionalSimulationCaseOptions,
+): Promise<FunctionalCaseResult> {
   const runner = options.processRunner ?? executeCompilerProcess;
-  const byRunId = new Map(options.execution.result.runs.map((run) => [run.runId, run]));
-  const caseResults: z.infer<typeof FunctionalCaseResultSchema>[] = [];
+  const caseRef = FixtureCaseRefSchema.parse(options.caseRef);
+  await publishCandidate(options.batchDirectory, caseRef, options.runId);
+  if (
+    options.run?.status !== "COMPLETE" ||
+    options.run.evaluationValidity !== "EVALUATION_VALID" ||
+    options.run.finalResult.outcome !== "COMPILE_PASSED"
+  ) {
+    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+      schemaVersion: 1,
+      caseRef,
+      runId: options.runId,
+      status: "CANDIDATE_NOT_COMPILE_PASSED",
+      ...emptyProcessFields(),
+    });
+  }
 
-  for (const materialized of options.execution.inputManifest.materializedCases) {
-    const caseRef = FixtureCaseRefSchema.parse(materialized.caseRef);
-    const run = byRunId.get(materialized.runId);
-    await publishCandidate(options.execution, caseRef, materialized.runId);
-    if (
-      run?.status !== "COMPLETE" ||
-      run.evaluationValidity !== "EVALUATION_VALID" ||
-      run.finalResult.outcome !== "COMPILE_PASSED"
-    ) {
-      caseResults.push(
-        FunctionalCaseResultSchema.parse({
-          schemaVersion: 1,
-          caseRef,
-          runId: materialized.runId,
-          status: "CANDIDATE_NOT_COMPILE_PASSED",
-          ...emptyProcessFields(),
-        }),
-      );
-      continue;
-    }
-
-    const verificationDirectory = path.join(
-      options.execution.batchDirectory,
+  const verificationDirectory = path.join(
+    options.batchDirectory,
+    BATCH_INTERNAL_DIRECTORY,
+    "verification",
+    String(options.caseIndex + 1).padStart(4, "0"),
+  );
+  const candidateDirectory = path.join(verificationDirectory, "candidate");
+  const assetDirectory = path.join(verificationDirectory, "assets");
+  await mkdir(candidateDirectory, { recursive: true });
+  await copyRegularTreeToEvidence(
+    path.join(
+      options.batchDirectory,
       BATCH_INTERNAL_DIRECTORY,
-      "verification",
-      String(caseResults.length + 1).padStart(4, "0"),
-    );
-    const candidateDirectory = path.join(verificationDirectory, "candidate");
-    const assetDirectory = path.join(verificationDirectory, "assets");
-    await mkdir(candidateDirectory, { recursive: true });
-    await copyRegularTreeToEvidence(
-      path.join(
-        options.execution.batchDirectory,
-        BATCH_INTERNAL_DIRECTORY,
-        "runs",
-        materialized.runId,
-        "workspace",
-        "rtl",
-      ),
+      "runs",
+      options.runId,
+      "workspace",
+      "rtl",
+    ),
+    verificationDirectory,
+    "candidate",
+  );
+  const assets = await materializeVerification(options.provider, caseRef, assetDirectory);
+  const candidateSources = (await scanRegularFiles(candidateDirectory)).map(
+    (file) => file.hostPath,
+  );
+  const simulationImage = path.join(verificationDirectory, "simulation.vvp");
+  const compile = await runner(
+    processOptions(
+      options.iverilogExecutable,
+      [
+        "-g2012",
+        "-s",
+        assets.testbenchTopModule,
+        "-o",
+        simulationImage,
+        ...candidateSources,
+        path.join(assetDirectory, assets.referenceLogicalPath),
+        path.join(assetDirectory, assets.testbenchLogicalPath),
+      ],
       verificationDirectory,
-      "candidate",
-    );
-    const assets = await materializeVerification(options.provider, caseRef, assetDirectory);
-    const candidateSources = (await scanRegularFiles(candidateDirectory)).map(
-      (file) => file.hostPath,
-    );
-    const simulationImage = path.join(verificationDirectory, "simulation.vvp");
-    const compile = await runner(
-      processOptions(
-        options.iverilogExecutable,
-        [
-          "-g2012",
-          "-s",
-          assets.testbenchTopModule,
-          "-o",
-          simulationImage,
-          ...candidateSources,
-          path.join(assetDirectory, assets.referenceLogicalPath),
-          path.join(assetDirectory, assets.testbenchLogicalPath),
-        ],
-        verificationDirectory,
-      ),
-    );
-    if (compile.timedOut) {
-      caseResults.push(
-        FunctionalCaseResultSchema.parse({
-          schemaVersion: 1,
-          caseRef,
-          runId: materialized.runId,
-          status: "SIMULATION_COMPILE_TIMEOUT",
-          ...emptyProcessFields(),
-          compileExitCode: compile.exitCode,
-          compileDurationMs: compile.durationMs,
-          stdout: compile.stdout,
-          stderr: compile.stderr,
-        }),
-      );
-      continue;
-    }
-    if (
-      compile.spawnError !== undefined ||
-      compile.terminationFailed ||
-      !compile.closeConfirmed ||
-      compile.exitCode !== 0
-    ) {
-      caseResults.push(
-        FunctionalCaseResultSchema.parse({
-          schemaVersion: 1,
-          caseRef,
-          runId: materialized.runId,
-          status: "SIMULATION_COMPILE_ERROR",
-          ...emptyProcessFields(),
-          compileExitCode: compile.exitCode,
-          compileDurationMs: compile.durationMs,
-          stdout: compile.stdout,
-          stderr: compile.stderr,
-        }),
-      );
-      continue;
-    }
+    ),
+  );
+  if (compile.timedOut) {
+    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+      schemaVersion: 1,
+      caseRef,
+      runId: options.runId,
+      status: "SIMULATION_COMPILE_TIMEOUT",
+      ...emptyProcessFields(),
+      compileExitCode: compile.exitCode,
+      compileDurationMs: compile.durationMs,
+      stdout: compile.stdout,
+      stderr: compile.stderr,
+    });
+  }
+  if (
+    compile.spawnError !== undefined ||
+    compile.terminationFailed ||
+    !compile.closeConfirmed ||
+    compile.exitCode !== 0
+  ) {
+    return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+      schemaVersion: 1,
+      caseRef,
+      runId: options.runId,
+      status: "SIMULATION_COMPILE_ERROR",
+      ...emptyProcessFields(),
+      compileExitCode: compile.exitCode,
+      compileDurationMs: compile.durationMs,
+      stdout: compile.stdout,
+      stderr: compile.stderr,
+    });
+  }
 
-    const simulation = await runner(
-      processOptions(
-        options.vvpExecutable ?? vvpExecutableForIcarus(options.iverilogExecutable),
-        [simulationImage],
-        verificationDirectory,
-      ),
-    );
-    const mismatch = parseMismatch(simulation.stdout);
-    const outputMismatches = parseOutputMismatches(simulation.stdout);
-    const status = simulation.timedOut
-      ? "SIMULATION_TIMEOUT"
-      : simulation.spawnError !== undefined ||
-          simulation.terminationFailed ||
-          !simulation.closeConfirmed ||
-          simulation.exitCode !== 0
-        ? "SIMULATION_ERROR"
-        : mismatch === undefined
-          ? "OUTPUT_INVALID"
-          : mismatch.mismatches === 0
-            ? "PASSED"
-            : "MISMATCH";
-    caseResults.push(
-      FunctionalCaseResultSchema.parse({
+  const simulation = await runner(
+    processOptions(
+      options.vvpExecutable ?? vvpExecutableForIcarus(options.iverilogExecutable),
+      [simulationImage],
+      verificationDirectory,
+    ),
+  );
+  const mismatch = parseMismatch(simulation.stdout);
+  const outputMismatches = parseOutputMismatches(simulation.stdout);
+  const status = simulation.timedOut
+    ? "SIMULATION_TIMEOUT"
+    : simulation.spawnError !== undefined ||
+        simulation.terminationFailed ||
+        !simulation.closeConfirmed ||
+        simulation.exitCode !== 0
+      ? "SIMULATION_ERROR"
+      : mismatch === undefined
+        ? "OUTPUT_INVALID"
+        : mismatch.mismatches === 0
+          ? "PASSED"
+          : "MISMATCH";
+  return publishFunctionalCaseResult(options.batchDirectory, options.caseIndex, {
+    schemaVersion: 1,
+    caseRef,
+    runId: options.runId,
+    status,
+    mismatches: mismatch?.mismatches ?? null,
+    samples: mismatch?.samples ?? null,
+    outputMismatches,
+    compileExitCode: compile.exitCode,
+    simulationExitCode: simulation.exitCode,
+    compileDurationMs: compile.durationMs,
+    simulationDurationMs: simulation.durationMs,
+    stdout: simulation.stdout,
+    stderr: simulation.stderr,
+  });
+}
+
+export async function publishFunctionalSimulationBatch(
+  options: PublishFunctionalSimulationBatchOptions,
+): Promise<FunctionalSimulationResult> {
+  const materializedByRunId = new Map<
+    string,
+    (typeof options.execution.inputManifest.materializedCases)[number]
+  >(options.execution.inputManifest.materializedCases.map((item) => [item.runId, item]));
+  const suppliedByRunId = new Map<string, FunctionalCaseResult>();
+  for (const rawResult of options.caseResults) {
+    const caseResult = FunctionalCaseResultSchema.parse(rawResult);
+    const materialized = materializedByRunId.get(caseResult.runId);
+    if (
+      materialized === undefined ||
+      suppliedByRunId.has(caseResult.runId) ||
+      sha256Jcs(materialized.caseRef) !== sha256Jcs(caseResult.caseRef)
+    ) {
+      throw new TypeError("Functional case result does not match one unique materialized case");
+    }
+    suppliedByRunId.set(caseResult.runId, caseResult);
+  }
+
+  const selectedIndexByCaseDigest = new Map(
+    options.execution.inputManifest.selectedCases.map((caseRef, caseIndex) => [
+      sha256Jcs(caseRef),
+      caseIndex,
+    ]),
+  );
+  const caseResults: FunctionalCaseResult[] = [];
+  for (const materialized of options.execution.inputManifest.materializedCases) {
+    const caseIndex = selectedIndexByCaseDigest.get(sha256Jcs(materialized.caseRef));
+    if (caseIndex === undefined) {
+      throw new TypeError("Materialized functional case is absent from the selected case list");
+    }
+    let caseResult = suppliedByRunId.get(materialized.runId);
+    if (caseResult === undefined) {
+      caseResult = await publishFunctionalCaseResult(options.execution.batchDirectory, caseIndex, {
         schemaVersion: 1,
-        caseRef,
+        caseRef: materialized.caseRef,
         runId: materialized.runId,
-        status,
-        mismatches: mismatch?.mismatches ?? null,
-        samples: mismatch?.samples ?? null,
-        outputMismatches,
-        compileExitCode: compile.exitCode,
-        simulationExitCode: simulation.exitCode,
-        compileDurationMs: compile.durationMs,
-        simulationDurationMs: simulation.durationMs,
-        stdout: simulation.stdout,
-        stderr: simulation.stderr,
-      }),
-    );
+        status: "CANDIDATE_NOT_COMPILE_PASSED",
+        ...emptyProcessFields(),
+      });
+    } else {
+      await ensureJsonEvidence(
+        options.execution.batchDirectory,
+        functionalCaseEvidencePath(caseIndex),
+        caseResult,
+      );
+    }
+    caseResults.push(caseResult);
   }
 
   const functionalPassed = caseResults.filter((result) => result.status === "PASSED").length;
@@ -428,10 +481,4 @@ export async function evaluateFunctionalSimulationBatch(
     internalEvidenceDirectory: `${BATCH_INTERNAL_DIRECTORY}/evidence`,
   });
   return result;
-}
-
-export function evaluateVerilogEvalFunctionalBatch(
-  options: EvaluateVerilogEvalFunctionalOptions,
-): Promise<VerilogEvalFunctionalResult> {
-  return evaluateFunctionalSimulationBatch(options);
 }

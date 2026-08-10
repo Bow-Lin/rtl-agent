@@ -6,7 +6,6 @@ export * from "./catalog.js";
 export * from "./chipbench-lock.js";
 export * from "./chipbench-prepare.js";
 export * from "./chipbench-provider.js";
-export * from "./chipbench-simulation.js";
 export * from "./compile-preparation.js";
 export * from "./compiler-adapter.js";
 export * from "./compiler-contracts.js";

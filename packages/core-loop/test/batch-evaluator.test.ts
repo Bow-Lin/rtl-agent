@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -34,6 +34,102 @@ afterEach(async () => {
 });
 
 describe("Core Loop batch preflight and evaluation", () => {
+  it("awaits each case completion hook before starting the next Agent turn", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+      { caseId: "case/002", fixtureId: "case-002", category: "BLANK_GENERATION" },
+    ]);
+    const profile = await testEvaluationProfile(provider);
+    const events: string[] = [];
+    let agentTurn = 0;
+    const agent = new ScriptedAgentAdapter(
+      [
+        {
+          outcome: "RTL_CHANGED",
+          source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+        },
+        {
+          outcome: "RTL_CHANGED",
+          source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+        },
+      ],
+      () => {
+        agentTurn += 1;
+        events.push(`agent-${String(agentTurn)}`);
+      },
+    );
+
+    await evaluateCoreLoopBatch({
+      provider,
+      providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      profile,
+      agentAdapter: agent,
+      compilerAdapter: new ScriptedCompilerAdapter([
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+        "COMPILE_PASSED",
+      ]),
+      batchesRoot: path.join(root, "batches"),
+      onCaseComplete: async ({ caseNumber, run }) => {
+        expect(run.status).toBe("COMPLETE");
+        await Promise.resolve();
+        events.push(`functional-${String(caseNumber)}`);
+      },
+    });
+
+    expect(events).toEqual(["agent-1", "functional-1", "agent-2", "functional-2"]);
+  });
+
+  it("preserves the compile batch result when a case completion hook fails", async () => {
+    const root = await temporaryRoot();
+    const batchesRoot = path.join(root, "batches");
+    const provider = new EvaluationTestProvider([
+      { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+      { caseId: "case/002", fixtureId: "case-002", category: "BLANK_GENERATION" },
+    ]);
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter([
+      {
+        outcome: "RTL_CHANGED",
+        source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+      },
+      {
+        outcome: "RTL_CHANGED",
+        source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+      },
+    ]);
+    let completionCount = 0;
+
+    await expect(
+      evaluateCoreLoopBatch({
+        provider,
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+        profile,
+        agentAdapter: agent,
+        compilerAdapter: new ScriptedCompilerAdapter([
+          "COMPILE_PASSED",
+          "COMPILE_PASSED",
+          "COMPILE_PASSED",
+          "COMPILE_PASSED",
+        ]),
+        batchesRoot,
+        onCaseComplete: async () => {
+          completionCount += 1;
+          throw new Error("synthetic functional simulation failure");
+        },
+      }),
+    ).rejects.toThrow("synthetic functional simulation failure");
+
+    expect(agent.inputs).toHaveLength(2);
+    expect(completionCount).toBe(1);
+    const [batchId] = await readdir(batchesRoot);
+    await expect(
+      readFile(path.join(batchesRoot, batchId!, "_internal", "evidence", "batch-result.json")),
+    ).resolves.toBeDefined();
+  });
+
   it("locks all fixtures before the first Agent turn and reports category metrics", async () => {
     const root = await temporaryRoot();
     const provider = new EvaluationTestProvider([

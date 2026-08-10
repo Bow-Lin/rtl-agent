@@ -21,9 +21,9 @@ import {
   chipBenchCacheRoot,
   chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
-  evaluateChipBenchFunctionalBatch,
   evaluateCoreLoopBatch,
-  evaluateVerilogEvalFunctionalBatch,
+  evaluateFunctionalSimulationCase,
+  publishFunctionalSimulationBatch,
   createRunId,
   icarusExecutableFromEnvironment,
   listFixtureCases,
@@ -40,6 +40,8 @@ import type * as CoreLoop from "@rtl-agent/core-loop";
 import type {
   CoreLoopCompilerAdapter,
   EvaluationProfile,
+  FunctionalCaseResult,
+  FunctionalVerificationProvider,
   FixtureProvider,
   MismatchAnalyzer,
   RtlAgentAdapter,
@@ -686,6 +688,16 @@ export async function runRtlCoreLoopCli(
       });
       const batchesRoot =
         evaluationDependencies?.batchesRoot ?? path.join(repositoryRoot, ".rtl-agent", "batches");
+      const functionalProvider: FunctionalVerificationProvider | undefined =
+        (configuredProvider instanceof VerilogEvalFixtureProvider &&
+          profile.dataset.datasetId === VERILOG_EVAL_DATASET_LOCK.datasetId) ||
+        (configuredProvider instanceof ChipBenchFixtureProvider &&
+          profile.dataset.datasetId === CHIPBENCH_DATASET_LOCK.datasetId)
+          ? configuredProvider
+          : undefined;
+      const functionalCaseResults: FunctionalCaseResult[] = [];
+      const functionalIverilogExecutable =
+        functionalProvider === undefined ? undefined : icarusExecutableFromEnvironment(environment);
       const execution = await evaluateCoreLoopBatch({
         provider: configuredProvider,
         providerImplementationDigest,
@@ -702,29 +714,34 @@ export async function runRtlCoreLoopCli(
               },
             }
           : {}),
+        ...(functionalProvider === undefined || functionalIverilogExecutable === undefined
+          ? {}
+          : {
+              onCaseComplete: async (completion: CoreLoop.CoreLoopBatchCaseCompletion) => {
+                functionalCaseResults.push(
+                  await evaluateFunctionalSimulationCase({
+                    batchDirectory: completion.batchDirectory,
+                    caseIndex: completion.caseIndex,
+                    caseRef: completion.caseRef,
+                    runId: completion.run.runId,
+                    run: completion.run,
+                    provider: functionalProvider,
+                    iverilogExecutable: functionalIverilogExecutable,
+                    ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
+                      ? {}
+                      : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
+                  }),
+                );
+              },
+            }),
       });
       const functionalResult =
-        configuredProvider instanceof VerilogEvalFixtureProvider &&
-        profile.dataset.datasetId === VERILOG_EVAL_DATASET_LOCK.datasetId
-          ? await evaluateVerilogEvalFunctionalBatch({
+        functionalProvider === undefined
+          ? undefined
+          : await publishFunctionalSimulationBatch({
               execution,
-              provider: configuredProvider,
-              iverilogExecutable: icarusExecutableFromEnvironment(environment),
-              ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
-                ? {}
-                : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
-            })
-          : configuredProvider instanceof ChipBenchFixtureProvider &&
-              profile.dataset.datasetId === CHIPBENCH_DATASET_LOCK.datasetId
-            ? await evaluateChipBenchFunctionalBatch({
-                execution,
-                provider: configuredProvider,
-                iverilogExecutable: icarusExecutableFromEnvironment(environment),
-                ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
-                  ? {}
-                  : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
-              })
-            : undefined;
+              caseResults: functionalCaseResults,
+            });
       const hasMismatch =
         functionalResult?.cases.some((item) => item.status === "MISMATCH") ?? false;
       const mismatchAnalyzer =
