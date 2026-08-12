@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,20 @@ import {
   CoreLoopException,
   DatasetDescriptorSchema,
   EvaluationProfileSchema,
+  EXPERIENCE_SUMMARIZER_PROMPT_DIGEST,
   FIXED_ICARUS_PROFILE_ID,
+  FilesystemMemoryStore,
   IcarusCompileAdapter,
+  MemoryBuildScopeSchema,
+  MemoryModeSchema,
   OpenCodeRtlAgentAdapter,
+  PiExperienceSummarizer,
+  PiMemoryConsolidator,
+  PiMemorySelector,
   PiRtlAgentAdapter,
+  prepareMemoryExperiment,
+  consolidateMemoryBatchBestEffort,
+  renderRelevantRtlMemory,
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFixtureProvider,
   chipBenchCacheRoot,
@@ -35,6 +45,9 @@ import {
   prepareVerilogEvalDataset,
   requireFixtureProvider,
   scanRegularFiles,
+  sha256Jcs,
+  selectMemoryBestEffort,
+  summarizeCaseExperienceBestEffort,
   verilogEvalCacheRoot,
   verilogEvalDatasetDirectory,
 } from "@rtl-agent/core-loop";
@@ -100,6 +113,10 @@ export interface RtlCoreLoopEvaluationDependencies {
   readonly mismatchAnalyzer?: MismatchAnalyzer;
   readonly mismatchAnalyzerFactory?: MismatchAnalyzerFactory;
   readonly batchesRoot?: string;
+  readonly memoryStore?: FilesystemMemoryStore;
+  readonly experienceSummarizer?: CoreLoop.ExperienceSummarizer;
+  readonly memorySelector?: CoreLoop.MemorySelector;
+  readonly memoryConsolidator?: CoreLoop.MemoryConsolidator;
 }
 
 export interface RtlCoreLoopDatasetDependencies {
@@ -120,9 +137,27 @@ interface ParsedEvaluationCommand {
   readonly split?: string;
   readonly selection?: EvaluationCaseSelectionRequest;
   readonly functionalRepairIterations: number;
+  readonly memoryMode: CoreLoop.MemoryMode;
+  readonly memorySnapshotId?: string;
+  readonly memoryBuildSplits: readonly CoreLoop.MemoryBuildScope[];
 }
 
 const DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS = 3;
+
+async function persistMemoryBuildExperience(options: {
+  readonly memoryRoot: string;
+  readonly batchId: string;
+  readonly caseNumber: number;
+  readonly experience: CoreLoop.ExperienceRecord;
+}): Promise<void> {
+  const directory = path.join(options.memoryRoot, "experiences", options.batchId);
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    path.join(directory, `${String(options.caseNumber).padStart(6, "0")}.json`),
+    `${JSON.stringify(options.experience, undefined, 2)}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
+}
 
 function parseFunctionalRepairIterations(value: string | undefined): number {
   if (value === undefined) return DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS;
@@ -133,6 +168,53 @@ function parseFunctionalRepairIterations(value: string | undefined): number {
     );
   }
   return Number(value);
+}
+
+function parseMemoryCommandOptions(
+  options: ReadonlyMap<string, string>,
+): Pick<ParsedEvaluationCommand, "memoryMode" | "memorySnapshotId" | "memoryBuildSplits"> {
+  const rawMode = options.get("--memory-mode") ?? "off";
+  const mode = MemoryModeSchema.safeParse(rawMode);
+  if (!mode.success) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "--memory-mode must be off, read_write, or frozen",
+    );
+  }
+  const rawBuildSplits = options.get("--memory-build-splits");
+  const memoryBuildSplits =
+    rawBuildSplits === undefined
+      ? []
+      : rawBuildSplits.split(",").map((entry) => {
+          const separator = entry.indexOf(":");
+          if (
+            separator <= 0 ||
+            separator === entry.length - 1 ||
+            entry.indexOf(":", separator + 1) >= 0
+          ) {
+            throw new CoreLoopException(
+              "EVALUATION_PROFILE_INVALID",
+              "--memory-build-splits must contain dataset:split pairs",
+            );
+          }
+          const scope = MemoryBuildScopeSchema.safeParse({
+            dataset: entry.slice(0, separator),
+            split: entry.slice(separator + 1),
+          });
+          if (!scope.success) {
+            throw new CoreLoopException(
+              "EVALUATION_PROFILE_INVALID",
+              "--memory-build-splits contains an invalid dataset or split",
+            );
+          }
+          return scope.data;
+        });
+  const memorySnapshotId = options.get("--memory-snapshot");
+  return {
+    memoryMode: mode.data,
+    ...(memorySnapshotId === undefined ? {} : { memorySnapshotId }),
+    memoryBuildSplits,
+  };
 }
 
 function configuredVerilogEvalCacheRoot(
@@ -189,6 +271,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
   const functionalRepairIterations = parseFunctionalRepairIterations(
     options.get("--functional-repair-iterations"),
   );
+  const memory = parseMemoryCommandOptions(options);
   if (profileId === undefined) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
@@ -203,13 +286,19 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       "--case",
       "--analyzer",
       "--functional-repair-iterations",
+      "--memory-mode",
+      "--memory-snapshot",
+      "--memory-build-splits",
     ]);
     if (
       caseId === undefined ||
       [...options.keys()].some((name) => !allowedOptions.has(name)) ||
       options.size !==
         (mismatchAnalyzerBackend === undefined ? 2 : 3) +
-          (options.has("--functional-repair-iterations") ? 1 : 0)
+          (options.has("--functional-repair-iterations") ? 1 : 0) +
+          ["--memory-mode", "--memory-snapshot", "--memory-build-splits"].filter((name) =>
+            options.has(name),
+          ).length
     ) {
       throw new CoreLoopException(
         "EVALUATION_PROFILE_INVALID",
@@ -220,6 +309,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       profileId,
       ...(mismatchAnalyzerBackend === undefined ? {} : { mismatchAnalyzerBackend }),
       functionalRepairIterations,
+      ...memory,
       selection: { kind: "CASES", cases: [caseId] },
     };
   }
@@ -266,6 +356,9 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     "--end",
     "--cases",
     "--functional-repair-iterations",
+    "--memory-mode",
+    "--memory-snapshot",
+    "--memory-build-splits",
   ]);
   if ([...options.keys()].some((name) => !allowedOptions.has(name))) {
     throw new CoreLoopException(
@@ -281,7 +374,11 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     (dataset === undefined ? 0 : 1) -
     (split === undefined ? 0 : 1);
   const functionalRepairOptionCount = options.has("--functional-repair-iterations") ? 1 : 0;
-  const adjustedSelectionOptionCount = selectionOptionCount - functionalRepairOptionCount;
+  const memoryOptionCount = ["--memory-mode", "--memory-snapshot", "--memory-build-splits"].filter(
+    (name) => options.has(name),
+  ).length;
+  const adjustedSelectionOptionCount =
+    selectionOptionCount - functionalRepairOptionCount - memoryOptionCount;
   const parsedBackend = agentBackend as AgentBackend | undefined;
   if (adjustedSelectionOptionCount === 0) {
     return {
@@ -291,6 +388,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
       functionalRepairIterations,
+      ...memory,
     };
   }
 
@@ -310,6 +408,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
       functionalRepairIterations,
+      ...memory,
       selection: { kind: "RANGE", begin, end },
     };
   }
@@ -333,6 +432,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       ...(dataset === undefined ? {} : { dataset }),
       ...(split === undefined ? {} : { split }),
       functionalRepairIterations,
+      ...memory,
       selection: { kind: "CASES", cases: selectors },
     };
   }
@@ -704,9 +804,31 @@ export async function runRtlCoreLoopCli(
               registered,
               parsedCommand.selection,
             );
+      const batchesRoot =
+        evaluationDependencies?.batchesRoot ?? path.join(repositoryRoot, ".rtl-agent", "batches");
+      const memoryRoot = path.join(path.dirname(batchesRoot), "memory");
+      const memoryStore =
+        evaluationDependencies?.memoryStore ?? new FilesystemMemoryStore(memoryRoot);
+      const preparedMemory = await prepareMemoryExperiment({
+        mode: parsedCommand.memoryMode,
+        ...(parsedCommand.memorySnapshotId === undefined
+          ? {}
+          : { requestedSnapshotId: parsedCommand.memorySnapshotId }),
+        store: memoryStore,
+        ...(profileAgentBackend(selectedProfile) === "pi"
+          ? { piIdentityDigest: sha256Jcs(selectedProfile.agentCapability) }
+          : {}),
+        experiencePromptDigest: EXPERIENCE_SUMMARIZER_PROMPT_DIGEST,
+        allowedBuildSplits: parsedCommand.memoryBuildSplits,
+        currentScope: {
+          dataset: selectedProfile.dataset.datasetId,
+          split: selectedProfile.selection.split,
+        },
+      });
       const profile = EvaluationProfileSchema.parse({
         ...selectedProfile,
         functionalRepair: { maxIterations: parsedCommand.functionalRepairIterations },
+        memory: preparedMemory.identity,
       });
       if (agentAdapter === undefined) {
         if ("piVersion" in profile.agentCapability) {
@@ -719,12 +841,29 @@ export async function runRtlCoreLoopCli(
           );
         }
       }
+      const experienceSummarizer =
+        preparedMemory.identity.mode === "off"
+          ? undefined
+          : (evaluationDependencies?.experienceSummarizer ??
+            new PiExperienceSummarizer(
+              piExperimentConfigFromEnvironment(environment, repositoryRoot),
+            ));
+      const memorySelector =
+        preparedMemory.identity.mode === "off"
+          ? undefined
+          : (evaluationDependencies?.memorySelector ??
+            new PiMemorySelector(piExperimentConfigFromEnvironment(environment, repositoryRoot)));
+      const memoryConsolidator =
+        preparedMemory.identity.mode !== "read_write"
+          ? undefined
+          : (evaluationDependencies?.memoryConsolidator ??
+            new PiMemoryConsolidator(
+              piExperimentConfigFromEnvironment(environment, repositoryRoot),
+            ));
       compilerAdapter ??= new IcarusCompileAdapter({
         executable: icarusExecutableFromEnvironment(environment),
         probeWorkingDirectory: repositoryRoot,
       });
-      const batchesRoot =
-        evaluationDependencies?.batchesRoot ?? path.join(repositoryRoot, ".rtl-agent", "batches");
       const functionalProvider: FunctionalVerificationProvider | undefined =
         (configuredProvider instanceof VerilogEvalFixtureProvider &&
           profile.dataset.datasetId === VERILOG_EVAL_DATASET_LOCK.datasetId) ||
@@ -734,6 +873,17 @@ export async function runRtlCoreLoopCli(
           : undefined;
       const functionalCaseResults: FunctionalCaseResult[] = [];
       const latestFunctionalResultByRunId = new Map<string, FunctionalCaseResult>();
+      const functionalResultsByRunId = new Map<string, FunctionalCaseResult[]>();
+      const memoryWarnings: {
+        readonly code: "EXPERIENCE_SUMMARIZATION_FAILED" | "MEMORY_CONSOLIDATION_FAILED";
+        readonly message: string;
+      }[] = [];
+      const memoryBuildExperiences: CoreLoop.ExperienceRecord[] = [];
+      const appendFunctionalResult = (result: FunctionalCaseResult): void => {
+        const existing = functionalResultsByRunId.get(result.runId) ?? [];
+        existing.push(result);
+        functionalResultsByRunId.set(result.runId, existing);
+      };
       const functionalRepairStartAttemptByRunId = new Map<string, number>();
       const functionalIverilogExecutable =
         functionalProvider === undefined ? undefined : icarusExecutableFromEnvironment(environment);
@@ -744,6 +894,71 @@ export async function runRtlCoreLoopCli(
         agentAdapter,
         compilerAdapter,
         batchesRoot,
+        ...(preparedMemory.snapshot === null || memorySelector === undefined
+          ? {}
+          : {
+              prepareAgentTurn: async (
+                turn: CoreLoop.CoreLoopBatchAgentTurnPreparation,
+              ): Promise<"context/relevant-rtl-memory.md" | null> => {
+                const feedback =
+                  turn.functionalSimulationFeedbackPath === undefined
+                    ? null
+                    : await readFile(
+                        path.join(
+                          turn.run.workspaceDirectory,
+                          ...turn.functionalSimulationFeedbackPath.split("/"),
+                        ),
+                        "utf8",
+                      );
+                const selected = await selectMemoryBestEffort({
+                  snapshot: preparedMemory.snapshot!,
+                  query: {
+                    stage:
+                      turn.functionalSimulationFeedbackPath === undefined
+                        ? "initial_generation"
+                        : "functional_simulation",
+                    circuit_type: null,
+                    failure_type:
+                      turn.functionalSimulationFeedbackPath === undefined
+                        ? null
+                        : "output_mismatch",
+                    language: "SYSTEMVERILOG",
+                    tool: "iverilog",
+                  },
+                  specification: await readFile(
+                    path.join(turn.run.workspaceDirectory, "spec.md"),
+                    "utf8",
+                  ),
+                  feedback,
+                  stage:
+                    turn.functionalSimulationFeedbackPath === undefined
+                      ? "initial_generation"
+                      : "functional_repair",
+                  evidenceDirectory: path.join(
+                    turn.batchDirectory,
+                    "_internal",
+                    "memory-selections",
+                    turn.run.runId,
+                    `attempt-${String(turn.attempt)}`,
+                  ),
+                  selector: memorySelector,
+                });
+                const contextPath = path.join(
+                  turn.run.workspaceDirectory,
+                  "context",
+                  "relevant-rtl-memory.md",
+                );
+                const rendered = renderRelevantRtlMemory(selected);
+                if (rendered === null) {
+                  await rm(contextPath, { force: true });
+                  return null;
+                }
+                const temporary = `${contextPath}.tmp-${String(process.pid)}`;
+                await writeFile(temporary, rendered, { encoding: "utf8", flag: "wx" });
+                await rename(temporary, contextPath);
+                return "context/relevant-rtl-memory.md";
+              },
+            }),
         ...(command === "evaluate"
           ? {
               onCaseStart: (progress: CoreLoop.CoreLoopBatchCaseProgress) => {
@@ -777,6 +992,7 @@ export async function runRtlCoreLoopCli(
                       : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
                   });
                   latestFunctionalResultByRunId.set(candidate.run.runId, result);
+                  appendFunctionalResult(result);
                   if (result.status !== "MISMATCH") return { status: "ACCEPT" } as const;
                   if (candidate.repairIteration === 0) {
                     functionalRepairStartAttemptByRunId.set(candidate.run.runId, candidate.attempt);
@@ -800,7 +1016,7 @@ export async function runRtlCoreLoopCli(
                   completion.run.status === "COMPLETE" &&
                   completion.run.evaluationValidity === "EVALUATION_VALID" &&
                   completion.run.finalResult.outcome === "COMPILE_PASSED";
-                functionalCaseResults.push(
+                const finalFunctionalResult =
                   latest !== undefined && compilePassed
                     ? await publishFunctionalSimulationCase({
                         batchDirectory: completion.batchDirectory,
@@ -827,11 +1043,66 @@ export async function runRtlCoreLoopCli(
                         ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
                           ? {}
                           : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
-                      }),
-                );
+                      });
+                functionalCaseResults.push(finalFunctionalResult);
+                if (!(latest !== undefined && compilePassed)) {
+                  appendFunctionalResult(finalFunctionalResult);
+                }
+                if (experienceSummarizer !== undefined) {
+                  try {
+                    const experienceResult = await summarizeCaseExperienceBestEffort({
+                      request: {
+                        batchDirectory: completion.batchDirectory,
+                        caseRef: completion.caseRef,
+                        functionalResults: functionalResultsByRunId.get(completion.run.runId) ?? [],
+                        language: "SYSTEMVERILOG",
+                        tool: "iverilog",
+                      },
+                      run: completion.run,
+                      summarizer: experienceSummarizer,
+                    });
+                    if (
+                      preparedMemory.identity.mode === "read_write" &&
+                      experienceResult.status === "CREATED"
+                    ) {
+                      await persistMemoryBuildExperience({
+                        memoryRoot,
+                        batchId: path.basename(completion.batchDirectory),
+                        caseNumber: completion.caseNumber,
+                        experience: experienceResult.experience,
+                      });
+                      memoryBuildExperiences.push(experienceResult.experience);
+                    }
+                  } catch {
+                    memoryWarnings.push({
+                      code: "EXPERIENCE_SUMMARIZATION_FAILED",
+                      message: `Memory Experience failed for ${completion.caseRef.identity.caseId}`,
+                    });
+                  }
+                }
               },
             }),
       });
+      const memoryConsolidation =
+        preparedMemory.identity.mode !== "read_write" ||
+        preparedMemory.snapshot === null ||
+        memoryConsolidator === undefined
+          ? undefined
+          : await consolidateMemoryBatchBestEffort({
+              store: memoryStore,
+              parentSnapshot: preparedMemory.snapshot,
+              batchId: execution.result.batchId,
+              experiences: memoryBuildExperiences,
+              consolidator: memoryConsolidator,
+              batchComplete: execution.result.status === "COMPLETED",
+              evidenceDirectory: path.join(memoryRoot, "consolidations", execution.result.batchId),
+            });
+      if (memoryConsolidation?.status === "FAILED") {
+        memoryWarnings.push({
+          code: "MEMORY_CONSOLIDATION_FAILED",
+          message: "Memory Batch consolidation failed; no next snapshot was published",
+        });
+      }
       const functionalResult =
         functionalProvider === undefined
           ? undefined
@@ -885,15 +1156,27 @@ export async function runRtlCoreLoopCli(
             batchDirectory: `.rtl-agent/batches/${execution.result.batchId}`,
             rtlDirectory: `.rtl-agent/batches/${execution.result.batchId}/rtl`,
             postProcessingStatus: postProcessingWarning === undefined ? "COMPLETED" : "WARNING",
+            memory: {
+              ...preparedMemory.identity,
+              experienceStatus: memoryWarnings.length === 0 ? "COMPLETED" : "WARNING",
+              ...(memoryConsolidation === undefined ? {} : { consolidation: memoryConsolidation }),
+            },
           },
-          ...(postProcessingWarning === undefined ? {} : { warnings: [postProcessingWarning] }),
+          ...(postProcessingWarning === undefined && memoryWarnings.length === 0
+            ? {}
+            : {
+                warnings: [
+                  ...(postProcessingWarning === undefined ? [] : [postProcessingWarning]),
+                  ...memoryWarnings,
+                ],
+              }),
         }),
       );
       return finalStatus === "COMPLETED" ? 0 : 3;
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

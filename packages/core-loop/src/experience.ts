@@ -341,8 +341,20 @@ const SUMMARY_SCHEMA_GUIDE = {
   ],
 } as const;
 
+const EXPERIENCE_READ_AUDIT_LOGICAL_PATH = "context/read-audit.jsonl";
+const EXPERIENCE_REQUIRED_EXACT_READS = [
+  "spec.md",
+  "summary.json",
+  "context/experience-input.json",
+  "context/summary-schema.json",
+] as const;
+
 function immutableSummaryManifest(workspace: string) {
-  return createFileManifest(workspace, (logicalPath) => logicalPath !== "summary.json");
+  return createFileManifest(
+    workspace,
+    (logicalPath) =>
+      logicalPath !== "summary.json" && logicalPath !== EXPERIENCE_READ_AUDIT_LOGICAL_PATH,
+  );
 }
 
 async function ensureExactFile(hostPath: string, content: string): Promise<void> {
@@ -403,7 +415,11 @@ async function copyAttemptRtl(
 async function prepareSummaryWorkspace(
   request: ExperienceSummaryRequest,
   workspace: string,
-): Promise<string> {
+): Promise<{
+  readonly spec: string;
+  readonly initialFiles: readonly string[];
+  readonly finalFiles: readonly string[];
+}> {
   await Promise.all([
     mkdir(path.join(workspace, "context"), { recursive: true }),
     mkdir(path.join(workspace, "rtl"), { recursive: true }),
@@ -435,6 +451,7 @@ async function prepareSummaryWorkspace(
     const source = path.join(workspace, "rtl", "initial");
     await copyRegularTreeToEvidence(source, workspace, "rtl/final");
   }
+  const normalizedFinalFiles = finalFiles.map((item) => item.replace("rtl/initial/", "rtl/final/"));
   const relevantResults = request.functionalResults
     .filter(
       (result) =>
@@ -460,7 +477,7 @@ async function prepareSummaryWorkspace(
     tool: request.tool,
     circuit_type: request.circuitType ?? null,
     initial_rtl_files: initialFiles,
-    final_rtl_files: finalFiles.map((item) => item.replace("rtl/initial/", "rtl/final/")),
+    final_rtl_files: normalizedFinalFiles,
     functional_results: relevantResults,
     landed_verification: {
       final_attempt: request.eligibility.final_attempt,
@@ -493,7 +510,54 @@ async function prepareSummaryWorkspace(
         : undefined;
     if (code !== "EEXIST") throw error;
   }
-  return spec;
+  try {
+    await writeFile(path.join(workspace, EXPERIENCE_READ_AUDIT_LOGICAL_PATH), "", {
+      encoding: "utf8",
+      flag: "wx",
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? (error as { readonly code?: unknown }).code
+        : undefined;
+    if (code !== "EEXIST") throw error;
+  }
+  return { spec, initialFiles, finalFiles: normalizedFinalFiles };
+}
+
+const ExperienceReadAuditEntrySchema = z.strictObject({ path: z.string().min(1).max(512) });
+
+async function readExperienceAudit(workspace: string): Promise<readonly string[]> {
+  const content = await readFile(
+    path.join(workspace, EXPERIENCE_READ_AUDIT_LOGICAL_PATH),
+    "utf8",
+  ).catch(() => "");
+  const paths = new Set<string>();
+  for (const line of content.split(/\r?\n/u)) {
+    if (line.length === 0) continue;
+    try {
+      paths.add(ExperienceReadAuditEntrySchema.parse(JSON.parse(line) as unknown).path);
+    } catch {
+      throw new CoreLoopException(
+        "EXPERIENCE_SUMMARIZATION_FAILED",
+        "Pi Experience read audit is invalid",
+      );
+    }
+  }
+  return [...paths].sort();
+}
+
+function requiredExperienceEvidenceWasRead(
+  paths: readonly string[],
+  initialFiles: readonly string[],
+  finalFiles: readonly string[],
+): boolean {
+  const read = new Set(paths);
+  return (
+    EXPERIENCE_REQUIRED_EXACT_READS.every((logicalPath) => read.has(logicalPath)) &&
+    initialFiles.some((logicalPath) => read.has(logicalPath)) &&
+    finalFiles.some((logicalPath) => read.has(logicalPath))
+  );
 }
 
 function validationIssues(error: z.ZodError): readonly { path: string; message: string }[] {
@@ -525,10 +589,10 @@ const PI_SUMMARIZER_POLICY = {
   deniedTools: ["write", "bash", "grep", "find", "ls"],
 } as const;
 const PI_SUMMARIZER_SYSTEM_PROMPT =
-  "Summarize only landed public evidence. Read spec.md, context/**, rtl/**, and summary.json. Edit only summary.json. The JSON keys and enum values in context/summary-schema.json are exact and no alternate keys are allowed. Never expose case-specific solutions or hidden verification assets. For simulation_debug, a root cause is confirmed when a concrete semantic defect visible in the initial RTL is directly contradicted by the public specification, the final RTL removes that defect, and the final compile plus functional simulation pass. This confirmation does not require hidden evidence. When all three facts hold, return CREATED and abstract the diagnosis and repair so they omit unnecessary case-specific numbers and signal/state names; do not reject merely because abstraction is required. Reject only when one of those facts is absent, and identify that exact missing fact and its public-evidence basis in the required rejection fields.";
+  "Summarize only landed public evidence. First read context/experience-input.json; it contains the exact initial_rtl_files and final_rtl_files paths. You must read spec.md, summary.json, context/experience-input.json, context/summary-schema.json, at least one listed initial RTL path, and at least one listed final RTL path before deciding. Use only those listed paths and do not guess filenames. Edit only summary.json. The JSON keys and enum values in context/summary-schema.json are exact and no alternate keys are allowed. Never expose case-specific solutions or hidden verification assets. For simulation_debug, a root cause is confirmed when a concrete semantic defect visible in the initial RTL is directly contradicted by the public specification, the final RTL removes that defect, and the final compile plus functional simulation pass. This confirmation does not require hidden evidence. When all three facts hold, return CREATED and abstract the diagnosis and repair so they omit unnecessary case-specific numbers and signal/state names; do not reject merely because abstraction is required. Reject only when one of those facts is absent, and identify that exact missing fact and its public-evidence basis in the required rejection fields.";
 const PI_SUMMARIZER_TURN_INSTRUCTIONS = [
-  "Read the schema and all listed evidence, then replace summary.json with one factual CREATED or REJECTED result that exactly follows context/summary-schema.json.",
-  "The prior output failed validation. Read context/summary-validation-errors.json and replace only summary.json with a corrected result.",
+  "Read context/experience-input.json first, then read every required exact path and the listed initial/final RTL evidence. Replace summary.json with one factual CREATED or REJECTED result that exactly follows context/summary-schema.json.",
+  "The prior output failed validation. Re-read context/experience-input.json, every required evidence path, and context/summary-validation-errors.json; replace only summary.json with a corrected result.",
 ] as const;
 const EXPERIENCE_SUMMARIZER_INPUT_CONTRACT = {
   schemaVersion: 1,
@@ -548,6 +612,11 @@ const EXPERIENCE_SUMMARIZER_INPUT_CONTRACT = {
     "final_recompile",
     "functional_simulation",
   ],
+  requiredReads: {
+    exact: EXPERIENCE_REQUIRED_EXACT_READS,
+    initialRtl: "at least one listed initial_rtl_files path",
+    finalRtl: "at least one listed final_rtl_files path",
+  },
 } as const;
 export const EXPERIENCE_SUMMARIZER_PROMPT_DIGEST = sha256Jcs({
   systemPrompt: PI_SUMMARIZER_SYSTEM_PROMPT,
@@ -673,12 +742,19 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
       );
     }
     const workspace = summaryWorkspace(normalizedRequest);
+    const prepared = await prepareSummaryWorkspace(normalizedRequest, workspace);
     const existingMetadata = await readFile(
       path.join(workspace, "summary-metadata.json"),
       "utf8",
     ).catch(() => undefined);
     if (existingMetadata !== undefined) {
       try {
+        const readPaths = await readExperienceAudit(workspace);
+        if (
+          !requiredExperienceEvidenceWasRead(readPaths, prepared.initialFiles, prepared.finalFiles)
+        ) {
+          throw new Error("required read missing");
+        }
         return ExperienceSummarizerOutputSchema.parse(
           JSON.parse(await readFile(path.join(workspace, "summary.json"), "utf8")) as unknown,
         );
@@ -689,7 +765,6 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
         );
       }
     }
-    const spec = await prepareSummaryWorkspace(normalizedRequest, workspace);
     await mkdir(this.config.configDirectory, { recursive: true });
     const [extensionBytes, semanticConfig, runtimeConfig] = await Promise.all([
       requirePolicyFile(this.extensionFile),
@@ -699,6 +774,10 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
     const environment = buildIsolatedPiEnvironment(this.config);
     environment.RTL_AGENT_PI_EXPERIENCE_POLICY_REQUIRED = "1";
     environment.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
+    environment.RTL_AGENT_PI_EXPERIENCE_READ_AUDIT = path.join(
+      workspace,
+      EXPERIENCE_READ_AUDIT_LOGICAL_PATH,
+    );
     const probe = async (arguments_: readonly string[]) =>
       executeProbeCommand({
         executable: this.config.executable,
@@ -746,6 +825,7 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
     let summary: ReturnType<typeof ExperienceSummarizerOutputSchema.safeParse> | undefined;
     let durationMs = 0;
     let turns = 0;
+    let readPaths: readonly string[] = [];
     for (let turn = 1; turn <= 2; turn += 1) {
       turns = turn;
       await verifyConfigStable();
@@ -799,6 +879,12 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
           "Pi Experience summarizer failed or changed protected inputs",
         );
       }
+      readPaths = await readExperienceAudit(workspace);
+      const requiredReadsSatisfied = requiredExperienceEvidenceWasRead(
+        readPaths,
+        prepared.initialFiles,
+        prepared.finalFiles,
+      );
       try {
         summary = ExperienceSummarizerOutputSchema.safeParse(
           JSON.parse(await readFile(path.join(workspace, "summary.json"), "utf8")) as unknown,
@@ -808,6 +894,7 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
       }
       if (summary?.success === true) {
         if (
+          !requiredReadsSatisfied ||
           (summary.data.status === "REJECTED" &&
             normalizedRequest.eligibility.kind !== "simulation_debug") ||
           (summary.data.status === "CREATED" &&
@@ -821,7 +908,8 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
               summary.data.experience.tool !== normalizedRequest.tool ||
               (normalizedRequest.circuitType !== undefined &&
                 summary.data.experience.circuit_type !== normalizedRequest.circuitType) ||
-              (spec.trim().length >= 20 && JSON.stringify(summary.data).includes(spec.trim()))))
+              (prepared.spec.trim().length >= 20 &&
+                JSON.stringify(summary.data).includes(prepared.spec.trim()))))
         ) {
           summary = undefined;
         } else {
@@ -834,7 +922,8 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
             ? [
                 {
                   path: "<binding>",
-                  message: "Output is invalid or does not match landed provenance",
+                  message:
+                    "Output is invalid, required evidence was not read, or provenance does not match",
                 },
               ]
             : validationIssues(summary.error);
@@ -863,6 +952,7 @@ export class PiExperienceSummarizer implements ExperienceSummarizer {
           resolved_config_digest: semanticConfig.manifestDigest,
           prompt_digest: EXPERIENCE_SUMMARIZER_PROMPT_DIGEST,
           request_digest: summaryRequestDigest(normalizedRequest),
+          read_paths: readPaths,
           summarizer_policy_digest: sha256Jcs(PI_SUMMARIZER_POLICY),
           extension_file_digest: sha256Bytes(extensionBytes),
           summary_turns: turns,

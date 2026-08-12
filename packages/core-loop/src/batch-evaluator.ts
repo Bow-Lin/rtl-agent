@@ -74,6 +74,9 @@ export interface EvaluateCoreLoopBatchOptions {
       context: CoreLoopBatchCandidateValidation,
     ) => Promise<CandidateFunctionalValidation>;
   };
+  readonly prepareAgentTurn?: (
+    context: CoreLoopBatchAgentTurnPreparation,
+  ) => Promise<"context/relevant-rtl-memory.md" | null>;
   readonly onCaseComplete?: (completion: CoreLoopBatchCaseCompletion) => Promise<void>;
 }
 
@@ -94,6 +97,13 @@ export interface CoreLoopBatchCandidateValidation extends CoreLoopBatchCaseProgr
   readonly run: CoreLoopRun;
   readonly attempt: number;
   readonly repairIteration: number;
+}
+
+export interface CoreLoopBatchAgentTurnPreparation extends CoreLoopBatchCaseProgress {
+  readonly batchDirectory: string;
+  readonly run: CoreLoopRun;
+  readonly attempt: number;
+  readonly functionalSimulationFeedbackPath?: string;
 }
 
 export interface CoreLoopBatchExecution {
@@ -476,6 +486,23 @@ export async function evaluateCoreLoopBatch(
         compilerAdapter: options.compilerAdapter,
         lockedAgentCapability: actualAgentCapability,
         lockedCompilerCapability: profile.compilerCapability,
+        ...(options.prepareAgentTurn === undefined
+          ? {}
+          : {
+              prepareAgentTurn: async ({ run, attempt, functionalSimulationFeedbackPath }) =>
+                options.prepareAgentTurn!({
+                  batchDirectory,
+                  caseIndex: validated.validation.caseIndex,
+                  caseNumber: validated.validation.caseIndex + 1,
+                  caseCount: cases.length,
+                  caseRef: validated.validation.caseRef,
+                  run,
+                  attempt,
+                  ...(functionalSimulationFeedbackPath === undefined
+                    ? {}
+                    : { functionalSimulationFeedbackPath }),
+                }),
+            }),
         ...(options.functionalRepair === undefined
           ? {}
           : {

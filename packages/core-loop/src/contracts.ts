@@ -283,6 +283,7 @@ export const AgentAttemptInputSchema = z
       (value) => value.startsWith("context/"),
       "Functional simulation feedback must stay below context/",
     ).optional(),
+    relevantMemoryPath: z.literal("context/relevant-rtl-memory.md").optional(),
     taskKind: z.literal("VERIFICATION_ASSET_GENERATION").optional(),
     protectedRtlPaths: z
       .array(LogicalPathSchema)

@@ -379,7 +379,7 @@ describe("Experience eligibility", () => {
   });
 });
 
-async function piFixture(mode: "valid" | "tamper") {
+async function piFixture(mode: "valid" | "missing-read" | "tamper") {
   const root = await mkdtemp(path.join(os.tmpdir(), "rtl-experience-summarizer-"));
   roots.push(root);
   const batchDirectory = path.join(root, "batches", "b-20260810-001");
@@ -419,7 +419,7 @@ async function piFixture(mode: "valid" | "tamper") {
   const script = path.join(root, "fake-pi-summary.mjs");
   await writeFile(
     script,
-    `import { writeFileSync } from "node:fs";
+    `import { appendFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const args = process.argv.slice(2);
 if (args[0] === "--version") { process.stdout.write("pi 0.81.1"); process.exit(0); }
@@ -429,6 +429,13 @@ if (args[0] === "--help") {
 }
 writeFileSync(process.env.PI_SUMMARY_ARGUMENTS_FILE, JSON.stringify(args));
 const workspace = process.cwd();
+${
+  mode === "missing-read"
+    ? ""
+    : `for (const path of ["spec.md", "summary.json", "context/experience-input.json", "context/summary-schema.json", "rtl/initial/dut.sv", "rtl/final/dut.sv"]) {
+  appendFileSync(process.env.RTL_AGENT_PI_EXPERIENCE_READ_AUDIT, JSON.stringify({ path }) + "\\n");
+}`
+}
 ${mode === "tamper" ? 'writeFileSync(path.join(workspace, "spec.md"), "tampered\\n");' : ""}
 writeFileSync(path.join(workspace, "summary.json"), JSON.stringify({
   schema_version: 1,
@@ -497,6 +504,13 @@ describe("Pi Experience summarizer", () => {
     await expect(
       new PiExperienceSummarizer(test.config).summarize(unsafeRequest),
     ).rejects.toThrow();
+  });
+
+  it("rejects a valid-looking summary when required public evidence was not read", async () => {
+    const test = await piFixture("missing-read");
+    await expect(
+      new PiExperienceSummarizer(test.config).summarize(test.request),
+    ).rejects.toMatchObject({ error: { code: "EXPERIENCE_SUMMARIZATION_FAILED" } });
   });
 
   it("uses an isolated read/edit-only turn and creates a provenance-bound record", async () => {

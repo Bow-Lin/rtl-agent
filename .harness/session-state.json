@@ -1,25 +1,43 @@
 {
-  "task_id": "memory-v1-implementation",
-  "status": "in_progress",
-  "current_phase": "experience_milestone_complete",
-  "last_updated": "2026-08-10T16:48:23+08:00",
+  "task_id": "analyze-memory-v1-full-eval",
+  "status": "complete",
+  "current_phase": "memory_v1_guarded_landing_validated",
+  "last_updated": "2026-08-12T10:05:55+08:00",
   "active_plan": [
-    "Require execution-level proof that Pi read every required Experience input",
-    "Wire Experience modes and Case End publication without Batch-internal visibility",
-    "Implement Store, Selector, then Batch Consolidator in the frozen order"
+    "Keep the completed Memory V1 implementation and deterministic validation green",
+    "Preserve the evidence-backed b-20260811-004 analysis and mem-v0001 to mem-v0002 lineage",
+    "Do not claim Memory efficacy until a paired held-out frozen evaluation exists"
   ],
   "next_3_steps": [
-    "Add Pi Summarizer required-read enforcement and regression tests",
-    "Add off/read_write/frozen identity and automatic Case End Experience wiring",
-    "Implement validated filesystem snapshots before Selector and Consolidator"
+    "Keep the canonical Memory stage schema and distinct consolidation warning code covered by regression tests",
+    "Run a non-overlapping frozen mem-v0002 held-out evaluation with an off control when explicitly requested",
+    "Do not claim CVDP support until repository-side CVDP evaluation components are implemented"
   ],
   "changed_files": [
+    ".pi/extensions/rtl-core-loop-policy.mjs",
     ".pi/extensions/rtl-experience-summarizer-policy.mjs",
+    ".pi/extensions/rtl-memory-selector-policy.mjs",
+    ".pi/extensions/rtl-memory-consolidator-policy.mjs",
+    "apps/rtl-core-loop/src/index.ts",
+    "apps/rtl-core-loop/test/cli.test.ts",
     "packages/core-loop/src/experience.ts",
-    "packages/core-loop/test/experience.test.ts",
+    "packages/core-loop/src/memory.ts",
+    "packages/core-loop/src/memory-selector.ts",
+    "packages/core-loop/src/memory-consolidator.ts",
+    "packages/core-loop/src/pi-memory-consolidator.ts",
+    "packages/core-loop/src/contracts.ts",
+    "packages/core-loop/src/run-orchestrator.ts",
+    "packages/core-loop/src/batch-evaluator.ts",
+    "packages/core-loop/src/agent-adapter.ts",
+    "packages/core-loop/src/pi-agent-adapter.ts",
+    "packages/core-loop/src/evaluation-contracts.ts",
     "packages/core-loop/src/errors.ts",
     "packages/core-loop/src/index.ts",
-    "docs/memory-v1.md",
+    "packages/core-loop/test/experience.test.ts",
+    "packages/core-loop/test/memory.test.ts",
+    "packages/core-loop/test/memory-consolidator.test.ts",
+    "packages/core-loop/test/pi-agent-adapter.test.ts",
+    "packages/core-loop/test/memory-pi-policy.test.ts",
     "docs/decisions.md",
     "docs/error-journal.md",
     "current-task.md",
@@ -28,37 +46,46 @@
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/experience.test.ts",
       "corepack pnpm@11.13.0 lint",
       "corepack pnpm@11.13.0 typecheck",
+      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/agent-adapter.test.ts --maxWorkers=1",
       "corepack pnpm@11.13.0 test",
+      "corepack pnpm@11.13.0 build",
       "corepack pnpm@11.13.0 format:check",
+      "corepack pnpm@11.13.0 peers check",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "The 12 focused Experience tests, lint, typecheck, formatting, diff check, Harness check, and all 326 ordinary tests passed; 2 tests remain intentionally skipped.",
+    "last_result": "The canonical stage-schema and warning-code fixes passed focused validation. After the documented Windows process-tree probe race passed in a serialized rerun, the clean aggregate run passed 43 files with 1 skipped and 345 tests with 2 skipped; install, lint, typecheck, build, format, peer, diff, and Harness checks passed.",
     "known_failures": [
-      "Pi Summarizer required-read enforcement is not implemented; an audited stochastic replay falsely claimed present RTL evidence was absent.",
-      "Experience is not automatically invoked at Case End and Memory modes are not exposed.",
-      "Memory Store, Selector, Consolidator, and snapshot publication are not implemented.",
-      "CVDP still has no repository Provider, profile, or functional-simulation adapter."
+      "The historical b-20260810-007 trial exceeded the desktop outer timeout; later owned-budget replays completed successfully.",
+      "CVDP still has no repository Provider, profile, or functional-simulation adapter.",
+      "b-20260811-004 used an empty source snapshot, so it cannot establish Memory capability uplift.",
+      "The Windows process-tree capability probe can race under aggregate Vitest concurrency; the documented serialized rerun and subsequent clean aggregate rerun passed."
     ]
   },
   "cognitive_state": {
-    "failure_count": 1,
-    "current_mode": "experience_milestone_handoff",
+    "failure_count": 3,
+    "current_mode": "guarded_landing_validated",
     "tried_approaches": [
-      "Separated deterministic eligibility from Pi semantic summarization",
-      "Bound Experience output to public provenance, kind, language, and tool",
-      "Required auditable semantic rejection instead of an unexplained default",
-      "Versioned Summary evidence by combined prompt/request identity",
-      "Validated a real mismatch-repair-pass Experience trajectory with an empty fixed snapshot"
+      "Enforced execution-audited required reads before accepting Experience output",
+      "Bound Memory mode and snapshot identity into the evaluation profile",
+      "Implemented validated sequential filesystem snapshots with atomic publication",
+      "Added deterministic filtering, fail-open Pi selection, and before_agent_start injection",
+      "Added complete-Batch consolidation with exact Experience accounting and fail-closed publication",
+      "Ran positive read_write publication through canonical mem-v0003",
+      "Ran frozen selection and verified advisory Memory injection in provider evidence",
+      "Reconstructed the complete b-20260811-004 Experience funnel and consolidation accounting",
+      "Published a detailed report distinguishing Memory-build success from efficacy evidence",
+      "Reconstructed first-success repair depth and terminal evidence for all 156 Cases",
+      "Restricted snapshot and Consolidator stages to the four canonical V1 values",
+      "Separated consolidation warnings from Experience summarization warnings"
     ],
-    "blocked_on": "None; required-read enforcement is the next scoped implementation task."
+    "blocked_on": "No report blocker; a paired held-out efficacy run is a separate operator-requested experiment."
   },
   "handoff": {
-    "last_summary": "Experience V1 and its real Pi repair regression are complete; Summarizer requests plus evidence paths derive runId only from the sealed Run, and direct Pi calls enforce branded and runtime-validated Run IDs.",
-    "resume_from": "Add required-read enforcement to the Pi Experience Summarizer, then wire Memory modes and Case End Experience before implementing the Store."
+    "last_summary": "Guarded review found no remaining P1/P2 after explicitly rejecting legacy stage labels, assigning consolidation its own warning code, and excluding the operator-approved ignored report from the commit scope.",
+    "resume_from": "If efficacy measurement is requested, design a non-overlapping paired frozen mem-v0002 versus off experiment."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

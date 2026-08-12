@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -147,6 +147,7 @@ afterEach(async () => {
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
+  delete process.env.RTL_AGENT_PI_RELEVANT_MEMORY_PATH;
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -525,15 +526,23 @@ describe("Pi RTL policy extension", () => {
     const root = await temporaryRoot();
     const workspace = path.join(root, "workspace");
     const capturePath = path.join(root, "provider-transcript.jsonl");
+    const memoryPath = path.join(workspace, "context", "relevant-rtl-memory.md");
+    await mkdir(path.dirname(memoryPath), { recursive: true });
+    await writeFile(
+      memoryPath,
+      "# Relevant RTL Memory\n\nMemory is advisory; the current specification takes precedence.\n",
+    );
     process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
     process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
     process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = capturePath;
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = "1";
     process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = "4096";
+    process.env.RTL_AGENT_PI_RELEVANT_MEMORY_PATH = memoryPath;
     let toolHandler:
       ((event: { toolName: string; input: unknown }) => Promise<unknown>) | undefined;
     let providerHandler: ((event: { payload: unknown }) => unknown) | undefined;
     let messageHandler: ((event: { message: unknown }) => unknown) | undefined;
+    let beforeAgentHandler: (() => unknown) | undefined;
     const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {
       default(pi: {
         on(
@@ -556,11 +565,20 @@ describe("Pi RTL policy extension", () => {
           providerHandler = callback as (event: { payload: unknown }) => unknown;
         } else if (name === "message_end") {
           messageHandler = callback as (event: { message: unknown }) => unknown;
+        } else if (name === "before_agent_start") {
+          beforeAgentHandler = callback as () => unknown;
         }
       },
     });
 
     expect(await toolHandler?.({ toolName: "read", input: { path: "spec.md" } })).toBeUndefined();
+    expect(beforeAgentHandler?.()).toMatchObject({
+      message: {
+        customType: "rtl-relevant-memory",
+        content: expect.stringContaining("# Relevant RTL Memory"),
+        display: false,
+      },
+    });
     expect(
       await toolHandler?.({ toolName: "write", input: { path: "rtl/dut.sv" } }),
     ).toBeUndefined();

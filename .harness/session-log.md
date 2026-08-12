@@ -3332,3 +3332,195 @@ The operator explicitly retained the fixed-dataset assumption and declined an ad
 - formatting was mechanically corrected with the repository Prettier after the first format check
   identified the changed function layout; final format, `git diff --check`, and Harness checks
   passed.
+
+## 2026-08-10 - Complete Memory V1 implementation path
+
+### Outcome
+
+Added execution-audited required reads to the Pi Experience Summarizer. CREATED and REJECTED output
+is accepted only after Pi read the exact spec, Experience input, schema, summary, and at least one
+listed initial/final RTL file.
+
+Implemented `off`, `read_write`, and `frozen` evaluation identity plus automatic Case End Experience.
+Active modes require Pi. Frozen runs bind an explicit validated snapshot and keep Experience inside
+Batch evidence. Read-write runs require an explicit build-split allowlist, copy only CREATED
+Experience into the Batch pool after Case sealing, and consolidate only after the complete Batch.
+
+Implemented the filesystem Store with empty `mem-v0001`, sequential IDs, catalog/provenance/content
+validation, canonical SHA-256 verification, parent/latest checks, staging validation, and atomic
+publication without overwrite. Implemented deterministic metadata filtering plus an isolated Pi
+Selector, max three, strict snapshot ID binding, and fail-open zero selection. The selected Markdown
+is injected once per turn through `before_agent_start` as advisory `Relevant RTL Memory`. Selector
+acceptance requires audited reads of the spec, filtered catalog, and repair feedback when present.
+
+Implemented ADD/MERGE/REINFORCE/REJECT/CONFLICT consolidation. Every eligible Experience must be
+handled exactly once, ADD is capped at five, conflicts never overwrite, partial Batches fail, and no
+snapshot is published until the fully derived snapshot validates. Consolidator acceptance also
+requires audited reads of the parent snapshot, Experience set, and output schema.
+
+### Real Trial
+
+Batch `b-20260810-007` completed the Case and three functional rounds, then exceeded the desktop
+command's 10-minute outer budget during Experience summarization. The audit showed guessed evidence
+filenames and no initial read of `context/experience-input.json`; the prompt now requires that file
+first and prohibits guessed paths. The outer timeout left the evaluation Node/Pi children alive, so
+their exact PIDs, command lines, and parent-child relationship were verified before stopping only that
+tree. No Batch result, Experience Pool file, consolidation result, or `mem-v0002` was published;
+`mem-v0001` remained the sole snapshot.
+
+### Validation
+
+- focused Experience, Memory, consolidation, Pi policy, Batch, adapter, and CLI suites passed;
+- final full repository: 43 files passed / 1 skipped, 343 tests passed / 2 skipped;
+- final lint, typecheck, build, format, peer dependency, diff, and Harness checks all passed;
+- the real trial is non-authoritative and is negative interruption evidence, not a positive
+  Selector/Consolidator publication regression.
+
+## 2026-08-10 - Verify the complete Memory V1 publication and consumption loop
+
+### Outcome
+
+Repaired the real Consolidator integration by naming its exact three input files and applying the
+same exact-path protocol to Selector. Both Pi policies now allow only their declared inputs and one
+output; directory and read-audit access remain denied. Expanded the Consolidator output guide with
+strict operation shapes, exact top-level fields, Experience accounting, and the six required Memory
+headings.
+
+The first positive publication produced a structurally valid item with a free-form `design` stage.
+A frozen replay exposed that the item could not pass the runtime `initial_generation` filter. The
+draft schema and prompt now share one canonical stage namespace: `initial_generation`,
+`functional_simulation`, `unknown`, or null. Empty/unknown Memory metadata acts as a deterministic-
+filter wildcard, while a regression rejects other noncanonical ADD/MERGE output.
+
+### Real Evidence
+
+- `b-20260810-009`: Case and Experience completed; Consolidator audited all three exact reads and
+  published `mem-v0002` from empty `mem-v0001`.
+- `b-20260810-011`: Consolidator MERGE-normalized the item to `initial_generation`, preserved
+  deduplicated provenance, and atomically published one-item `mem-v0003`.
+- `b-20260810-012`: frozen `mem-v0003` Selector audited `spec.md` and
+  `context/selection-input.json`, returned `memory-000001`, and attempt evidence bound
+  `context/relevant-rtl-memory.md`. Provider transcript captured the injected advisory block and its
+  spec/real-feedback precedence statement. Compile and functional simulation passed.
+
+All real runs remain `authoritative: false`; they prove the local Memory orchestration loop, not
+Linux Gate readiness or aggregate capability improvement.
+
+### Validation
+
+- focused Memory/Consolidator/Pi policy suite: 3 files and 16 tests passed;
+- full repository: 43 files passed / 1 skipped, 344 tests passed / 2 skipped;
+- typecheck and build passed after the final stage-contract change;
+- frozen install, final lint, typecheck, build, format, and peer dependency checks passed;
+- final diff and Harness checks ran after this handoff refresh.
+
+## 2026-08-12 - Analyze full VerilogEval Memory-build Batch
+
+### Outcome
+
+Analyzed completed Batch `b-20260811-004` and published
+`exp_result/verilog-eval/08.11-k3-pi-memory-v1-full-build.md` without starting a model call or
+rerunning generation, compilation, simulation, or diagnosis. The Batch covered all 156 VerilogEval
+`spec-to-rtl` Cases, fixed the empty `mem-v0001` for every Case, and published five-item
+`mem-v0002` only after complete Batch execution.
+
+The report distinguishes Memory-build evidence from efficacy evidence. All 178 Agent attempts had
+no `relevantMemoryPath`, because the fixed source catalog was empty. The run therefore validates
+snapshot isolation, Experience generation, consolidation, and publication, but cannot attribute its
+150 functional passes or 11 repair recoveries to Memory.
+
+### Memory Funnel
+
+- 150 Cases were Experience-eligible; 128 produced CREATED Experience, 22 ended
+  `SUMMARIZER_FAILED`, and six unsuccessful trajectories were skipped.
+- Fifty-six first Summarizer turns were invalid; one bounded correction recovered 34, leaving 22
+  failures. Forensic schema comparison classified the final failures as seven disallowed
+  first-pass rejections, six missing nullable fields, two overlong circuit types, and seven
+  first-pass records carrying non-null debug claims.
+- The pool contained 117 `design_observation` and 11 `simulation_debug` records. Consolidation
+  rejected all 117 first-pass observations, retained ten repair records in five ADD operations,
+  and rejected one construct-specific dual-edge repair.
+- All 128 Experience indexes were handled exactly once with no duplicate or omission. The
+  Consolidator audited its three exact input reads and published `mem-v0002` with the expected
+  parent, source Batch, item count, and canonical digest.
+
+### Validation
+
+- Report-specific PowerShell evidence assertions passed for summary counts, Experience
+  statuses/kinds, consolidation accounting, and snapshot lineage.
+- Report Prettier check passed.
+- Report-scoped `git diff --check` passed.
+- Final repository `git diff --check` and the explicit Git Bash Harness check passed.
+
+### Evidence Limits
+
+The result is non-authoritative Windows/local evidence. It does not show that Memory improves first
+generation or repair performance. Every new item is scoped to `functional_simulation`, so a paired,
+non-overlapping `frozen mem-v0002` versus `off` held-out experiment is required for an efficacy claim.
+
+## 2026-08-12 - Add repair-depth result comparison to Memory report
+
+### Outcome
+
+Extended `exp_result/verilog-eval/08.11-k3-pi-memory-v1-full-build.md` with a mutually exclusive
+first-success comparison across all 156 Cases and a terminal-evidence table for every unsuccessful
+Case. No model call, generation, compilation, simulation, diagnosis, or Memory publication was run.
+
+### Results
+
+- 139 Cases passed on the first candidate.
+- 11 Cases first passed after one repair.
+- Zero Cases first passed after two repairs, and zero first passed after three repairs.
+- Six Cases remained unsuccessful: three exhausted three repair turns with a mismatch, two failed
+  initial compilation without entering repair, and one consumed two repair turns before the second
+  repair Agent attempt timed out.
+- Corrected the initial-result breakdown from the earlier 14-mismatch/three-nonsimulated wording to
+  15 initial mismatches and two initial compile failures.
+
+### Validation
+
+- Reconstructed repair depth from Case summaries, attempt-scoped Agent results, compile evidence,
+  and functional-simulation results.
+- Asserted that the mutually exclusive buckets sum to all 156 Cases and that the six unsuccessful
+  Case identifiers match the Batch summary.
+- Prettier passed for the report and updated handoff documents; session-state JSON parsing and
+  `git diff --check` passed.
+- The explicit Git Bash `scripts/harness_check.sh` check passed.
+
+### Evidence Limits
+
+The comparison describes outcomes inside the Memory-build run. Because its fixed source snapshot
+was empty and no attempt received selected Memory, it does not measure a Memory-versus-control
+effect.
+
+## 2026-08-12 - Complete guarded Memory V1 landing review
+
+### Outcome
+
+Completed the guarded review of the full Memory V1 implementation. The operator accepted exclusion
+of the ignored full-run report from the commit and chose a strict canonical stage contract instead
+of permanent compatibility for the experimental `design` label.
+
+Snapshot catalog entries and Consolidator ADD/MERGE drafts now accept only
+`initial_generation`, `functional_simulation`, `unknown`, or `null`. Invalid draft metadata fails
+with the stable `MEMORY_STORE_INVALID` code and cannot publish a new snapshot. Batch consolidation
+failure now emits `MEMORY_CONSOLIDATION_FAILED` instead of being mislabeled as an Experience
+summarization failure.
+
+### Review Decisions
+
+- `b-20260810-011` remains the one-time migration from the experimental `design` label; it does not
+  establish an ongoing compatibility requirement.
+- The existing Consolidator instruction about normalizing a noncanonical item remains only to
+  preserve the validated V1 prompt identity. The snapshot schema prevents such an item from
+  reaching consolidation.
+- No P1 or P2 finding remains in the reviewed commit scope.
+
+### Validation
+
+- Focused Memory, Consolidator, and CLI tests passed: 3 files and 46 tests.
+- Frozen install, lint, typecheck, build, format, and peer dependency checks passed.
+- The first aggregate test invocation hit the documented Windows process-tree capability-probe
+  race. The affected 24-test file passed with `--maxWorkers=1`; the subsequent clean aggregate run
+  passed 43 files with 1 skipped and 345 tests with 2 skipped.
+- Final diff and Harness checks were scheduled after this handoff refresh.

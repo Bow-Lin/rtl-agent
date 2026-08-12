@@ -117,6 +117,50 @@ describe("rtl-core-loop CLI boundary", () => {
     },
   );
 
+  it("rejects Memory V1 on a non-Pi evaluation profile before any Agent turn", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-core-loop-cli-memory-"));
+    try {
+      const provider = new EvaluationTestProvider();
+      const profile = await testEvaluationProfile(provider);
+      const agent = new ScriptedAgentAdapter([]);
+      const errors: string[] = [];
+      const exitCode = await runRtlCoreLoopCli(
+        [
+          "evaluate",
+          "--profile",
+          profile.evaluationProfileId,
+          "--memory-mode",
+          "read_write",
+          "--memory-build-splits",
+          `${profile.dataset.datasetId}:${profile.selection.split}`,
+        ],
+        provider,
+        () => undefined,
+        (line) => errors.push(line),
+        {},
+        process.cwd(),
+        {
+          profiles: [profile],
+          providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+          agentAdapter: agent,
+          compilerAdapter: new ScriptedCompilerAdapter([]),
+          batchesRoot: path.join(root, "batches"),
+        },
+      );
+
+      expect(exitCode).toBe(2);
+      expect(agent.inputs).toEqual([]);
+      expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+        error: {
+          code: "EVALUATION_PROFILE_INVALID",
+          message: "Memory V1 requires the Pi Agent backend",
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prepares the pinned dataset through an injected cache boundary", async () => {
     const output: string[] = [];
     const errors: string[] = [];

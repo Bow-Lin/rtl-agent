@@ -591,6 +591,26 @@ export async function validateTurnInput(input: AgentAttemptInput, run: CoreLoopR
       );
     }
   }
+  if (input.relevantMemoryPath !== undefined) {
+    const hostPath = resolveLogicalPath(
+      run.workspaceDirectory,
+      LogicalPathSchema.parse(input.relevantMemoryPath),
+    );
+    try {
+      const content = await readFile(hostPath, "utf8");
+      if (
+        Buffer.byteLength(content, "utf8") > 100_000 ||
+        !content.startsWith("# Relevant RTL Memory\n")
+      ) {
+        throw new Error("invalid Memory context");
+      }
+    } catch {
+      throw new CoreLoopException(
+        "AGENT_INPUT_INVALID",
+        "Relevant RTL Memory context is missing or invalid",
+      );
+    }
+  }
   if (input.coverageFeedbackPath !== undefined) {
     const hostPath = resolveLogicalPath(run.workspaceDirectory, input.coverageFeedbackPath);
     let rawFeedback: unknown;

@@ -864,3 +864,119 @@ to `Format-Table`. All corrected diagnostics completed normally.
 For PowerShell diagnostic tables, use `$rows = foreach (...) { ... }; $rows | Format-Table` rather
 than piping directly from the `foreach` statement. This affects diagnostics only; no repository or
 runtime data was changed by either failed command.
+
+## 2026-08-10 - Outer command timeout orphaned a real Pi regression
+
+### Symptom
+
+The first full `read_write` Memory trial exceeded the desktop shell command's 10-minute timeout
+while the Experience Summarizer was active. The shell call returned exit 124, but the evaluation
+Node process and its Pi child remained alive and could still write the ignored experiment Batch.
+
+### Root Cause
+
+The outer tool budget covered the whole Case, while the runtime has separate bounded Agent,
+Summarizer, and Consolidator turns. Generation plus three functional rounds consumed most of the
+outer budget before summarization began. The desktop timeout terminated its PowerShell boundary,
+not the detached runtime process tree.
+
+The read audit also showed that Pi guessed many plausible evidence filenames instead of first
+reading `context/experience-input.json`, so it had not satisfied the new required-read contract
+before the outer timeout.
+
+### Fix
+
+Resolve and inspect the exact process IDs and command lines, verify their parent-child relationship,
+then stop only the two processes created by this trial. Confirm that only `mem-v0001` exists and
+that no Batch result, Experience Pool file, consolidation result, or next snapshot was published.
+Clarify the Summarizer prompt to require `context/experience-input.json` first, list every exact
+mandatory read, and prohibit guessed filenames.
+
+### Prevention
+
+For future real Memory trials, set the outer orchestration budget above the sum of all possible
+bounded Pi turns, or use a monitor that owns the detached process tree. After any desktop command
+timeout, inspect and terminate only the verified experiment tree before making publication claims.
+Required-read acceptance remains execution-audited rather than inferred from prompt text.
+
+## 2026-08-10 - Restricted Consolidator could not discover vague context paths
+
+### Symptom
+
+Batch `b-20260810-008` completed its Case and created a valid Experience, but consolidation failed.
+Pi wrote an invalid result explaining that its attempts to read context inputs had been denied; the
+read audit was empty and no next snapshot was published.
+
+### Root Cause
+
+The turn said only to read all context files. The isolated Pi process had `read` and `write` but no
+directory-enumeration tool, while the policy intentionally rejected reading the directory root.
+The model therefore had no reliable way to discover the three input filenames.
+
+### Fix and Prevention
+
+List `context/snapshot.json`, `context/experiences.json`, and `context/output-schema.json` explicitly
+in both system and turn instructions. Do the same for Selector, restrict policies to exact input
+files, and retain execution-audited required reads. Policy tests now reject directory-root and audit-
+file reads. Batch `b-20260810-009` read all three exact paths and published `mem-v0002`.
+
+## 2026-08-10 - Consolidator and Selector used different stage vocabularies
+
+### Symptom
+
+The first frozen replay of `mem-v0002` passed its Case but created no Selector evidence and injected
+no Memory. The catalog contained one item, yet deterministic filtering returned an empty set.
+
+### Root Cause
+
+The model-produced Memory stage was `design`, while initial-generation selection queried
+`initial_generation`. The draft schema accepted arbitrary stage strings, so publication could create
+a structurally valid but unreachable item.
+
+### Fix and Prevention
+
+Constrain snapshot catalogs and new ADD/MERGE stages to `initial_generation`,
+`functional_simulation`, `unknown`, or null, document how Experience kinds map to them, and treat
+null/`unknown` Memory metadata as filter wildcards. A regression rejects `design` before
+publication. The experimental `b-20260810-011` migration normalized the old item into `mem-v0003`;
+frozen Batch `b-20260810-012` then selected and injected it successfully. Current V1 stores do not
+retain a compatibility path for that discarded experimental vocabulary.
+
+## 2026-08-12 - PowerShell regex path filter emitted one error per file
+
+### Symptom
+
+A read-only diagnostic intended to count attempt-scoped `agent-input.json` files used
+`-match '\evidence\attempts\'`. The trailing backslash made the regex invalid, so PowerShell emitted
+the same parse error once for every pipeline item and returned a misleading zero count.
+
+### Root Cause
+
+The task only needed a literal path-segment test, but the diagnostic used regex syntax with an
+unescaped terminal backslash.
+
+### Fix and Prevention
+
+Build the literal segment with `[IO.Path]::DirectorySeparatorChar` and use
+`FullName.Contains(...)`. The corrected diagnostic found 178 attempt inputs, 22 with functional
+feedback, and zero with `relevantMemoryPath`. Prefer fixed-string path checks over regex whenever no
+pattern semantics are required.
+
+## 2026-08-12 - Compact PowerShell syntax corrupted read-only result checks
+
+### Symptom
+
+A repair-depth diagnostic emitted repeated command-not-found errors for `Test-Path$p`. A later
+compact pipeline also produced incorrect counts from expressions such as
+`Where-Object status-eq'PASSED'`.
+
+### Root Cause
+
+Whitespace and explicit script blocks were removed while compressing the diagnostic. PowerShell
+then parsed parameterized commands and property comparisons differently from the intended forms.
+
+### Fix and Prevention
+
+Use explicit forms such as `Test-Path -LiteralPath $path` and
+`Where-Object { $_.status -eq 'PASSED' }`. Treat compact diagnostic syntax as unsafe when it can
+change parsing, and validate aggregate counts against the 156-Case Batch total before reporting.

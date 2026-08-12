@@ -94,6 +94,11 @@ export interface ExecuteCoreLoopRunOptions {
       context: CandidateFunctionalValidationContext,
     ) => Promise<CandidateFunctionalValidation>;
   };
+  readonly prepareAgentTurn?: (context: {
+    readonly run: CoreLoopRun;
+    readonly attempt: number;
+    readonly functionalSimulationFeedbackPath?: string;
+  }) => Promise<"context/relevant-rtl-memory.md" | null>;
   readonly clock?: RunClock;
 }
 
@@ -442,6 +447,7 @@ export async function executeValidatedCoreLoopRun(
   let functionalRepairStartAttempt: number | undefined;
   let functionalSimulationFeedbackPath: string | undefined;
   let firstCompilePassAttempt: number | undefined;
+  let relevantMemoryPath: "context/relevant-rtl-memory.md" | undefined;
 
   if (
     options.functionalRepair !== undefined &&
@@ -523,6 +529,23 @@ export async function executeValidatedCoreLoopRun(
     for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
       attemptCount = attempt;
       const attemptRoot = `evidence/attempts/${String(attempt)}`;
+      if (
+        options.prepareAgentTurn !== undefined &&
+        (attempt === 1 || functionalSimulationFeedbackPath !== undefined)
+      ) {
+        try {
+          relevantMemoryPath =
+            (await options.prepareAgentTurn({
+              run,
+              attempt,
+              ...(functionalSimulationFeedbackPath === undefined
+                ? {}
+                : { functionalSimulationFeedbackPath }),
+            })) ?? undefined;
+        } catch {
+          relevantMemoryPath = undefined;
+        }
+      }
       const sourceManifest = await rtlManifest(run);
       const input = AgentAttemptInputSchema.parse({
         schemaVersion: 1,
@@ -539,6 +562,7 @@ export async function executeValidatedCoreLoopRun(
         ...(functionalSimulationFeedbackPath === undefined
           ? {}
           : { functionalSimulationFeedbackPath }),
+        ...(relevantMemoryPath === undefined ? {} : { relevantMemoryPath }),
       });
 
       if (previousCompileResult !== undefined) {

@@ -155,6 +155,13 @@ Selector 最多返回 3 条 Memory，允许返回 0 条，不需要凑满。输�
 存在的 Memory ID。解析失败、Pi 调用失败或没有合适结果时按 0 Memory 继续，不能阻塞
 Case。
 
+V1 的已知 `stage` 过滤值固定为 `initial_generation` 和 `functional_simulation`。Consolidator
+对 first-pass `design_observation` 使用前者，对 `simulation_debug` 使用后者；确实无法确定或
+一条规则同时适用两阶段时使用空值或 `unknown`。Memory 侧的空值和 `unknown` 在确定性过滤
+中视为通配信息。Snapshot catalog 和 Consolidator 的新 ADD/MERGE 都不接受其他自由字符串，
+避免写入侧标签与读取侧查询不在同一命名空间而使 Memory 永远无法命中。V1 不持续兼容早期
+实验快照中的其他 stage。
+
 初次生成和 mismatch repair 分别执行选择。Repair selection 使用最新 mismatch feedback，
 但仍然只能读取 Batch 固定的 `M_n`。
 
@@ -260,3 +267,28 @@ evaluation protocol。若以后研究 online continual learning，必须使用�
 真实 Case 应从已有 evidence 中选择一个稳定 mismatch、规模小且预期可由公开 feedback
 修复的 Build Set Case。该回归会产生模型调用和新的忽略目录 evidence，执行前记录所用
 case、snapshot、Pi capability、prompt digest 和 repair budget。
+
+## 当前实现入口
+
+`run` 和 `evaluate` 已支持：
+
+```text
+--memory-mode <off|read_write|frozen>
+--memory-snapshot <mem-vNNNN>
+--memory-build-splits <dataset:split,...>
+```
+
+通用 CLI 为保持现有实验兼容性默认 `off`，不会根据 dataset 或 split 名称猜测 held-out
+身份。正式 held-out 调用方必须显式传 `frozen` 和 snapshot；`read_write` 必须显式列出当前
+build split。Memory V1 active mode 只接受 Pi profile。
+
+实现层已包含 audited Experience/Selector/Consolidator read、Case End publication、filesystem
+Store、确定性过滤、Pi Selector、单次 `before_agent_start` 注入、Batch Consolidator 和原子
+snapshot publication。
+单元/集成测试覆盖成功与失败边界。真实 `read_write` Batch `b-20260810-009` 从空的
+`mem-v0001` 成功发布 `mem-v0002`；后续读取回放发现其模型生成的自由 stage `design` 与
+查询 stage 不一致。收紧 stage 协议后，`b-20260810-011` 作为一次实验迁移通过 MERGE 发布
+canonical `mem-v0003`。Frozen Batch `b-20260810-012` 固定读取 `mem-v0003`，Selector 审计确认读取
+`spec.md` 和过滤后的 catalog，返回 `memory-000001`；attempt evidence 与 Provider transcript
+确认该 Memory 作为独立 advisory context 注入，最终 compile 和 functional simulation 均
+通过。所有这些本地回放均为 `authoritative: false`，只证明 Memory V1 编排闭环。

@@ -1757,3 +1757,80 @@ Store, Selector, Consolidator, Memory modes, automatic Case End wiring, and snap
 remain outside this slice. Before automatic wiring, add an execution-level check that Pi actually
 reads the listed spec/context/initial/final RTL files; an audited rejection in a later stochastic
 replay exposed a false claim that those present files were absent.
+
+## 2026-08-10 - Complete Memory V1 with Batch-Atomic Publication
+
+### Context
+
+Case-by-Case functional simulation now provides sealed Run and attempt-scoped mismatch/pass evidence,
+but online Case updates would contaminate later Cases in the same Batch. Active Memory also adds two
+best-effort model boundaries whose failures must not rewrite compile or functional outcomes.
+
+### Decision
+
+Expose `off`, `read_write`, and `frozen` as evaluation identity. Keep the compatibility default `off`;
+the CLI does not infer held-out status from dataset names or splits. An active mode requires a Pi
+profile. `frozen` requires an explicit validated snapshot. `read_write` requires an explicit build-
+split allowlist containing the current dataset/split and may extend only the latest snapshot.
+
+Use sequential filesystem snapshots below `.rtl-agent/memory`. Validate catalog references, ordered
+provenance, required Markdown sections, forbidden content, and the canonical catalog/item digest both
+before and after atomic directory publication. Never overwrite a published snapshot.
+
+Select from the Batch-fixed snapshot before initial generation and after each real functional
+mismatch. Apply deterministic metadata filtering first, then an isolated Pi catalog Selector. Treat
+invalid IDs, parse errors, timeouts, or no relevant result as zero Memory. Inject at most three items
+once through `before_agent_start`; keep the current spec and real compiler/simulation feedback
+explicitly authoritative.
+
+At Case End, summarize the complete functional history from the sealed Run. Only `read_write` copies a
+CREATED Experience into the Batch pool; `frozen` evidence remains Batch-local. At Batch End, require a
+complete Batch before consolidation. Require every eligible Experience to appear exactly once in an
+ADD, MERGE, REINFORCE, REJECT, or CONFLICT operation, cap ADD at five, and publish `M_n+1` only after
+the complete derived snapshot validates. Any partial Batch or consolidation failure records failure
+and leaves `M_n` unchanged.
+
+### Consequences
+
+The implementation remains backend-neutral below the Pi adapters, supports cross-dataset provenance,
+and preserves snapshot isolation. CLI `off` runs do not touch Memory. Real held-out protocols must
+explicitly pass `frozen` plus a snapshot until a separate formal-evaluation entry point supplies that
+default without inferring it from dataset identity.
+
+The first complete `read_write` trial (`b-20260810-007`) exceeded the desktop command's outer budget
+during Experience summarization. Its audit showed guessed filenames and no read of
+`context/experience-input.json`; the prompt now requires that file first and prohibits guessed paths.
+No next snapshot was published, confirming the publication boundary under interruption, but a future
+longer-budget replay is still needed for positive real Pi Selector/Consolidator evidence.
+
+## 2026-08-10 - Make restricted Pi inputs and Memory stages explicit
+
+### Context
+
+The positive `read_write` replay reached Consolidator, but its Pi turn had only bounded `read` and
+`write` tools and no directory-enumeration tool. A vague instruction to read all context files led it
+to try paths the policy denied. After exact paths were supplied, the next snapshot was published,
+but the model labeled first-generation guidance with stage `design` while runtime selection queried
+`initial_generation`; deterministic filtering then correctly returned an empty catalog.
+
+### Decision
+
+Name every mandatory Selector and Consolidator input path in the turn instruction and restrict each
+policy to those exact files plus its one output. Continue to require an execution audit of every
+mandatory read; prompt text alone is not evidence.
+
+Use one V1 stage namespace end to end: `initial_generation` for first-pass design guidance,
+`functional_simulation` for mismatch-debug guidance, and null or `unknown` only for mixed or
+uncertain scope. Null and `unknown` Memory metadata act as deterministic-filter wildcards, matching
+the approved V1 rule for unavailable labels. Current snapshot catalogs and ADD/MERGE outputs reject
+all other labels. V1 does not carry a permanent compatibility path for experimental snapshots that
+predate this vocabulary.
+
+### Consequences
+
+As a one-time experiment migration, Batch `b-20260810-011` MERGE-normalized the sole item and
+atomically published `mem-v0003`. Frozen Batch `b-20260810-012` then audited the exact Selector
+reads, selected `memory-000001`, bound
+`relevantMemoryPath` in attempt evidence, and captured the advisory Memory block in the Pi provider
+transcript. The Case compiled and passed functional simulation. These are non-authoritative local
+orchestration results, not Linux Gate evidence or proof that Memory improves aggregate capability.

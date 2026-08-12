@@ -1,6 +1,8 @@
 import { IsoTimestampSchema, SchemaVersionSchema, Sha256DigestSchema } from "@rtl-agent/contracts";
 import { z } from "zod";
 
+import { MemoryExperimentIdentitySchema } from "./memory.js";
+
 import { AgentCapabilitySchema } from "./agent-contracts.js";
 import { IcarusCapabilitySchema } from "./compiler-contracts.js";
 import {
@@ -95,6 +97,7 @@ export const EvaluationProfileSchema = z
         maxIterations: z.int().nonnegative().max(10),
       })
       .optional(),
+    memory: MemoryExperimentIdentitySchema.optional(),
   })
   .superRefine((value, context) => {
     if (!value.dataset.splits.includes(value.selection.split)) {

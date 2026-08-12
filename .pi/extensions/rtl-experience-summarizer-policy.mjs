@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -31,8 +32,16 @@ export default function rtlExperienceSummarizerPolicy(pi) {
   if (process.env.RTL_AGENT_PI_EXPERIENCE_POLICY_REQUIRED !== "1") return;
 
   const workspaceRoot = process.env.RTL_AGENT_PI_WORKSPACE_ROOT;
+  const readAuditPath = process.env.RTL_AGENT_PI_EXPERIENCE_READ_AUDIT;
   if (workspaceRoot === undefined || !path.isAbsolute(workspaceRoot)) {
     throw new Error("RTL_AGENT_PI_WORKSPACE_ROOT must be an absolute path");
+  }
+  if (
+    readAuditPath === undefined ||
+    !path.isAbsolute(readAuditPath) ||
+    normalizedRelativePath(workspaceRoot, readAuditPath) !== "context/read-audit.jsonl"
+  ) {
+    throw new Error("RTL_AGENT_PI_EXPERIENCE_READ_AUDIT must name the locked audit file");
   }
 
   pi.on("tool_call", async (event) => {
@@ -49,6 +58,9 @@ export default function rtlExperienceSummarizerPolicy(pi) {
       (event.toolName === "read" ? allowedRead(logicalPath) : logicalPath === "summary.json");
     if (!allowed) {
       return { block: true, reason: "Path is outside the locked Experience summarizer policy" };
+    }
+    if (event.toolName === "read") {
+      appendFileSync(readAuditPath, `${JSON.stringify({ path: logicalPath })}\n`, "utf8");
     }
     return undefined;
   });

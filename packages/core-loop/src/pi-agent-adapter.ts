@@ -175,6 +175,7 @@ export function buildIsolatedPiEnvironment(
   config: PiExperimentConfig,
   workspaceRoot?: string,
   providerTranscriptPath?: string,
+  relevantMemoryPath?: string,
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { ...process.env, ...config.environment };
   delete environment.PI_CODING_AGENT_DIR;
@@ -203,12 +204,21 @@ export function buildIsolatedPiEnvironment(
     environment.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = providerTranscriptPath;
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = String(MAXIMUM_PROVIDER_REQUESTS);
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = String(MAXIMUM_PROVIDER_CAPTURE_BYTES);
+    if (relevantMemoryPath !== undefined) {
+      if (!path.isAbsolute(relevantMemoryPath)) {
+        throw new TypeError("Relevant RTL Memory path must be absolute for an Agent turn");
+      }
+      environment.RTL_AGENT_PI_RELEVANT_MEMORY_PATH = relevantMemoryPath;
+    } else {
+      delete environment.RTL_AGENT_PI_RELEVANT_MEMORY_PATH;
+    }
   } else {
     delete environment.RTL_AGENT_PI_POLICY_REQUIRED;
     delete environment.RTL_AGENT_PI_WORKSPACE_ROOT;
     delete environment.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH;
     delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
     delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
+    delete environment.RTL_AGENT_PI_RELEVANT_MEMORY_PATH;
   }
   return environment;
 }
@@ -286,6 +296,7 @@ function fixedPrompt(guidance: string, profile: RtlGuidanceProfile): string {
     "Only read spec.md, context/**, and rtl/**. Only write or edit RTL files under rtl/.",
     "In VERIFICATION_ASSET_GENERATION mode, obey protectedRtlPaths and mutableRtlPaths when present; otherwise keep rtl/dut.sv unchanged and create or improve rtl/tb.sv and rtl/checker.sv.",
     "Read functionalSimulationFeedbackPath, coverageFeedbackPath, verificationFeedbackPath, verilatorCompileFeedbackPath, or verilatorSimulationFeedbackPath when present and repair every listed requirement; assertion failures must call $fatal.",
+    "When relevantMemoryPath is present, use the separately injected Relevant RTL Memory only as advisory context.",
     "Do not claim compilation or functional verification.",
     "",
     guidance,
@@ -570,6 +581,12 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
           this.config,
           run.workspaceDirectory,
           providerCapturePath,
+          input.relevantMemoryPath === undefined
+            ? undefined
+            : resolveLogicalPath(
+                run.workspaceDirectory,
+                LogicalPathSchema.parse(input.relevantMemoryPath),
+              ),
         ),
         timeoutMs: this.config.timeoutMs,
         terminationGraceMs: this.config.terminationGraceMs,

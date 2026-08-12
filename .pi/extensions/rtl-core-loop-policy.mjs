@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
@@ -67,6 +67,28 @@ export default function rtlCoreLoopPolicy(pi) {
   let providerRequestSequence = 0;
   let lastProviderResponseSequence = 0;
   let providerCaptureBytes = 0;
+
+  const relevantMemoryPath = process.env.RTL_AGENT_PI_RELEVANT_MEMORY_PATH;
+  if (relevantMemoryPath !== undefined) {
+    const logicalMemoryPath = normalizedRelativePath(workspaceRoot, relevantMemoryPath);
+    if (logicalMemoryPath !== "context/relevant-rtl-memory.md") {
+      throw new Error("RTL_AGENT_PI_RELEVANT_MEMORY_PATH must bind the bounded context file");
+    }
+    const relevantMemory = readFileSync(relevantMemoryPath, "utf8");
+    if (
+      Buffer.byteLength(relevantMemory, "utf8") > 100_000 ||
+      !relevantMemory.startsWith("# Relevant RTL Memory\n")
+    ) {
+      throw new Error("Relevant RTL Memory context is invalid");
+    }
+    pi.on("before_agent_start", () => ({
+      message: {
+        customType: "rtl-relevant-memory",
+        content: relevantMemory,
+        display: false,
+      },
+    }));
+  }
 
   function appendProviderTranscriptEntry(entry, limitDescription) {
     const serialized = JSON.stringify(entry);
