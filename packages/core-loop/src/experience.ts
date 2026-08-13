@@ -16,6 +16,7 @@ import { createFileManifest } from "./manifest.js";
 import { executeOpenCodeProcess, executeProbeCommand } from "./opencode-process.js";
 import { FunctionalCaseResultSchema } from "./verilog-eval-simulation.js";
 import type { FunctionalCaseResult } from "./verilog-eval-simulation.js";
+import { MemoryMetadataValueSchema } from "./memory.js";
 
 export const ExperienceKindSchema = z.enum(["design_observation", "simulation_debug"]);
 
@@ -37,9 +38,9 @@ export const ExperienceRecordSchema = z
     kind: ExperienceKindSchema,
     source: ExperienceSourceSchema,
     outcome: z.enum(["first_functional_pass", "repaired_functional_pass"]),
-    circuit_type: z.string().min(1).max(128).nullable(),
+    circuit_type: MemoryMetadataValueSchema.nullable(),
     language: z.enum(["SYSTEMVERILOG", "VERILOG", "UNKNOWN"]),
-    tool: z.string().min(1).max(128).nullable(),
+    tool: MemoryMetadataValueSchema.nullable(),
     failure: ExperienceFailureSchema.nullable(),
     diagnosis: z.string().min(30).max(1_500).nullable(),
     repair: z.string().min(30).max(1_500).nullable(),
@@ -310,7 +311,7 @@ const SUMMARY_SCHEMA_GUIDE = {
         kind: "design_observation or simulation_debug",
         source: { dataset: "string", split: "string", case_id: "string" },
         outcome: "first_functional_pass or repaired_functional_pass",
-        circuit_type: "string of at most 128 characters, or null",
+        circuit_type: "string of at most 1024 characters, or null",
         language: "SYSTEMVERILOG, VERILOG, or UNKNOWN",
         tool: "short string or null",
         failure: {

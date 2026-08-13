@@ -465,32 +465,47 @@ export async function evaluateCoreLoopBatch(
   const runs: RunExecutionResult[] = [];
   let caseCompletionFailed = false;
   let caseCompletionError: unknown;
-  const baselineInfrastructureInvalid = validations.some(
-    (validation) => validation.status === "INFRASTRUCTURE_INVALID",
-  );
-  if (!baselineInfrastructureInvalid) {
-    for (const validated of validatedRuns) {
-      if (validated.validation.status !== "VALID") continue;
-      try {
-        options.onCaseStart?.({
-          caseIndex: validated.validation.caseIndex,
-          caseNumber: validated.validation.caseIndex + 1,
-          caseCount: cases.length,
-          caseRef: validated.validation.caseRef,
-        });
-      } catch {
-        // Progress output must not change the evaluation outcome.
-      }
-      const result = await executeValidatedCoreLoopRun(validated, {
-        agentAdapter: options.agentAdapter,
-        compilerAdapter: options.compilerAdapter,
-        lockedAgentCapability: actualAgentCapability,
-        lockedCompilerCapability: profile.compilerCapability,
-        ...(options.prepareAgentTurn === undefined
-          ? {}
-          : {
-              prepareAgentTurn: async ({ run, attempt, functionalSimulationFeedbackPath }) =>
-                options.prepareAgentTurn!({
+  for (const validated of validatedRuns) {
+    if (validated.validation.status !== "VALID") continue;
+    try {
+      options.onCaseStart?.({
+        caseIndex: validated.validation.caseIndex,
+        caseNumber: validated.validation.caseIndex + 1,
+        caseCount: cases.length,
+        caseRef: validated.validation.caseRef,
+      });
+    } catch {
+      // Progress output must not change the evaluation outcome.
+    }
+    const result = await executeValidatedCoreLoopRun(validated, {
+      agentAdapter: options.agentAdapter,
+      compilerAdapter: options.compilerAdapter,
+      lockedAgentCapability: actualAgentCapability,
+      lockedCompilerCapability: profile.compilerCapability,
+      ...(options.prepareAgentTurn === undefined
+        ? {}
+        : {
+            prepareAgentTurn: async ({ run, attempt, functionalSimulationFeedbackPath }) =>
+              options.prepareAgentTurn!({
+                batchDirectory,
+                caseIndex: validated.validation.caseIndex,
+                caseNumber: validated.validation.caseIndex + 1,
+                caseCount: cases.length,
+                caseRef: validated.validation.caseRef,
+                run,
+                attempt,
+                ...(functionalSimulationFeedbackPath === undefined
+                  ? {}
+                  : { functionalSimulationFeedbackPath }),
+              }),
+          }),
+      ...(options.functionalRepair === undefined
+        ? {}
+        : {
+            functionalRepair: {
+              maxIterations: options.functionalRepair.maxIterations,
+              validateCandidate: async ({ run, attempt, repairIteration }) =>
+                options.functionalRepair!.validateCandidate({
                   batchDirectory,
                   caseIndex: validated.validation.caseIndex,
                   caseNumber: validated.validation.caseIndex + 1,
@@ -498,52 +513,26 @@ export async function evaluateCoreLoopBatch(
                   caseRef: validated.validation.caseRef,
                   run,
                   attempt,
-                  ...(functionalSimulationFeedbackPath === undefined
-                    ? {}
-                    : { functionalSimulationFeedbackPath }),
+                  repairIteration,
                 }),
-            }),
-        ...(options.functionalRepair === undefined
-          ? {}
-          : {
-              functionalRepair: {
-                maxIterations: options.functionalRepair.maxIterations,
-                validateCandidate: async ({ run, attempt, repairIteration }) =>
-                  options.functionalRepair!.validateCandidate({
-                    batchDirectory,
-                    caseIndex: validated.validation.caseIndex,
-                    caseNumber: validated.validation.caseIndex + 1,
-                    caseCount: cases.length,
-                    caseRef: validated.validation.caseRef,
-                    run,
-                    attempt,
-                    repairIteration,
-                  }),
-              },
-            }),
-        clock,
-      });
-      runs.push(result);
-      if (options.onCaseComplete !== undefined && !caseCompletionFailed) {
-        try {
-          await options.onCaseComplete({
-            batchDirectory,
-            caseIndex: validated.validation.caseIndex,
-            caseNumber: validated.validation.caseIndex + 1,
-            caseCount: cases.length,
-            caseRef: validated.validation.caseRef,
-            run: result,
-          });
-        } catch (error) {
-          caseCompletionFailed = true;
-          caseCompletionError = error;
-        }
-      }
-      if (
-        result.status === "INCOMPLETE" ||
-        (result.status === "COMPLETE" && result.evaluationValidity === "INFRASTRUCTURE_INVALID")
-      ) {
-        break;
+            },
+          }),
+      clock,
+    });
+    runs.push(result);
+    if (options.onCaseComplete !== undefined && !caseCompletionFailed) {
+      try {
+        await options.onCaseComplete({
+          batchDirectory,
+          caseIndex: validated.validation.caseIndex,
+          caseNumber: validated.validation.caseIndex + 1,
+          caseCount: cases.length,
+          caseRef: validated.validation.caseRef,
+          run: result,
+        });
+      } catch (error) {
+        caseCompletionFailed = true;
+        caseCompletionError = error;
       }
     }
   }

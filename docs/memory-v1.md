@@ -3,7 +3,7 @@
 ## 目标与边界
 
 Memory V1 验证一个最小假设：从 Memory-build Batch 的成功 Case 轨迹中生成 Experience，
-在 Batch 结束后把跨 Case 的共性合并为冻结 Memory，再用于新的 Case，是否能够改善 RTL
+再由显式选择的一个或多个 Experience Batch 把跨 Case 的共性合并为冻结 Memory，用于新的 Case，是否能够改善 RTL
 初次生成或 functional mismatch repair。
 
 V1 只支持 Pi。Memory Store、Selector、Experience 和 Consolidator 的数据结构保持后端无关，
@@ -15,7 +15,7 @@ simulation 结果仍然是 `authoritative: false` 的本地实验结果。
 
 ## Batch 隔离模型
 
-长期 Memory 只在 Batch 边界更新。Batch 开始时固定 snapshot `M_n`，Batch 内的所有 Case
+长期 Memory 不在评测命令中更新。Batch 开始时固定 snapshot `M_n`，Batch 内的所有 Case
 始终从 `M_n` 读取：
 
 ```text
@@ -25,7 +25,7 @@ M_n
  ├─ ...
  └─ Case N → E_N
                 ↓
-         Batch Consolidation
+       Explicit Memory Build
                 ↓
               M_n+1
 ```
@@ -33,8 +33,9 @@ M_n
 Case 开始前，Selector 从 `M_n` 选择一次 Memory，辅助初次 RTL 生成。每次 functional
 mismatch 后，Selector 根据同一个 `M_n` 和最新 mismatch feedback 重新选择，辅助下一次
 repair。Case 结束时只生成 Experience Record，不修改 `M_n`，也不让该 Experience 进入当前
-Case 或同一 Batch 的其他 Case。只有 Batch 全部 Case 结束后，Consolidator 才能读取本 Batch
-的 Experience，并尝试发布 `M_n+1`。
+Case 或同一 Batch 的其他 Case。评测结束只封存 Experience；操作员随后通过
+`memory-build --experience-batches <batch-id,...>` 明确选择输入，Consolidator 才能读取这些
+Experience 并尝试发布 `M_n+1`。评测 Batch 是否 `COMPLETED` 不控制这一独立发布操作。
 
 Batch 内禁止读取 `M_n` 之后生成的任何 snapshot。Case A 的 Experience 不得影响 Case B；
 一个 Case 新产生的信息也不得在该 Case 内重新作为 Memory 加载。
@@ -46,11 +47,12 @@ Memory 模式是实验身份的一部分，只允许以下三个值：
 | 模式 | Memory selection | Experience | Snapshot 更新 |
 | --- | --- | --- | --- |
 | `off` | 禁止 | 禁止 | 禁止 |
-| `read_write` | 从 Batch 固定的 `M_n` 读取 | Case End 生成 | Batch End consolidation 后发布 `M_n+1` |
+| `read_write` | 从 Batch 固定的 `M_n` 读取 | Case End 生成并写入 Experience Pool | 禁止；由显式 `memory-build` 发布 |
 | `frozen` | 从显式指定的 snapshot 读取 | 可作为 Batch 内隔离证据生成 | 禁止 |
 
 正式 held-out evaluation 默认使用 `frozen`。`frozen` 中生成的 Experience 只能留在当前
-Batch evidence 下用于复盘，不能进入 Memory-build Experience Pool，也不能触发 consolidation。
+Batch evidence 下用于复盘，不能进入 Memory-build Experience Pool。`run` 和 `evaluate` 在
+任何模式下都不会触发 consolidation。
 
 运行身份至少记录：Memory mode、snapshot ID、snapshot SHA-256、Selector/Experience/
 Consolidator prompt digest、Pi provider/model/capability identity、最大选择数以及允许产生
@@ -86,6 +88,10 @@ verification:
 `dataset`、`split` 和 `case_id` 只表示 provenance，不构成 Memory scope。通用过滤字段使用
 `stage`、`circuit_type`、`failure_type`、`language` 和 `tool`；Provider 无法可靠提供的字段
 保持为空或 `unknown`。
+
+`circuit_type`、`failure_type`、`language` 和 `tool` 属于用于筛选的描述型 metadata，单项
+上限为 1024 个字符。该上限只用于阻止明显失控的模型输出和无界 catalog 膨胀，不用于迫使
+正常的一两句技术描述缩写；更长的诊断、修复和适用性说明必须放在六段 Memory 正文中。
 
 First-try functional pass 可以生成普通 Experience，用于后续发现 `design_rule`、
 `coding_idiom` 等共性，但不能生成 `simulation_debug` Experience。
@@ -204,6 +210,11 @@ Memory 使用现有忽略目录 `.rtl-agent/`，不引入数据库。V1 固定�
 ├─ experiences/
 │  └─ <batch-id>/
 │     └─ <case-number>.json
+├─ builds/
+│  └─ <build-id>/
+│     ├─ experience-pool-manifest.json
+│     └─ consolidation/
+│        └─ result.json
 └─ consolidations/
    └─ <batch-id>/
       └─ result.json
@@ -278,13 +289,26 @@ case、snapshot、Pi capability、prompt digest 和 repair budget。
 --memory-build-splits <dataset:split,...>
 ```
 
+已经落盘的 Experience 也可以脱离评测 Batch 状态显式构建 Memory：
+
+```text
+memory-build --experience-batches b-20260812-001
+memory-build --experience-batches b-20260811-004,b-20260812-001
+```
+
+该命令不续跑、不修改原评测 Batch，也不检查原 Batch 是 `COMPLETED` 还是 `INVALID`。它只
+读取指定的 `.rtl-agent/memory/experiences/<batch-id>` 目录；输入必须全部是六位 Case 编号的
+JSON Experience。Batch 和文件顺序被规范化，内容完全相同的 Experience 只提交一次，同时
+`experience-pool-manifest.json` 保留所有来源文件。Consolidator 基于当前最新 snapshot 生成
+下一版；任何输入校验、Consolidator 或 publication 失败都不会发布新 snapshot。
+
 通用 CLI 为保持现有实验兼容性默认 `off`，不会根据 dataset 或 split 名称猜测 held-out
 身份。正式 held-out 调用方必须显式传 `frozen` 和 snapshot；`read_write` 必须显式列出当前
 build split。Memory V1 active mode 只接受 Pi profile。
 
-实现层已包含 audited Experience/Selector/Consolidator read、Case End publication、filesystem
-Store、确定性过滤、Pi Selector、单次 `before_agent_start` 注入、Batch Consolidator 和原子
-snapshot publication。
+实现层已包含 audited Experience/Selector/Consolidator read、Case End Experience publication、
+filesystem Store、确定性过滤、Pi Selector、单次 `before_agent_start` 注入、显式 Memory Build
+Consolidator 和原子 snapshot publication。
 单元/集成测试覆盖成功与失败边界。真实 `read_write` Batch `b-20260810-009` 从空的
 `mem-v0001` 成功发布 `mem-v0002`；后续读取回放发现其模型生成的自由 stage `design` 与
 查询 stage 不一致。收紧 stage 协议后，`b-20260810-011` 作为一次实验迁移通过 MERGE 发布

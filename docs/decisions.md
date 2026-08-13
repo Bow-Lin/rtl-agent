@@ -26,6 +26,113 @@ What tradeoffs or future implications does this create?
 
 ## Decisions
 
+## 2026-08-13 - Bound Descriptive Memory Metadata at 1024 Characters
+
+### Context
+
+Offline Memory Build `b-20260813-001` processed 130 valid Experiences and produced a complete,
+exactly-accounted Consolidator result, but publication failed because one useful `circuit_type`
+description was 135 characters against the original 128-character limit. That limit was inherited
+from short identifier fields and was too small for descriptive classification metadata.
+
+### Decision
+
+Use one shared 1024-character maximum for non-null Memory and Experience `circuit_type`,
+`failure_type`, `language`, and `tool` values. Snapshot catalogs, Experience records, and
+Consolidator ADD/MERGE drafts use the same schema. State the exact bound in the Consolidator system
+prompt and generated `output-schema.json`; explanatory material beyond metadata belongs in the
+bounded six-section Memory content.
+
+### Alternatives Considered
+
+Removing all limits was rejected because model-produced metadata is persisted, copied into Selector
+inputs, hashed into snapshots, and may be repeated across many items. A very high finite bound keeps
+resource use and malformed-output behavior deterministic. Keeping 128 or silently truncating values
+was rejected because both can discard meaning; truncation would also publish content the model did
+not actually return.
+
+### Consequences
+
+Normal sentence-length classifications, including the observed 135-character value, validate
+without weakening snapshot integrity. Outputs above 1024 characters still fail closed, signaling
+that detailed prose was placed in metadata instead of content. Historical snapshots remain valid.
+
+## 2026-08-12 - Evaluation Never Publishes Memory Automatically
+
+### Context
+
+After adding explicit multi-Batch Memory construction, leaving the older `read_write` Batch-End
+consolidation enabled would learn a completed Batch once automatically and again when the operator
+combined it with retained Experience from another Batch. That makes the intended training pool
+ambiguous and can double-count an Experience Batch.
+
+### Decision
+
+`run` and `evaluate` never invoke the Memory Consolidator or publish a new snapshot. `read_write`
+continues to fix and read the latest snapshot, generate eligible Case-End Experience, and persist it
+under `.rtl-agent/memory/experiences/<batch-id>`. Its output reports
+`publication: DEFERRED_TO_MEMORY_BUILD`. Only
+`memory-build --experience-batches <batch-id,...>` may consolidate the explicitly selected pool and
+atomically publish the next snapshot.
+
+### Alternatives Considered
+
+An additional `--no-auto-consolidate` flag was considered, but retaining two publication paths
+would make the safe workflow optional and preserve the double-learning hazard. Automatically
+detecting whether a Batch might be selected later cannot be made reliable.
+
+### Consequences
+
+Completing an evaluation no longer advances Memory implicitly. Operators must run one explicit
+Memory Build after deciding the exact Experience Batch set. Existing snapshots and historical
+consolidation evidence remain readable, but the normal evaluation command creates no new
+`.rtl-agent/memory/consolidations/<batch-id>` result.
+
+## 2026-08-12 - Decouple Memory Construction from Evaluation Batch Completion
+
+### Context
+
+Long model-backed evaluations can retain many valid per-Case Experience records before a transient
+infrastructure failure makes the overall Batch `INVALID`. Requiring that same Batch to be complete
+before consolidation discards useful, already sealed Experience and encourages an expensive rerun.
+Batch `b-20260812-001`, for example, retained Experience before one Pi infrastructure failure stopped
+the old evaluator.
+
+### Decision
+
+Continue executing later valid Cases after one Case becomes infrastructure-incomplete or
+infrastructure-invalid. The failed Case remains invalid evidence and keeps the evaluation Batch
+`INVALID`, but it does not prevent independent later Cases from running.
+
+Add an explicit offline `memory-build --experience-batches <batch-id,...>` boundary. It reads only
+schema-valid regular JSON files from the named `.rtl-agent/memory/experiences/<batch-id>`
+directories, sorts Batch IDs and files deterministically, de-duplicates byte-independent identical
+Experience records by canonical content digest, and records every contributing source file in a
+Memory Build manifest. The bytes parsed as each Experience must still match the digest captured by
+the filesystem scan, so a concurrently changed source cannot be bound to stale provenance. The
+build invokes the Pi Memory Consolidator against the latest validated
+snapshot and publishes a new snapshot only after the existing exact-accounting and atomic-publication
+checks pass. Evaluation Batch status is deliberately not an input to this command.
+
+Cache a successful Pi capability probe for the lifetime of one adapter. Per-turn configuration,
+project capability, policy, and guidance drift checks remain in place, while repeated external
+`pi --version` and `pi --help` calls are removed from the Case loop.
+
+### Alternatives Considered
+
+Resuming an unsealed evaluation Batch was considered, but it couples Run recovery, functional
+post-processing, Experience identity, and immutable evidence into one larger protocol. Automatically
+consolidating every partial Batch was also rejected because the operator must explicitly choose the
+Memory training inputs.
+
+### Consequences
+
+Operators can construct Memory from one or several deliberately selected Experience Batches,
+including an `INVALID` evaluation Batch, without rerunning RTL generation. The evaluation claim
+remains conservative and separate from the Memory Build result. An interrupted Memory Build is a
+new build attempt with its own evidence directory; snapshots and original Experience files remain
+immutable.
+
 ## 2026-08-10 - Run Functional Simulation Before Advancing to the Next Case
 
 ### Context

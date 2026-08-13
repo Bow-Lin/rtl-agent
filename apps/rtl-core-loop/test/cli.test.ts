@@ -16,6 +16,7 @@ import {
   testEvaluationProfile,
 } from "../../../packages/core-loop/test/evaluation-test-fixtures.js";
 import {
+  AgentTurnResultSchema,
   BatchEvaluationResultSchema,
   BatchInputManifestSchema,
   CHIPBENCH_DATASET_LOCK,
@@ -26,18 +27,80 @@ import {
   FixtureCaseRefSchema,
   FixtureMaterializationSchema,
   MismatchAnalysisSchema,
+  PiCapabilitySchema,
+  FilesystemMemoryStore,
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFunctionalResultSchema,
   sha256Bytes,
   sha256Jcs,
 } from "../../../packages/core-loop/src/index.js";
 import type {
+  AgentAttemptInput,
+  AgentTurnResult,
+  CoreLoopRun,
   DatasetSelection,
   FixtureCaseRef,
   FixtureMaterialization,
   FixtureProvider,
   HostDirectory,
+  PiCapability,
+  RtlAgentAdapter,
 } from "../../../packages/core-loop/src/index.js";
+
+const PI_TEST_CAPABILITY: PiCapability = PiCapabilitySchema.parse({
+  schemaVersion: 1,
+  piVersion: "0.81.1",
+  provider: "kimi-coding",
+  model: "k3",
+  sessionMode: "EPHEMERAL",
+  agentName: "rtl-core-loop",
+  requiredFlags: ["--provider", "--model"],
+  enabledTools: ["read", "write", "edit"],
+  resolvedConfigDigest: sha256Bytes(Buffer.from("pi-config")),
+  isolationConfigDigest: sha256Bytes(Buffer.from("pi-isolation")),
+  toolPolicyDigest: sha256Bytes(Buffer.from("pi-policy")),
+  extensionFileDigest: sha256Bytes(Buffer.from("pi-extension")),
+  guidanceFileDigest: sha256Bytes(Buffer.from("pi-guidance")),
+  experimentConfigDigest: sha256Bytes(Buffer.from("pi-experiment")),
+});
+
+class NoChangePiAgentAdapter implements RtlAgentAdapter {
+  public async probe(): Promise<PiCapability> {
+    return PI_TEST_CAPABILITY;
+  }
+
+  public async runTurn(rawInput: unknown, run: CoreLoopRun): Promise<AgentTurnResult> {
+    const input = rawInput as AgentAttemptInput;
+    return AgentTurnResultSchema.parse({
+      schemaVersion: 1,
+      runId: run.runId,
+      attempt: input.attempt,
+      outcome: "NO_RTL_CHANGE",
+      workspaceUsableForCompile: false,
+      rtlChanged: false,
+      beforeManifestDigest: sha256Bytes(Buffer.from("before")),
+      afterManifestDigest: sha256Bytes(Buffer.from("after")),
+      exitCode: 0,
+      timedOut: false,
+      durationMs: 1,
+      piVersion: PI_TEST_CAPABILITY.piVersion,
+      provider: PI_TEST_CAPABILITY.provider,
+      model: PI_TEST_CAPABILITY.model,
+      sessionMode: PI_TEST_CAPABILITY.sessionMode,
+      enabledTools: PI_TEST_CAPABILITY.enabledTools,
+      resolvedConfigDigest: PI_TEST_CAPABILITY.resolvedConfigDigest,
+      isolationConfigDigest: PI_TEST_CAPABILITY.isolationConfigDigest,
+      toolPolicyDigest: PI_TEST_CAPABILITY.toolPolicyDigest,
+      extensionFileDigest: PI_TEST_CAPABILITY.extensionFileDigest,
+      guidanceFileDigest: PI_TEST_CAPABILITY.guidanceFileDigest,
+      experimentConfigDigest: PI_TEST_CAPABILITY.experimentConfigDigest,
+      violations: [],
+      eventStream: { originalByteLength: 0, truncated: false, events: [] },
+      stderr: { preview: "", truncated: false, originalByteLength: 0 },
+      evidencePath: `evidence/attempts/${String(input.attempt)}/agent-turn-result.json`,
+    });
+  }
+}
 
 class ChipBenchCliTestProvider implements FixtureProvider {
   private readonly caseId = "Prob000_mux";
@@ -154,6 +217,71 @@ describe("rtl-core-loop CLI boundary", () => {
         error: {
           code: "EVALUATION_PROFILE_INVALID",
           message: "Memory V1 requires the Pi Agent backend",
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("defers read-write Memory publication to the explicit memory-build command", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-core-loop-cli-memory-deferred-"));
+    try {
+      const provider = new EvaluationTestProvider();
+      const baseProfile = await testEvaluationProfile(provider);
+      const profile = EvaluationProfileSchema.parse({
+        ...baseProfile,
+        agentCapability: PI_TEST_CAPABILITY,
+      });
+      const memoryRoot = path.join(root, "memory");
+      const store = new FilesystemMemoryStore(memoryRoot);
+      const consolidate = vi.fn(async () => {
+        throw new Error("evaluation must not invoke Memory consolidation");
+      });
+      const output: string[] = [];
+      const errors: string[] = [];
+      const exitCode = await runRtlCoreLoopCli(
+        [
+          "evaluate",
+          "--profile",
+          profile.evaluationProfileId,
+          "--memory-mode",
+          "read_write",
+          "--memory-build-splits",
+          `${profile.dataset.datasetId}:${profile.selection.split}`,
+        ],
+        provider,
+        (line) => output.push(line),
+        (line) => errors.push(line),
+        {},
+        process.cwd(),
+        {
+          profiles: [profile],
+          providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+          agentAdapter: new NoChangePiAgentAdapter(),
+          compilerAdapter: new ScriptedCompilerAdapter(["COMPILE_ERROR"]),
+          batchesRoot: path.join(root, "batches"),
+          memoryStore: store,
+          memorySelector: { select: async () => [] },
+          experienceSummarizer: {
+            summarize: async () => {
+              throw new Error("synthetic Provider has no functional Experience boundary");
+            },
+          },
+          memoryConsolidator: { consolidate },
+        },
+      );
+
+      expect(exitCode, errors.join("\n")).toBe(0);
+      expect(consolidate).not.toHaveBeenCalled();
+      expect((await store.listSnapshotIds()) as string[]).toEqual(["mem-v0001"]);
+      expect(JSON.parse(output[0]!) as unknown).toMatchObject({
+        result: {
+          memory: {
+            mode: "read_write",
+            snapshot_id: "mem-v0001",
+            publication: "DEFERRED_TO_MEMORY_BUILD",
+          },
         },
       });
     } finally {

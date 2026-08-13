@@ -8,6 +8,7 @@ import {
   type MemoryConsolidatorOutput,
 } from "./memory-consolidator.js";
 import { MEMORY_CONSOLIDATOR_PROMPT_DIGEST, MEMORY_CONSOLIDATOR_SYSTEM_PROMPT } from "./memory.js";
+import { MEMORY_METADATA_CHARACTER_LIMIT } from "./memory.js";
 import { CoreLoopException } from "./errors.js";
 import { writeJsonEvidenceExclusive } from "./evidence.js";
 import { sha256Bytes, sha256Jcs } from "./filesystem.js";
@@ -159,10 +160,10 @@ export class PiMemoryConsolidator implements MemoryConsolidator {
                 operation: "ADD",
                 memory: {
                   stage: "initial_generation | functional_simulation | unknown | null",
-                  circuit_type: "string | null",
-                  failure_type: "string | null",
-                  language: "string | null",
-                  tool: "string | null",
+                  circuit_type: `string (1-${String(MEMORY_METADATA_CHARACTER_LIMIT)} characters) | null`,
+                  failure_type: `string (1-${String(MEMORY_METADATA_CHARACTER_LIMIT)} characters) | null`,
+                  language: `string (1-${String(MEMORY_METADATA_CHARACTER_LIMIT)} characters) | null`,
+                  tool: `string (1-${String(MEMORY_METADATA_CHARACTER_LIMIT)} characters) | null`,
                   content:
                     "Markdown with the six required ordered ## headings named in the system prompt",
                 },

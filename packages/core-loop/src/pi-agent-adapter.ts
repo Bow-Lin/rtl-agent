@@ -387,6 +387,7 @@ export async function cleanupProviderCaptureDirectory(
 export class PiRtlAgentAdapter implements RtlAgentAdapter {
   private readonly config: PiExperimentConfig;
   private runtimeConfigDigest: ReturnType<typeof sha256Jcs> | undefined;
+  private cachedCapability: PiCapability | undefined;
 
   public constructor(config: PiExperimentConfig) {
     validateConfig(config);
@@ -484,7 +485,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       loadRtlAgentGuidance(this.config.repositoryRoot, this.config.guidanceProfile),
       loadPiProjectCapability(this.config.capabilityFile),
     ]);
-    return PiCapabilitySchema.parse({
+    const capability = PiCapabilitySchema.parse({
       schemaVersion: 1,
       piVersion: ToolVersionSchema.parse(version),
       provider: this.config.provider,
@@ -500,6 +501,8 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
       guidanceFileDigest: guidance.digest,
       experimentConfigDigest: experimentConfigDigest(this.config, projectCapability),
     });
+    this.cachedCapability = capability;
+    return capability;
   }
 
   public async runTurn(rawInput: unknown, run: CoreLoopRun): Promise<AgentTurnResult> {
@@ -518,7 +521,7 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
         "Agent turn evidence already exists for this attempt",
       );
     }
-    const capability = await this.probe();
+    const capability = this.cachedCapability ?? (await this.probe());
     if ((await this.lockSharedConfig()) !== capability.resolvedConfigDigest) {
       throw new CoreLoopException(
         "PI_AGENT_CAPABILITY_MISMATCH",

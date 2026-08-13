@@ -24,7 +24,6 @@ import {
   PiMemorySelector,
   PiRtlAgentAdapter,
   prepareMemoryExperiment,
-  consolidateMemoryBatchBestEffort,
   renderRelevantRtlMemory,
   VERILOG_EVAL_DATASET_LOCK,
   VerilogEvalFixtureProvider,
@@ -76,6 +75,7 @@ import {
   type RtlCoreLoopI2cCoverageDependencies,
 } from "./i2c-coverage-command.js";
 import { loadRepositoryEnvironment } from "./environment.js";
+import { runMemoryBuildCommand } from "./memory-build-command.js";
 import {
   createMismatchAnalyzer,
   parseMismatchAnalyzerBackend,
@@ -618,6 +618,32 @@ export async function runRtlCoreLoopCli(
   }
 
   const command = arguments_[0];
+  if (command === "memory-build") {
+    return executeCliCommand(() => {
+      const memoryRoot = path.join(
+        path.dirname(
+          evaluationDependencies?.batchesRoot ?? path.join(repositoryRoot, ".rtl-agent", "batches"),
+        ),
+        "memory",
+      );
+      return runMemoryBuildCommand({
+        arguments_,
+        repositoryRoot,
+        writeOutput,
+        dependencies: {
+          memoryRoot,
+          ...(evaluationDependencies?.memoryStore === undefined
+            ? {}
+            : { store: evaluationDependencies.memoryStore }),
+          consolidator:
+            evaluationDependencies?.memoryConsolidator ??
+            new PiMemoryConsolidator(
+              piExperimentConfigFromEnvironment(environment, repositoryRoot),
+            ),
+        },
+      });
+    }, writeError);
+  }
   if (command === "i2c-coverage") {
     return executeCliCommand(
       () =>
@@ -853,13 +879,6 @@ export async function runRtlCoreLoopCli(
           ? undefined
           : (evaluationDependencies?.memorySelector ??
             new PiMemorySelector(piExperimentConfigFromEnvironment(environment, repositoryRoot)));
-      const memoryConsolidator =
-        preparedMemory.identity.mode !== "read_write"
-          ? undefined
-          : (evaluationDependencies?.memoryConsolidator ??
-            new PiMemoryConsolidator(
-              piExperimentConfigFromEnvironment(environment, repositoryRoot),
-            ));
       compilerAdapter ??= new IcarusCompileAdapter({
         executable: icarusExecutableFromEnvironment(environment),
         probeWorkingDirectory: repositoryRoot,
@@ -875,10 +894,9 @@ export async function runRtlCoreLoopCli(
       const latestFunctionalResultByRunId = new Map<string, FunctionalCaseResult>();
       const functionalResultsByRunId = new Map<string, FunctionalCaseResult[]>();
       const memoryWarnings: {
-        readonly code: "EXPERIENCE_SUMMARIZATION_FAILED" | "MEMORY_CONSOLIDATION_FAILED";
+        readonly code: "EXPERIENCE_SUMMARIZATION_FAILED";
         readonly message: string;
       }[] = [];
-      const memoryBuildExperiences: CoreLoop.ExperienceRecord[] = [];
       const appendFunctionalResult = (result: FunctionalCaseResult): void => {
         const existing = functionalResultsByRunId.get(result.runId) ?? [];
         existing.push(result);
@@ -1071,7 +1089,6 @@ export async function runRtlCoreLoopCli(
                         caseNumber: completion.caseNumber,
                         experience: experienceResult.experience,
                       });
-                      memoryBuildExperiences.push(experienceResult.experience);
                     }
                   } catch {
                     memoryWarnings.push({
@@ -1083,26 +1100,6 @@ export async function runRtlCoreLoopCli(
               },
             }),
       });
-      const memoryConsolidation =
-        preparedMemory.identity.mode !== "read_write" ||
-        preparedMemory.snapshot === null ||
-        memoryConsolidator === undefined
-          ? undefined
-          : await consolidateMemoryBatchBestEffort({
-              store: memoryStore,
-              parentSnapshot: preparedMemory.snapshot,
-              batchId: execution.result.batchId,
-              experiences: memoryBuildExperiences,
-              consolidator: memoryConsolidator,
-              batchComplete: execution.result.status === "COMPLETED",
-              evidenceDirectory: path.join(memoryRoot, "consolidations", execution.result.batchId),
-            });
-      if (memoryConsolidation?.status === "FAILED") {
-        memoryWarnings.push({
-          code: "MEMORY_CONSOLIDATION_FAILED",
-          message: "Memory Batch consolidation failed; no next snapshot was published",
-        });
-      }
       const functionalResult =
         functionalProvider === undefined
           ? undefined
@@ -1159,7 +1156,10 @@ export async function runRtlCoreLoopCli(
             memory: {
               ...preparedMemory.identity,
               experienceStatus: memoryWarnings.length === 0 ? "COMPLETED" : "WARNING",
-              ...(memoryConsolidation === undefined ? {} : { consolidation: memoryConsolidation }),
+              publication:
+                preparedMemory.identity.mode === "read_write"
+                  ? "DEFERRED_TO_MEMORY_BUILD"
+                  : "DISABLED",
             },
           },
           ...(postProcessingWarning === undefined && memoryWarnings.length === 0
@@ -1176,7 +1176,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

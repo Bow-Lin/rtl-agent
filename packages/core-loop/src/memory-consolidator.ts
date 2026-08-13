@@ -9,6 +9,7 @@ import type { ExperienceRecord } from "./experience.js";
 import {
   MemoryCatalogEntrySchema,
   MemoryItemIdSchema,
+  MemoryMetadataValueSchema,
   MemorySnapshotIdSchema,
   MemoryStageSchema,
   validateMemoryItemContent,
@@ -31,10 +32,10 @@ const ExperienceIndexesSchema = z
 
 const MemoryDraftSchema = z.strictObject({
   stage: MemoryStageSchema,
-  circuit_type: z.string().min(1).max(128).nullable(),
-  failure_type: z.string().min(1).max(128).nullable(),
-  language: z.string().min(1).max(128).nullable(),
-  tool: z.string().min(1).max(128).nullable(),
+  circuit_type: MemoryMetadataValueSchema.nullable(),
+  failure_type: MemoryMetadataValueSchema.nullable(),
+  language: MemoryMetadataValueSchema.nullable(),
+  tool: MemoryMetadataValueSchema.nullable(),
   content: z.string().min(120).max(32_768),
 });
 

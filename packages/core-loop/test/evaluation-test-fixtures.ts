@@ -264,6 +264,7 @@ export interface AgentAction {
   readonly outcome: AgentTurnOutcome;
   readonly source?: string | null;
   readonly driftCapability?: boolean;
+  readonly throwError?: boolean;
 }
 
 export class ScriptedAgentAdapter implements RtlAgentAdapter {
@@ -284,6 +285,7 @@ export class ScriptedAgentAdapter implements RtlAgentAdapter {
     this.inputs.push(input);
     const action = this.actions[this.inputs.length - 1];
     if (action === undefined) throw new Error("No scripted Agent action");
+    if (action.throwError === true) throw new Error("Synthetic Agent infrastructure failure");
     const sourcePath = path.join(run.workspaceDirectory, "rtl", "dut.sv");
     if (action.source === null) {
       await rm(sourcePath, { force: true });

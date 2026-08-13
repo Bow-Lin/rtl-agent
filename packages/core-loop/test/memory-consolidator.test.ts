@@ -8,6 +8,7 @@ import { ExperienceRecordSchema } from "../src/experience.js";
 import {
   applyMemoryConsolidation,
   consolidateMemoryBatchBestEffort,
+  MemoryConsolidatorOutputSchema,
 } from "../src/memory-consolidator.js";
 import { FilesystemMemoryStore } from "../src/memory.js";
 
@@ -42,6 +43,56 @@ const EXPERIENCE = ExperienceRecordSchema.parse({
 });
 
 describe("Memory consolidation", () => {
+  it("accepts descriptive metadata beyond the former 128-character limit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-memory-consolidation-"));
+    const snapshot = await new FilesystemMemoryStore(root).ensureInitialSnapshot();
+    const observedCircuitType =
+      "combinational logic mapping named specification inputs into packed vectors, label-derived bit indices, or non-binary-ordered table axes";
+
+    expect(observedCircuitType).toHaveLength(135);
+    const applied = applyMemoryConsolidation(snapshot, [EXPERIENCE], {
+      schema_version: 1,
+      operations: [
+        {
+          operation: "ADD",
+          memory: {
+            stage: "functional_simulation",
+            circuit_type: observedCircuitType,
+            failure_type: "output_mismatch",
+            language: "SYSTEMVERILOG",
+            tool: "iverilog",
+            content: CONTENT,
+          },
+          experience_indexes: [0],
+        },
+      ],
+    });
+
+    expect(applied.items[0]?.metadata.circuit_type).toBe(observedCircuitType);
+  });
+
+  it("retains a high defensive bound for runaway metadata", () => {
+    expect(
+      MemoryConsolidatorOutputSchema.safeParse({
+        schema_version: 1,
+        operations: [
+          {
+            operation: "ADD",
+            memory: {
+              stage: "initial_generation",
+              circuit_type: "x".repeat(1_025),
+              failure_type: null,
+              language: "SYSTEMVERILOG",
+              tool: "iverilog",
+              content: CONTENT,
+            },
+            experience_indexes: [0],
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects noncanonical stages before snapshot publication", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "rtl-memory-consolidation-"));
     const snapshot = await new FilesystemMemoryStore(root).ensureInitialSnapshot();

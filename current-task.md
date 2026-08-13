@@ -2,12 +2,69 @@
 
 ## Goal
 
-Analyze the completed full VerilogEval Memory-build run `b-20260811-004` and publish a detailed,
-evidence-backed report of the Experience and Memory iteration from `mem-v0001` to `mem-v0002`.
+Make long evaluations resilient to one Case infrastructure failure and decouple Memory construction
+from evaluation Batch completion by allowing an operator to select one or more retained Experience
+Batches explicitly.
 
 ## Current Status
 
-The Memory V1 implementation path remains complete. The new full-run analysis is also complete:
+Implementation and deterministic validation are complete:
+
+- Published `exp_result/verilog-eval/08.12-k3-pi-memory-v1-001-156.md` from existing evidence for
+  `b-20260812-001` and `b-20260812-002`. The report derives one complete `Prob001`-`Prob156` view
+  from the first Batch's 91 complete Cases and the second Batch's 65 Cases, while preserving the
+  first Batch's native `INVALID` status and the local non-authoritative evidence boundary.
+- The Batch evaluator no longer stops after one valid Case returns infrastructure-incomplete or
+  infrastructure-invalid. It records that Case as invalid, continues later valid Cases, and keeps the
+  overall evaluation Batch `INVALID`.
+- A successful Pi capability probe is cached for one adapter lifecycle. Every turn still validates
+  configuration, project capability, policy, and guidance digests, but does not repeat external
+  `pi --version` and `pi --help` probes.
+- New CLI entry point:
+  `memory-build --experience-batches b-20260812-001` or a comma-separated list of Batch IDs.
+- `run` and `evaluate` no longer call the Memory Consolidator or publish a snapshot in any mode.
+  `read_write` now means fixed-snapshot read plus eligible Experience persistence; CLI output reports
+  `publication: DEFERRED_TO_MEMORY_BUILD`. Only the explicit `memory-build` command advances Memory.
+- The offline Memory Build validates regular-file and path safety, requires six-digit JSON filenames,
+  validates every `ExperienceRecord`, sorts Batch IDs/files deterministically, de-duplicates identical
+  canonical Experience content, verifies parsed bytes against the scan-time digest, and records all source files in
+  `.rtl-agent/memory/builds/<build-id>/experience-pool-manifest.json`.
+- It consolidates against the latest validated snapshot and uses existing exact Experience accounting
+  plus atomic snapshot publication. It does not inspect or modify the selected evaluation Batches and
+  therefore accepts retained Experience from either `COMPLETED` or `INVALID` Batches.
+- A read-only load of real `b-20260812-001` succeeded: 76 source files, 76 unique schema-valid
+  Experiences. No Consolidator model call or snapshot publication was performed.
+- Resume was deliberately not implemented.
+- Memory/Experience descriptive metadata (`circuit_type`, `failure_type`, `language`, and `tool`)
+  now shares a 1024-character defensive limit. The former 128-character limit rejected the valid
+  135-character `circuit_type` produced by Memory Build `b-20260813-001`; prompts and generated
+  output contracts now disclose the exact limit.
+
+The originating diagnosis remains:
+
+- Cases 1 through 91 completed and passed functional simulation.
+- Case 92, `Prob092_gatesv100`, entered `AGENT_RUNNING` but ended 32.356 seconds later as
+  infrastructure-level `INCOMPLETE` at `AGENT_ATTEMPT`. It has no `context/agent-input.json`, Agent
+  result, provider transcript, RTL, compile result, or functional run.
+- The Pi adapter performs its bounded `--version` and `--help` capability probes before writing
+  `context/agent-input.json`; each probe is capped at 30 seconds. The timing and evidence boundary
+  therefore identify a transient capability-probe failure or timeout before any model request.
+  Existing evidence does not distinguish which of the two probes failed because the orchestrator
+  intentionally collapses unexpected exceptions into a stable generic incomplete-run message.
+- The Batch evaluator stops after an incomplete/infrastructure-invalid Run, so Cases 93 through 156
+  were not executed. The one failed Case plus 64 skipped Cases explains `functionalNotRun: 65`.
+- Memory consolidation requires `execution.result.status === "COMPLETED"`. Because the Batch was
+  `INVALID`, it skipped the Consolidator turn and wrote the fail-closed generic
+  `CONSOLIDATION_FAILED` result. The missing `pi/` consolidation workspace confirms no Consolidator
+  model call occurred and no next snapshot was published.
+- A read-only current probe succeeded: Pi `--version` returned `0.81.1` in 3.741 seconds and `--help`
+  returned successfully in 4.151 seconds. The configured Pi files and locked guidance/policy digests
+  are unchanged, so the failure appears transient rather than a persistent configuration defect.
+
+No model call, dataset rerun, compile, simulation, Experience generation, consolidation, snapshot
+publication, or Batch evidence rewrite was performed while implementing or validating this change.
+
+The previous Memory V1 implementation and full-run analysis remain complete:
 
 - Published `exp_result/verilog-eval/08.11-k3-pi-memory-v1-full-build.md` from existing runtime
   evidence without starting a model call or rerunning generation, compilation, simulation, or
@@ -43,10 +100,10 @@ The implementation guarantees remain:
 - Case End generates best-effort Experience from the sealed Run and complete attempt-scoped functional
   history. `frozen` keeps it under Batch evidence; `read_write` publishes only CREATED records to the
   Batch Experience Pool after Case sealing.
-- A `read_write` Batch consolidates only after complete Batch execution. ADD/MERGE/REINFORCE/REJECT/
-  CONFLICT output is schema-checked, every eligible Experience is handled exactly once, ADD is capped
-  at five, required consolidation input reads are audited, and only a fully validated result can
-  publish `M_n+1`. Partial Batch or consolidation failure leaves `M_n` unchanged and records failure.
+- An explicit `memory-build` consolidates only the selected Experience Batch set. ADD/MERGE/
+  REINFORCE/REJECT/CONFLICT output is schema-checked, every eligible Experience is handled exactly
+  once, ADD is capped at five, required consolidation input reads are audited, and only a fully
+  validated result can publish `M_n+1`. Input or consolidation failure leaves `M_n` unchanged.
 
 ## Real Regression Evidence
 
@@ -81,6 +138,19 @@ until its Provider, profile, and functional-simulation adapter exist.
 
 ## Validation
 
+- Report-specific assertions passed: 156 unique consecutive Cases, repair histogram
+  `138/13/3/2`, 181 Agent turns, 25 repair turns, 24 Memory-injected repair turns, 130 CREATED
+  Experiences (`114 design_observation` plus `16 simulation_debug`), and exact coverage of all 130
+  offline-build Experience indexes. The observed failed-build `circuit_type` length is 135.
+- The observed 135-character Memory `circuit_type` passes the shared schema; a 1025-character value
+  remains rejected.
+- Current full validation passed: 45 test files passed and 1 skipped; 353 tests passed and 2 skipped.
+- Current lint, typecheck, build, format, peer dependency, `git diff --check`, and Harness checks
+  passed.
+- Commit-main review found no P1. One P2 was fixed before landing by binding each parsed Experience
+  to the scan-time source digest; focused regression passed 76 tests, and the post-fix full suite
+  passed 353 tests with 2 skipped.
+
 - `corepack pnpm@11.13.0 install --frozen-lockfile` passed with the workspace already up to date.
 - `corepack pnpm@11.13.0 lint` passed.
 - `corepack pnpm@11.13.0 typecheck` passed.
@@ -98,4 +168,4 @@ until its Provider, profile, and functional-simulation adapter exist.
 
 ## Last Updated
 
-2026-08-12T10:05:55+08:00
+2026-08-13T21:20:00+08:00

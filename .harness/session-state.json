@@ -1,17 +1,19 @@
 {
-  "task_id": "analyze-memory-v1-full-eval",
+  "task_id": "offline-memory-build-from-experience-batches",
   "status": "complete",
-  "current_phase": "memory_v1_guarded_landing_validated",
-  "last_updated": "2026-08-12T10:05:55+08:00",
+  "current_phase": "implemented_and_validated",
+  "last_updated": "2026-08-13T09:02:00+08:00",
   "active_plan": [
-    "Keep the completed Memory V1 implementation and deterministic validation green",
-    "Preserve the evidence-backed b-20260811-004 analysis and mem-v0001 to mem-v0002 lineage",
-    "Do not claim Memory efficacy until a paired held-out frozen evaluation exists"
+    "Continue later Cases after an individual infrastructure-invalid result",
+    "Build Memory offline from explicitly selected retained Experience Batches",
+    "Keep evaluation claims separate from Memory Build publication",
+    "Never publish Memory automatically at evaluation Batch End",
+    "Allow sentence-length descriptive Memory metadata while retaining a high defensive bound"
   ],
   "next_3_steps": [
-    "Keep the canonical Memory stage schema and distinct consolidation warning code covered by regression tests",
-    "Run a non-overlapping frozen mem-v0002 held-out evaluation with an off control when explicitly requested",
-    "Do not claim CVDP support until repository-side CVDP evaluation components are implemented"
+    "Retry explicit memory-build for b-20260812-001,b-20260812-002 after the 1024-character metadata fix",
+    "Use a comma-separated Batch list when multiple retained Experience pools should be combined",
+    "Do not claim Memory efficacy until a paired held-out frozen evaluation exists"
   ],
   "changed_files": [
     ".pi/extensions/rtl-core-loop-policy.mjs",
@@ -19,8 +21,11 @@
     ".pi/extensions/rtl-memory-selector-policy.mjs",
     ".pi/extensions/rtl-memory-consolidator-policy.mjs",
     "apps/rtl-core-loop/src/index.ts",
+    "apps/rtl-core-loop/src/memory-build-command.ts",
+    "apps/rtl-core-loop/test/memory-build-command.test.ts",
     "apps/rtl-core-loop/test/cli.test.ts",
     "packages/core-loop/src/experience.ts",
+    "packages/core-loop/src/experience-batch-loader.ts",
     "packages/core-loop/src/memory.ts",
     "packages/core-loop/src/memory-selector.ts",
     "packages/core-loop/src/memory-consolidator.ts",
@@ -34,10 +39,12 @@
     "packages/core-loop/src/errors.ts",
     "packages/core-loop/src/index.ts",
     "packages/core-loop/test/experience.test.ts",
+    "packages/core-loop/test/experience-batch-loader.test.ts",
     "packages/core-loop/test/memory.test.ts",
     "packages/core-loop/test/memory-consolidator.test.ts",
     "packages/core-loop/test/pi-agent-adapter.test.ts",
     "packages/core-loop/test/memory-pi-policy.test.ts",
+    "exp_result/verilog-eval/08.12-k3-pi-memory-v1-001-156.md",
     "docs/decisions.md",
     "docs/error-journal.md",
     "current-task.md",
@@ -50,23 +57,25 @@
       "corepack pnpm@11.13.0 typecheck",
       "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/agent-adapter.test.ts --maxWorkers=1",
       "corepack pnpm@11.13.0 test",
+      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/batch-evaluator.test.ts packages/core-loop/test/pi-agent-adapter.test.ts packages/core-loop/test/experience-batch-loader.test.ts apps/rtl-core-loop/test/memory-build-command.test.ts apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts",
       "corepack pnpm@11.13.0 build",
       "corepack pnpm@11.13.0 format:check",
       "corepack pnpm@11.13.0 peers check",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "The canonical stage-schema and warning-code fixes passed focused validation. After the documented Windows process-tree probe race passed in a serialized rerun, the clean aggregate run passed 43 files with 1 skipped and 345 tests with 2 skipped; install, lint, typecheck, build, format, peer, diff, and Harness checks passed.",
+    "last_result": "Commit-main review found no P1 and fixed one P2 by verifying parsed Experience bytes against the scan-time manifest digest. Focused tests passed 76/76; full validation passed 353 tests with 2 skipped, plus install, lint, typecheck, build, format, peers, diff, and Harness checks.",
     "known_failures": [
       "The historical b-20260810-007 trial exceeded the desktop outer timeout; later owned-budget replays completed successfully.",
+      "b-20260812-001 stopped at Prob092 after a transient pre-model Pi capability probe failure; its consolidation warning is downstream of the incomplete Batch.",
       "CVDP still has no repository Provider, profile, or functional-simulation adapter.",
       "b-20260811-004 used an empty source snapshot, so it cannot establish Memory capability uplift.",
       "The Windows process-tree capability probe can race under aggregate Vitest concurrency; the documented serialized rerun and subsequent clean aggregate rerun passed."
     ]
   },
   "cognitive_state": {
-    "failure_count": 3,
-    "current_mode": "guarded_landing_validated",
+    "failure_count": 4,
+    "current_mode": "offline_memory_build_validated",
     "tried_approaches": [
       "Enforced execution-audited required reads before accepting Experience output",
       "Bound Memory mode and snapshot identity into the evaluation profile",
@@ -79,13 +88,21 @@
       "Published a detailed report distinguishing Memory-build success from efficacy evidence",
       "Reconstructed first-success repair depth and terminal evidence for all 156 Cases",
       "Restricted snapshot and Consolidator stages to the four canonical V1 values",
-      "Separated consolidation warnings from Experience summarization warnings"
+      "Separated consolidation warnings from Experience summarization warnings",
+      "Traced b-20260812-001 from its generic consolidation warning to the Prob092 pre-model Pi capability probe failure",
+      "Re-ran only the read-only Pi version/help probes and confirmed the current environment recovered",
+      "Made Case infrastructure failures non-blocking for later valid Cases",
+      "Cached a successful Pi capability probe within the adapter lifecycle",
+      "Added deterministic multi-Batch Experience loading and explicit offline Memory Build publication"
+      ,"Removed automatic run/evaluate consolidation so only explicit memory-build can publish",
+      "Diagnosed b-20260813-001 as one 135-character circuit_type exceeding 128 and raised the shared descriptive metadata bound to 1024",
+      "Published a two-Batch full-set report with native-versus-derived result boundaries, repair trajectories, Memory overlap analysis, Experience funnel, and offline-build diagnosis"
     ],
-    "blocked_on": "No report blocker; a paired held-out efficacy run is a separate operator-requested experiment."
+    "blocked_on": "No implementation blocker. Retrying memory-build invokes Pi and may advance mem-v0002 to the next snapshot."
   },
   "handoff": {
-    "last_summary": "Guarded review found no remaining P1/P2 after explicitly rejecting legacy stage labels, assigning consolidation its own warning code, and excluding the operator-approved ignored report from the commit scope.",
-    "resume_from": "If efficacy measurement is requested, design a non-overlapping paired frozen mem-v0002 versus off experiment."
+    "last_summary": "The offline Memory Build and resilient evaluation changes passed guarded landing review. No P1 remains; the source-provenance P2 was fixed and full post-fix validation passed.",
+    "resume_from": "Retry memory-build with b-20260812-001,b-20260812-002; it will allocate a new build ID, invoke Pi, and may atomically publish the snapshot after validation."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

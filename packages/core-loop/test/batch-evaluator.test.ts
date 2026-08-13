@@ -384,7 +384,7 @@ describe("Core Loop batch preflight and evaluation", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("does not start Agent evaluation after baseline infrastructure failure", async () => {
+  it("continues validating later Cases after a baseline infrastructure failure", async () => {
     const root = await temporaryRoot();
     const provider = new EvaluationTestProvider([
       {
@@ -400,7 +400,7 @@ describe("Core Loop batch preflight and evaluation", () => {
     ]);
     const profile = await testEvaluationProfile(provider);
     const compiler = new ScriptedCompilerAdapter(["TIMEOUT", "COMPILE_ERROR"]);
-    const agent = new ScriptedAgentAdapter([]);
+    const agent = new ScriptedAgentAdapter([{ outcome: "NO_RTL_CHANGE" }]);
 
     const execution = await evaluateCoreLoopBatch({
       provider,
@@ -415,14 +415,57 @@ describe("Core Loop batch preflight and evaluation", () => {
       status: "INVALID",
       metrics: {
         overall: {
-          evaluationDenominator: 0,
+          evaluationDenominator: 1,
           infrastructureInvalidCount: 1,
-          notExecutedCount: 1,
+          notExecutedCount: 0,
         },
       },
       checkpoint: { status: "INCONCLUSIVE" },
     });
-    expect(agent.inputs).toHaveLength(0);
+    expect(agent.inputs).toHaveLength(1);
+  });
+
+  it("marks one Agent infrastructure failure and continues with the next Case", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      { caseId: "case/001", fixtureId: "case-001", category: "BLANK_GENERATION" },
+      { caseId: "case/002", fixtureId: "case-002", category: "BLANK_GENERATION" },
+    ]);
+    const profile = await testEvaluationProfile(provider);
+    const agent = new ScriptedAgentAdapter([
+      { outcome: "RTL_CHANGED", throwError: true },
+      {
+        outcome: "RTL_CHANGED",
+        source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+      },
+    ]);
+    const completedCases: number[] = [];
+
+    const execution = await evaluateCoreLoopBatch({
+      provider,
+      providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      profile,
+      agentAdapter: agent,
+      compilerAdapter: new ScriptedCompilerAdapter(["COMPILE_PASSED", "COMPILE_PASSED"]),
+      batchesRoot: path.join(root, "batches"),
+      onCaseComplete: async ({ caseNumber }) => {
+        completedCases.push(caseNumber);
+      },
+    });
+
+    expect(agent.inputs).toHaveLength(2);
+    expect(completedCases).toEqual([1, 2]);
+    expect(execution.result).toMatchObject({
+      status: "INVALID",
+      metrics: {
+        overall: {
+          evaluationDenominator: 1,
+          infrastructureInvalidCount: 1,
+          notExecutedCount: 0,
+        },
+      },
+    });
+    expect(execution.result.runs.map((run) => run.status)).toEqual(["INCOMPLETE", "COMPLETE"]);
   });
 
   it("fails preflight before materialization when compiler capability drifts", async () => {

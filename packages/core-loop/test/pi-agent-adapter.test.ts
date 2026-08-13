@@ -333,6 +333,30 @@ describe("Pi RTL Agent adapter", () => {
     });
   });
 
+  it("reuses one successful external capability probe across turns", async () => {
+    const root = await temporaryRoot();
+    const fake = await fakePi(root);
+    const firstRun = await createBlankRun(root);
+    const secondRun = await createBlankRun(root);
+    const adapter = new PiRtlAgentAdapter(config(fake, "change"));
+
+    await adapter.probe();
+    await adapter.runTurn(inputFor(firstRun), firstRun);
+    await adapter.runTurn(inputFor(secondRun), secondRun);
+
+    const log = (await readFile(fake.log, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { args: string[] });
+    expect(
+      log.filter((entry) => entry.args.length === 1 && entry.args[0] === "--version"),
+    ).toHaveLength(1);
+    expect(
+      log.filter((entry) => entry.args.length === 1 && entry.args[0] === "--help"),
+    ).toHaveLength(1);
+    expect(log.filter((entry) => entry.args.includes("--mode"))).toHaveLength(2);
+  });
+
   it("maps the repository Kimi credential without passing it on argv", () => {
     const configured = piExperimentConfigFromEnvironment(
       {

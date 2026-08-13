@@ -3524,3 +3524,109 @@ summarization failure.
   race. The affected 24-test file passed with `--maxWorkers=1`; the subsequent clean aggregate run
   passed 43 files with 1 skipped and 345 tests with 2 skipped.
 - Final diff and Harness checks were scheduled after this handoff refresh.
+
+## 2026-08-12 - Diagnose b-20260812-001 invalid Memory run
+
+### Outcome
+
+Diagnosed the completed `b-20260812-001` evidence without starting a model call or rerunning any
+Case. The initiating failure was Case 92, `Prob092_gatesv100`, not Memory consolidation. The Run
+entered `AGENT_RUNNING` and became infrastructure-level `INCOMPLETE` after 32.356 seconds, before
+`context/agent-input.json`, Agent-result evidence, provider transcript, RTL, compile evidence, or
+functional simulation existed.
+
+The Pi adapter runs bounded `--version` and `--help` capability probes before it writes the Agent
+input, with a 30-second cap per probe. The evidence and timing therefore identify a transient Pi
+capability-probe failure or timeout before the model request. The generic incomplete-run evidence
+does not retain which individual probe failed. A current read-only check found `--version` healthy
+at 3.741 seconds with the locked `0.81.1` result and `--help` healthy at 4.151 seconds.
+
+### Downstream Effects
+
+- Cases 1-91 passed functional simulation.
+- The evaluator stopped at the incomplete Case 92, leaving Cases 93-156 unexecuted. One failed plus
+  64 skipped Cases yields the reported `functionalNotRun: 65`.
+- The Batch status became `INVALID`; complete-Batch Memory consolidation therefore did not invoke
+  Pi and wrote the fail-closed `CONSOLIDATION_FAILED` result. No `pi/` consolidation workspace and
+  no next Memory snapshot exist for this Batch.
+
+No runtime evidence or business logic was changed. No model call, compile, simulation, Experience
+generation, consolidation, or snapshot publication occurred during the diagnosis.
+## 2026-08-12 - Offline Memory Build from selected Experience Batches
+
+- Revised the recovery design after operator feedback: no evaluation Batch resume protocol.
+- Removed the evaluator's global stop conditions so an infrastructure-invalid Case no longer blocks
+  later valid Cases; the Batch remains invalid and metrics preserve the failed Case.
+- Cached the successful Pi capability result per adapter lifecycle while preserving per-turn drift
+  validation.
+- Added deterministic, path-safe loading of one or more explicitly selected
+  `.rtl-agent/memory/experiences/<batch-id>` directories, canonical Experience de-duplication, and a
+  source-file manifest.
+- Added `memory-build --experience-batches <batch-id,...>`, separate Memory Build evidence under
+  `.rtl-agent/memory/builds/<build-id>`, and atomic publication through the existing Consolidator and
+  Memory Store boundary.
+- Read-only real-data validation loaded all 76 retained Experience files from `b-20260812-001`; no Pi
+  Consolidator call and no snapshot publication occurred.
+- Validation: typecheck, lint, build, format, and `git diff --check` passed; focused tests passed 68/68;
+  full Vitest passed 350 tests with 2 skipped across 45 passing files and 1 skipped file.
+
+## 2026-08-12 - Disable automatic evaluation Memory publication
+
+- Removed Batch-End Memory Consolidator construction and invocation from `run` and `evaluate`.
+- Kept `read_write` fixed-snapshot selection, Case-End Experience summarization, and Experience Pool
+  persistence unchanged.
+- Added `publication: DEFERRED_TO_MEMORY_BUILD` to read-write evaluation output; inactive modes report
+  `DISABLED`.
+- Added a CLI regression with an injected Consolidator that throws if called. Evaluation completed,
+  the Consolidator was never called, and the Memory Store remained at `mem-v0001`.
+- Updated the Memory contract and decision log so only explicit `memory-build` may publish a snapshot.
+- Validation: 55 focused tests passed; full Vitest passed 351 tests with 2 skipped across 45
+  passing files and 1 skipped file. Lint, typecheck, build, format, peer dependency,
+  `git diff --check`, and Harness checks passed.
+## 2026-08-13 - Raise descriptive Memory metadata limit
+
+- Diagnosed `b-20260813-001` without rerunning Pi: all 130 Experience indexes were handled exactly
+  once, but operation 3 returned a 135-character `circuit_type` against the 128-character schema.
+- Raised the shared non-null `circuit_type`, `failure_type`, `language`, and `tool` limit to 1024 in
+  Experience, Memory catalog, and Consolidator draft schemas.
+- Added the exact 1024-character constraint to the Consolidator system prompt and generated
+  `output-schema.json` so Pi sees the real acceptance contract before writing output.
+- Added regressions proving the observed 135-character value is preserved and a runaway
+  1025-character value remains rejected.
+- Full validation passed: 45 test files passed and 1 skipped; 353 tests passed and 2 skipped. Lint,
+  typecheck, build, format, peer dependency, diff, and Harness checks passed.
+- No Pi/model call, Case rerun, failed-build rewrite, or snapshot publication occurred.
+
+## 2026-08-13 - Report b-20260812-001 and b-20260812-002 as a derived full set
+
+- Published `exp_result/verilog-eval/08.12-k3-pi-memory-v1-001-156.md` from existing runtime
+  evidence without calling Pi, rerunning a Case, or publishing Memory.
+- Preserved the native result boundary: `b-20260812-001` remains `INVALID` after the Prob092
+  infrastructure interruption; the report combines only its complete Prob001-Prob091 results with
+  `b-20260812-002` Prob092-Prob156 as a derived, non-atomic full-set view.
+- The derived set contains 156 unique consecutive Cases. All final functional simulations passed:
+  138 on the first candidate and 18 after repair, with repair-depth histogram `0:138, 1:13, 2:3,
+  3:2`.
+- Reconstructed all 18 repair trajectories. They consumed 25 repair turns; 24 injected selected
+  Memory. The one empty selection was Prob062 attempt 2.
+- Audited 130 CREATED Experiences: 114 design observations and 16 simulation-debug records. Two
+  repaired Cases were safely skipped because public evidence could not confirm the root cause.
+- Confirmed offline Build `b-20260813-001` loaded 130 unique Experiences with no duplicates and
+  handled every index exactly once before the historical 135-versus-128 metadata validation
+  failure.
+- Explicitly limited the interpretation: `mem-v0002` was built from the same VerilogEval Case set,
+  and at least five repaired Cases selected Memory containing their own historical evidence, so the
+  run demonstrates closed-loop operation rather than held-out efficacy.
+- Report assertions passed for Case continuity, functional outcomes, repair and Memory-turn counts,
+  Experience kinds/statuses, consolidation index coverage, and the 135-character failing value.
+
+## 2026-08-13 - Guard Experience manifest provenance during landing review
+
+- The commit-main review found one P2: the offline loader scanned each Experience source to capture
+  its digest, then read it again for parsing without verifying that the bytes were unchanged.
+- The loader now hashes the bytes it actually parses and rejects a source that changed after the
+  scan, preventing a Memory Build manifest from binding an Experience to stale provenance.
+- Extended the deterministic loader regression to verify every manifest source digest against its
+  retained file bytes. No P1 finding was identified.
+- Post-fix focused validation passed 76/76 tests. Frozen install, lint, typecheck, the full 353-test
+  suite (2 skipped), build, format, peer dependency, `git diff --check`, and Harness checks passed.

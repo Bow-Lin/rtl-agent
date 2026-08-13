@@ -1,5 +1,29 @@
 # Error Journal
 
+## 2026-08-13 - Valid Memory consolidation was rejected by a short metadata bound
+
+### Symptom
+
+Explicit Memory Build `b-20260813-001` returned `CONSOLIDATION_FAILED` after Pi had read all required
+inputs and written eight operations covering all 130 Experience indexes exactly once.
+
+### Root Cause
+
+The third operation merged `memory-000003` with a 135-character `circuit_type`, while the shared
+catalog and Consolidator draft schema allowed only 128 characters. The best-effort publication
+boundary correctly preserved `mem-v0002` but collapsed the Zod detail into the stable generic failure.
+
+### Fix
+
+Raise descriptive Memory metadata to a shared 1024-character bound across Experience, catalog, and
+Consolidator schemas. Expose the exact limit in the Pi system prompt and generated output contract,
+and add regressions for the observed 135-character value and rejection at 1025.
+
+### Prevention
+
+Do not reuse identifier-sized limits for model-generated descriptive labels. Keep a high finite
+resource bound, publish only schema-valid output, and test observed real-output boundary values.
+
 Use this file to record repeated failures, non-obvious bugs, and lessons learned.
 
 ## Format

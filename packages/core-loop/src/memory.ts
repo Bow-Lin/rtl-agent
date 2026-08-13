@@ -11,6 +11,7 @@ export const MemoryModeSchema = z.enum(["off", "read_write", "frozen"]);
 export type MemoryMode = z.infer<typeof MemoryModeSchema>;
 
 export const MAXIMUM_SELECTED_MEMORIES = 3 as const;
+export const MEMORY_METADATA_CHARACTER_LIMIT = 1_024 as const;
 
 export const MEMORY_SELECTOR_SYSTEM_PROMPT = [
   "Select only genuinely relevant RTL Memory IDs from the already filtered catalog.",
@@ -32,6 +33,7 @@ export const MEMORY_CONSOLIDATOR_SYSTEM_PROMPT = [
   "Handle every Experience index exactly once across all operations.",
   "ADD at most five items. Prefer REJECT to weak, duplicate, uncertain, or case-specific guidance.",
   "For stage, use initial_generation for design_observation or first_functional_pass guidance, functional_simulation for simulation_debug or repaired_functional_pass guidance, and null or unknown only for genuinely mixed or uncertain applicability.",
+  `Keep each non-null circuit_type, failure_type, language, and tool metadata value at or below ${String(MEMORY_METADATA_CHARACTER_LIMIT)} characters; put explanatory detail in the six-section content instead.`,
   // Retain this defensive instruction in the V1 prompt identity; the catalog schema now rejects noncanonical stages.
   "If a relevant existing item has any other stage label, normalize it with MERGE; never REINFORCE a noncanonical stage.",
   "Every ADD or MERGE content must contain, in order, the six Markdown headings ## Trigger, ## Problem Pattern, ## Diagnosis Principle, ## Repair Principle, ## Applicability, and ## Verification.",
@@ -92,7 +94,9 @@ export type MemoryExperimentIdentity = z.infer<typeof MemoryExperimentIdentitySc
 export const MemoryItemIdSchema = z.string().regex(/^memory-\d{6,}$/u);
 export type MemoryItemId = z.infer<typeof MemoryItemIdSchema>;
 
-const OptionalFilterSchema = z.string().min(1).max(128).nullable();
+export const MemoryMetadataValueSchema = z.string().min(1).max(MEMORY_METADATA_CHARACTER_LIMIT);
+
+const OptionalFilterSchema = MemoryMetadataValueSchema.nullable();
 
 export const MemoryStageSchema = z
   .enum(["initial_generation", "functional_simulation", "unknown"])
