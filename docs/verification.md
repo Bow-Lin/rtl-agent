@@ -115,6 +115,26 @@ The eight debugging splits use
 cases respectively for each shot setting. Run each split as a separate batch; do not combine
 zero-shot, one-shot, generation, and debugging results into one accuracy claim.
 
+Zero-shot Debug uses an explicit task command and seeded buggy RTL. Prepare the private baseline
+once for the selected split, then run any number of Debug batches against the same content-addressed
+cache:
+
+```powershell
+corepack pnpm core-loop:debug-baseline:chipbench --split debug-zero-shot-assignment
+corepack pnpm core-loop:debug:chipbench:pi --split debug-zero-shot-assignment
+```
+
+`debug-baseline-prepare` extracts each prompt's target `TopModule`, compiles it with the locked
+reference/testbench, and requires a successful simulation with at least one mismatch. The cache is
+bound to the dataset and ordered cases, Provider implementation, compiler capability, VVP binary,
+and Debug runner version. A repeated prepare returns `reused: true`; `debug-evaluate` refuses a
+missing or stale cache instead of silently rerunning the baseline. The command, profile, fixture
+category, and Agent input all record seeded functional Debug. Debug v1 requires `--memory-mode off`
+and defaults to zero feedback repair iterations, so the measured zero-shot result is one repair
+attempt from the supplied buggy RTL. `--functional-repair-iterations` may be set explicitly for a
+separate feedback-repair experiment. The normal generation command and prompt-only Provider remain
+unchanged.
+
 After the normal candidate-only compile Gate, ChipBench functional evaluation privately
 materializes the locked `_ref.sv` and `_test.sv`, compiles candidate/reference/testbench with
 Icarus SystemVerilog 2012 using top `tb`, runs VVP under the fixed timeout boundary, and parses the

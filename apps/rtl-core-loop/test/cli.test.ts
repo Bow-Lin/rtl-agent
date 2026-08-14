@@ -151,6 +151,34 @@ class ChipBenchCliTestProvider implements FixtureProvider {
 }
 
 describe("rtl-core-loop CLI boundary", () => {
+  it("rejects Memory before starting an explicit seeded Debug evaluation", async () => {
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      [
+        "debug-evaluate",
+        "--profile",
+        "chipbench-debug-kimi-v1",
+        "--dataset",
+        "chipbench",
+        "--split",
+        "debug-zero-shot-assignment",
+        "--memory-mode",
+        "read_write",
+      ],
+      new EvaluationTestProvider(),
+      () => undefined,
+      (line) => errors.push(line),
+    );
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: {
+        code: "EVALUATION_PROFILE_INVALID",
+        message: "Seeded functional Debug v1 requires --memory-mode off",
+      },
+    });
+  });
+
   it.each(["-1", "11", "1.5", "three"])(
     "rejects invalid functional repair iteration limit %s",
     async (value) => {

@@ -92,6 +92,8 @@ export const EvaluationProfileSchema = z
     compilerCapability: CompilerCapabilityLockSchema,
     thresholds: EvaluationThresholdsSchema,
     humanReview: HumanReviewPlanSchema,
+    taskMode: z.literal("SEEDED_FUNCTIONAL_DEBUG").optional(),
+    debugBaselineManifestDigest: Sha256DigestSchema.optional(),
     functionalRepair: z
       .strictObject({
         maxIterations: z.int().nonnegative().max(10),
@@ -122,6 +124,16 @@ export const EvaluationProfileSchema = z
         code: "custom",
         path: ["functionalRepair", "maxIterations"],
         message: "Compile and functional repair attempts exceed the Agent turn limit",
+      });
+    }
+    if (
+      (value.taskMode === "SEEDED_FUNCTIONAL_DEBUG") !==
+      (value.debugBaselineManifestDigest !== undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["debugBaselineManifestDigest"],
+        message: "Seeded functional Debug profiles require one baseline manifest digest",
       });
     }
     if (
@@ -174,7 +186,12 @@ export const CaseValidationResultSchema = z
     status: CaseValidationStatusSchema,
     runId: RunIdSchema.nullable(),
     category: z
-      .enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"])
+      .enum([
+        "BLANK_GENERATION",
+        "PROMPTED_FUNCTIONAL_REPAIR",
+        "SEEDED_FUNCTIONAL_REPAIR",
+        "SEEDED_COMPILE_REPAIR",
+      ])
       .nullable(),
     normalizedFixtureDigest: Sha256DigestSchema.nullable(),
     baselinePreparationStatus: z
@@ -213,6 +230,17 @@ export const CaseValidationResultSchema = z
           code: "custom",
           path: ["baselinePreparationStatus"],
           message: "A valid blank case must have a compiler-not-invoked baseline",
+        });
+      } else if (
+        value.category === "SEEDED_FUNCTIONAL_REPAIR" &&
+        (value.baselinePreparationStatus !== "READY" ||
+          value.baselineCompileStatus !== "COMPILE_PASSED")
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["baselineCompileStatus"],
+          message:
+            "A valid seeded functional repair case must reference a compiled mismatch baseline",
         });
       } else if (
         value.category === "SEEDED_COMPILE_REPAIR" &&
@@ -316,7 +344,12 @@ const runExecutionCommon = {
   runId: RunIdSchema,
   fixtureId: FixtureIdSchema,
   fixtureIdentity: FixtureIdentitySchema,
-  category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
+  category: z.enum([
+    "BLANK_GENERATION",
+    "PROMPTED_FUNCTIONAL_REPAIR",
+    "SEEDED_FUNCTIONAL_REPAIR",
+    "SEEDED_COMPILE_REPAIR",
+  ]),
   attemptCount: z.int().nonnegative().max(MAX_AGENT_TURN_ATTEMPT),
   startedAt: IsoTimestampSchema,
   completedAt: IsoTimestampSchema,
@@ -522,6 +555,7 @@ export const BatchMetricsSchema = z.strictObject({
   overall: MetricSliceSchema,
   blankGeneration: MetricSliceSchema,
   promptedFunctionalRepair: MetricSliceSchema,
+  seededFunctionalRepair: MetricSliceSchema.optional(),
   seededCompileRepair: MetricSliceSchema,
 });
 

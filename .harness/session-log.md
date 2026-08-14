@@ -1,5 +1,36 @@
 # Session Log
 
+## Entry: Plan the Next Reviewer-Grade RTL Agent Experiments
+
+### Summary
+
+Published `exp_result/next-experiment-plan.md` from the supplied research assessment and current
+repository evidence. The plan narrows the paper question to whether frozen cross-task Memory
+improves functional RTL repair under a fixed verification and compute budget.
+
+### Priorities
+
+- Treat the existing ChipBench 3-Case / 10-point gain as a positive signal, not isolated Memory
+  causality.
+- Make a fixed-initial-RTL A/B/C/D repair comparison the first experiment: no repair,
+  feedback-only, retrieved frozen Memory, and shuffled Memory.
+- Build Memory on a predeclared VerilogEval split, freeze it, and evaluate all 45 repository-locked
+  ChipBench generation cases without online updates.
+- Run at least three paired repetitions and report confidence intervals, McNemar comparisons,
+  timeouts, regressions, wall time, and `ASR@R`.
+- Complete Batch-level usage accounting for Agent, Selector, Summarizer, Analyzer, and Consolidator
+  before claiming token or cost efficiency.
+- Defer CVDP experiments until its Provider, profile, and functional-simulation adapter exist.
+
+### Validation and Limits
+
+- No model call, dataset rerun, compile, simulation, Memory Build, or runtime evidence rewrite was
+  performed.
+- The document preserves the local Windows/non-authoritative boundary and distinguishes the 45
+  supported repository ChipBench cases from counts quoted for other dataset revisions.
+- Markdown formatting, unwanted-marker scan, JSON parsing, `git diff --check`, and the explicit Git
+  Bash Harness check passed.
+
 ## Entry: Freeze Memory V1 Contract
 
 ### Summary
@@ -3630,3 +3661,115 @@ generation, consolidation, or snapshot publication occurred during the diagnosis
   retained file bytes. No P1 finding was identified.
 - Post-fix focused validation passed 76/76 tests. Frozen install, lint, typecheck, the full 353-test
   suite (2 skipped), build, format, peer dependency, `git diff --check`, and Harness checks passed.
+
+## 2026-08-13 - Report ChipBench self-contained frozen Memory run
+
+- Published `exp_result/chipbench/08.13-k3-pi-frozen-mem-v0003-self-contained.md` from existing
+  `b-20260813-001` evidence without invoking Pi, rerunning RTL, compiling, simulating, diagnosing,
+  building Memory, or publishing a snapshot.
+- Confirmed 30/30 initial candidates compiled; initial functional pass was 10/30. Feedback-plus-
+  `mem-v0003` repair recovered nine of 20 mismatches, producing a final 19/30 functional pass rate.
+- Reconstructed all 70 Agent turns and 63 functional simulations. Four repair turns timed out at
+  about 602 seconds, and all three compile failures belonged to `Prob005`; these five Cases had no
+  final functional result even though their initial candidates were simulatable.
+- Audited 38 non-empty Selector results and 93 Memory references across 40 Memory-bound repair
+  turns. The report does not attribute repair uplift to Memory alone because every repair also
+  received functional mismatch feedback.
+- Audited 15 CREATED, two FAILED, and 13 SKIPPED Case-End Experience results. Frozen mode retained
+  them inside Batch evidence and did not publish an Experience Pool or run consolidation.
+- Report-specific assertions and Prettier validation passed. The evidence remains local Windows,
+  non-authoritative, and pending the predeclared human review.
+
+## 2026-08-14 - Report ChipBench minimal-guidance empty-Memory run
+
+- Published
+  `exp_result/chipbench/08.13-k3-pi-minimal-guidance-empty-memory-self-contained.md` from existing
+  `b-20260813-002` evidence without invoking Pi, rerunning RTL, compiling, simulating, diagnosing,
+  building Memory, consolidating, or publishing a snapshot.
+- Preserved the exact configuration boundary: the profile records `read_write` with empty
+  `mem-v0001`, while 66/66 attempt inputs have no `relevantMemoryPath` and no Memory block was
+  injected. The guidance file contains only a heading and `you are an expert RTL engineer.`, so the
+  report calls it minimal guidance rather than a literally absent field.
+- Confirmed 29/30 initial candidates compiled and 10/30 passed. Feedback-only repair recovered six
+  of 19 mismatches, all in the first repair round; the final result was 16 passes, six mismatches,
+  and eight cases without a final simulation.
+- Reconstructed 66 Agent turns and 58 functional simulations. Six repair turns timed out at about
+  602 seconds, one initial candidate failed enum-cast compilation, and one final repair used reserved
+  keyword `buf` and regressed to a compile error.
+- Audited 15 CREATED, one FAILED, and 14 SKIPPED Experience results. All 15 CREATED records were
+  persisted to the Batch Experience Pool, but evaluation did not run consolidation or publish a
+  snapshot.
+- Compared the run with `b-20260813-001` only as a two-variable, unseeded paired observation. The
+  new run had three fewer final passes and three more final-simulation gaps; the evidence cannot
+  separate Memory, guidance, and sampling effects.
+
+## 2026-08-14 - Consolidate VerilogEval and ChipBench experiment records
+
+- Published `exp_result/rtl-agent-experiment-summary.md` as one concise overview of the existing
+  VerilogEval and ChipBench reports; no detailed report or Batch evidence was removed or rewritten.
+- Compressed the VerilogEval progression from the 119/156 baseline through Pi/K3, common-guidance
+  v1-v4, feedback-only repair, Memory V1 build, and the derived 156/156 closed-loop replay.
+- Compressed the ChipBench progression from the 9/30 baseline through guidance v3 and the two repair
+  configurations. The overview records that v3 plus `mem-v0003` reached 19/30 versus 16/30 with
+  minimal guidance and empty Memory, a 3-Case / 10-point positive combination signal.
+- Preserved the attribution limits: runs are unseeded, the ChipBench comparison changes both
+  guidance and Memory, and the VerilogEval Memory replay overlaps the Memory build set.
+- Source-figure assertions passed for all ten VerilogEval reports and both ChipBench repair reports.
+  No model call, RTL generation, compile, simulation, diagnosis, Memory Build, consolidation, or
+  snapshot publication was performed.
+
+## 2026-08-14 - Explicit ChipBench seeded Debug and reusable baseline
+
+- Added command-selected `debug-baseline-prepare` and `debug-evaluate` flows for ChipBench zero-shot
+  Debug splits. The ordinary generation/evaluate path remains prompt-only.
+- Added seeded Debug Provider materialization that extracts the target `TopModule` after the locked
+  prompt marker and writes it to `rtl/dut.sv` before the first Agent turn.
+- Added `SEEDED_FUNCTIONAL_REPAIR`, profile task mode `SEEDED_FUNCTIONAL_DEBUG`, and Agent task kind
+  `FUNCTIONAL_DEBUG`; both OpenCode and Pi prompts now describe repair of existing RTL.
+- Added an atomic content-addressed baseline cache. Its identity binds the locked dataset, selected
+  split and case order, Provider source digest, compiler capability, VVP executable digest, and
+  runner version. Each starter must compile, simulate, and produce a positive mismatch.
+- Debug evaluation requires an exact manifest and per-Case starter digest match. It does not compile
+  or simulate the original buggy RTL again inside the Batch.
+- Debug v1 rejects active Memory modes and defaults to zero additional functional feedback-repair
+  iterations. No Memory or Experience semantics were inferred from the generation workflow.
+- Added deterministic Provider, baseline, orchestration, profile, and CLI regressions. Focused
+  validation passed 75 tests and TypeScript typecheck passed.
+- Real local verification prepared all 30 `debug-zero-shot-assignment` Cases successfully with
+  manifest `sha256:c19159fe6a9d84d625fda6991a5cf27b15dafca918ff359451345b296e544897`.
+  The immediate second invocation returned `reused: true` with the same digest.
+- No Pi/model call, Debug evaluation Batch, Memory selection, Experience generation, consolidation,
+  or snapshot publication occurred.
+
+## 2026-08-14 - Report the prompt-only assignment Debug baseline
+
+- Published `exp_result/chipbench/08.14-k3-pi-debug-zero-shot-assignment-baseline.md` from sealed
+  Batch `b-20260814-001` without invoking Pi, rerunning RTL, compiling, simulating, or rewriting
+  runtime evidence.
+- Confirmed that the ordinary `core-loop:evaluate:chipbench:pi` command used the prompt-only v2
+  profile, two-line minimal guidance, Memory off, and zero functional repair iterations. All 30
+  candidates compiled and ran functional simulation; 19 passed and 11 remained mismatches.
+- Corrected the metric boundary: native Core Loop `rawFirstAttempt: 30/30` is the compile-oriented
+  Agent success metric, while the strict functional baseline is 19/30 = 63.33%.
+- Audited 30 Agent turns, 30 attempt inputs, 30 provider transcripts, 140 usage-bearing exchanges,
+  and 11 accepted mismatch analyses. Candidate generation recorded 320,585 provider total tokens
+  and $1.173879 provider-reported cost; Analyzer token/cost was not persisted and is excluded.
+- Paired the ordinary Batch with the separately prepared seeded starter manifest. The 30 buggy
+  starters had 18,564/29,235 mismatches; prompt-only candidates had 6,284/29,235, with 19 passes,
+  six partial improvements, one unchanged mismatch, and four regressions.
+- Kept the two experiment identities separate. `b-20260814-001` is the prompt-only historical
+  baseline and did not consume the new seeded starter cache; the first
+  `core-loop:debug:chipbench:pi` model Batch remains pending.
+- Final implementation validation passed frozen install, lint, typecheck, build, peer dependency,
+  diff, JSON, Provider-digest, and Harness checks. Full Vitest passed 358 tests with two skipped.
+  All task files pass Prettier; the whole-repository format command remains nonzero only for the
+  preserved preexisting `.claude/settings.local.json` and minimal `common-guidance.md` user edits.
+- Final review added a fail-closed guard that rejects prompt-only fixture materialization whenever a
+  seeded Debug baseline is supplied. All 16 focused orchestration tests and the final typecheck
+  passed after this guard.
+- The guarded `commit-main` review reported two baseline-provenance P2 notes: the public cache API
+  does not independently bind the supplied Icarus executable to the probed capability digest, and
+  the manifest loader does not recompute `identityDigest` from its own fields. The operator
+  explicitly classified both as over-design and accepted them as non-blocking for this landing.
+- Commit-main verification passed frozen install, lint, typecheck, build, peer dependency, targeted
+  Prettier, and Harness checks. Full Vitest passed 359 tests with two skipped.

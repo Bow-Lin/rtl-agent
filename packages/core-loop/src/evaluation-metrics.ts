@@ -18,7 +18,11 @@ import type {
 } from "./evaluation-contracts.js";
 import { sha256Jcs } from "./filesystem.js";
 
-type FixtureCategory = "BLANK_GENERATION" | "PROMPTED_FUNCTIONAL_REPAIR" | "SEEDED_COMPILE_REPAIR";
+type FixtureCategory =
+  | "BLANK_GENERATION"
+  | "PROMPTED_FUNCTIONAL_REPAIR"
+  | "SEEDED_FUNCTIONAL_REPAIR"
+  | "SEEDED_COMPILE_REPAIR";
 
 function ratio(numerator: number, denominator: number): RatioMetric {
   return {
@@ -203,6 +207,13 @@ export function calculateBatchMetrics(
       runs,
       reviews,
       "PROMPTED_FUNCTIONAL_REPAIR",
+    ),
+    seededFunctionalRepair: sliceMetrics(
+      profile,
+      validations,
+      runs,
+      reviews,
+      "SEEDED_FUNCTIONAL_REPAIR",
     ),
     seededCompileRepair: sliceMetrics(profile, validations, runs, reviews, "SEEDED_COMPILE_REPAIR"),
   });

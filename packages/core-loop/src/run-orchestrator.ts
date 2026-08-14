@@ -80,6 +80,11 @@ export interface ValidateRunBaselineOptions {
   readonly caseIndex: number;
   readonly compilerAdapter: CoreLoopCompilerAdapter;
   readonly lockedCompilerCapability: CompilerCapabilityLock;
+  readonly seededFunctionalBaseline?: {
+    readonly normalizedFixtureDigest: string;
+    readonly starterRtlDigest: string;
+    readonly status: "MISMATCH";
+  };
   readonly clock?: RunClock;
 }
 
@@ -240,6 +245,48 @@ export async function validateCoreLoopRunBaseline(
     "evidence/baseline/compile-preparation.json",
     preparation,
   );
+
+  if (
+    options.seededFunctionalBaseline !== undefined &&
+    run.fixture.category !== "SEEDED_FUNCTIONAL_REPAIR"
+  ) {
+    return {
+      run,
+      validation: caseValidation(
+        run,
+        options.caseIndex,
+        "INVALID_FIXTURE_PREPARATION",
+        "Seeded functional Debug profile did not materialize seeded functional-repair RTL",
+        preparation.status,
+        null,
+      ),
+      nextStateSequence: sequence,
+    };
+  }
+
+  if (run.fixture.category === "SEEDED_FUNCTIONAL_REPAIR") {
+    const proof = options.seededFunctionalBaseline;
+    const valid =
+      preparation.status === "READY" &&
+      proof !== undefined &&
+      proof.status === "MISMATCH" &&
+      proof.normalizedFixtureDigest === run.fixture.normalizedFixtureDigest &&
+      proof.starterRtlDigest === run.fixture.starterRtlDigest;
+    return {
+      run,
+      validation: caseValidation(
+        run,
+        options.caseIndex,
+        valid ? "VALID" : "INVALID_FIXTURE_PREPARATION",
+        valid
+          ? "Seeded functional-repair fixture is bound to the cached compiled mismatch baseline"
+          : "Seeded functional-repair fixture does not match the required baseline cache",
+        preparation.status,
+        valid ? "COMPILE_PASSED" : null,
+      ),
+      nextStateSequence: sequence,
+    };
+  }
 
   if (run.fixture.category !== "SEEDED_COMPILE_REPAIR") {
     const valid = preparation.status === "NO_RTL_SOURCE";
@@ -556,6 +603,9 @@ export async function executeValidatedCoreLoopRun(
         workspaceRtlRoot: "rtl",
         rtlSourceFiles: sourceManifest.entries.map((entry) => entry.path),
         topModule: run.fixture.topModule,
+        ...(run.fixture.category === "SEEDED_FUNCTIONAL_REPAIR"
+          ? { taskKind: "FUNCTIONAL_DEBUG" }
+          : {}),
         ...(previousCompileResult === undefined
           ? {}
           : { previousCompileResultPath: "context/previous-compile-result.json" }),

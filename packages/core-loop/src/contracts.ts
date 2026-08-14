@@ -145,6 +145,11 @@ export const FixtureMaterializationSchema = z.discriminatedUnion("category", [
   }),
   z.strictObject({
     ...materializationCommon,
+    category: z.literal("SEEDED_FUNCTIONAL_REPAIR"),
+    starterRtlRoot: LogicalPathSchema,
+  }),
+  z.strictObject({
+    ...materializationCommon,
     category: z.literal("SEEDED_COMPILE_REPAIR"),
     starterRtlRoot: LogicalPathSchema,
   }),
@@ -177,6 +182,12 @@ export const NormalizedFixtureSchema = z.discriminatedUnion("category", [
   z.strictObject({
     ...normalizedFixtureCommon,
     category: z.literal("PROMPTED_FUNCTIONAL_REPAIR"),
+  }),
+  z.strictObject({
+    ...normalizedFixtureCommon,
+    category: z.literal("SEEDED_FUNCTIONAL_REPAIR"),
+    starterRtlRoot: z.literal("rtl"),
+    starterRtlDigest: Sha256DigestSchema,
   }),
   z.strictObject({
     ...normalizedFixtureCommon,
@@ -246,7 +257,12 @@ export const AgentAttemptInputSchema = z
     schemaVersion: SchemaVersionSchema,
     runId: RunIdSchema,
     attempt: z.int().positive().max(MAX_AGENT_TURN_ATTEMPT),
-    category: z.enum(["BLANK_GENERATION", "PROMPTED_FUNCTIONAL_REPAIR", "SEEDED_COMPILE_REPAIR"]),
+    category: z.enum([
+      "BLANK_GENERATION",
+      "PROMPTED_FUNCTIONAL_REPAIR",
+      "SEEDED_FUNCTIONAL_REPAIR",
+      "SEEDED_COMPILE_REPAIR",
+    ]),
     specPath: z.literal("spec.md"),
     workspaceRtlRoot: z.literal("rtl"),
     rtlSourceFiles: z
@@ -284,7 +300,7 @@ export const AgentAttemptInputSchema = z
       "Functional simulation feedback must stay below context/",
     ).optional(),
     relevantMemoryPath: z.literal("context/relevant-rtl-memory.md").optional(),
-    taskKind: z.literal("VERIFICATION_ASSET_GENERATION").optional(),
+    taskKind: z.enum(["VERIFICATION_ASSET_GENERATION", "FUNCTIONAL_DEBUG"]).optional(),
     protectedRtlPaths: z
       .array(LogicalPathSchema)
       .max(256)
@@ -314,7 +330,7 @@ export const AgentAttemptInputSchema = z
   })
   .superRefine((value, context) => {
     if (
-      value.taskKind === undefined &&
+      value.taskKind !== "VERIFICATION_ASSET_GENERATION" &&
       (value.protectedRtlPaths !== undefined || value.mutableRtlPaths !== undefined)
     ) {
       context.addIssue({
@@ -361,7 +377,7 @@ export const AgentAttemptInputSchema = z
       });
     }
     if (
-      value.taskKind === undefined &&
+      value.taskKind !== "VERIFICATION_ASSET_GENERATION" &&
       (value.coverageFeedbackPath !== undefined ||
         value.verificationFeedbackPath !== undefined ||
         value.verilatorCompileFeedbackPath !== undefined ||
@@ -373,7 +389,10 @@ export const AgentAttemptInputSchema = z
         message: "Verification feedback is only valid for verification asset generation",
       });
     }
-    if (value.taskKind !== undefined && value.functionalSimulationFeedbackPath !== undefined) {
+    if (
+      value.taskKind === "VERIFICATION_ASSET_GENERATION" &&
+      value.functionalSimulationFeedbackPath !== undefined
+    ) {
       context.addIssue({
         code: "custom",
         path: ["functionalSimulationFeedbackPath"],
@@ -403,11 +422,21 @@ export const AgentAttemptInputSchema = z
         message: "An Agent attempt may consume only one verification feedback type",
       });
     }
-    if (value.taskKind !== undefined && value.category !== "SEEDED_COMPILE_REPAIR") {
+    if (
+      value.taskKind === "VERIFICATION_ASSET_GENERATION" &&
+      value.category !== "SEEDED_COMPILE_REPAIR"
+    ) {
       context.addIssue({
         code: "custom",
         path: ["category"],
         message: "Verification asset generation requires seeded DUT RTL",
+      });
+    }
+    if (value.taskKind === "FUNCTIONAL_DEBUG" && value.category !== "SEEDED_FUNCTIONAL_REPAIR") {
+      context.addIssue({
+        code: "custom",
+        path: ["category"],
+        message: "Functional Debug requires seeded functional-repair RTL",
       });
     }
   });

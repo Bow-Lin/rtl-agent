@@ -132,7 +132,8 @@ function normalizedFiles(
       continue;
     }
     if (
-      materialization.category === "SEEDED_COMPILE_REPAIR" &&
+      (materialization.category === "SEEDED_COMPILE_REPAIR" ||
+        materialization.category === "SEEDED_FUNCTIONAL_REPAIR") &&
       isLogicalDescendant(file.logicalPath, materialization.starterRtlRoot)
     ) {
       const relative = file.logicalPath.slice(materialization.starterRtlRoot.length + 1);
@@ -231,7 +232,10 @@ async function prepareFixture(
       resolveLogicalPath(stagingDirectory, materialization.specPath),
       "Fixture specPath",
     );
-    if (materialization.category === "SEEDED_COMPILE_REPAIR") {
+    if (
+      materialization.category === "SEEDED_COMPILE_REPAIR" ||
+      materialization.category === "SEEDED_FUNCTIONAL_REPAIR"
+    ) {
       await requireRegularDirectory(
         resolveLogicalPath(stagingDirectory, materialization.starterRtlRoot),
         "Fixture starterRtlRoot",
@@ -239,7 +243,11 @@ async function prepareFixture(
     }
     const sources = normalizedFiles(files, materialization);
     const rtlEntries = sources.filter((source) => source.destinationPath.startsWith("rtl/"));
-    if (materialization.category === "SEEDED_COMPILE_REPAIR" && rtlEntries.length === 0) {
+    if (
+      (materialization.category === "SEEDED_COMPILE_REPAIR" ||
+        materialization.category === "SEEDED_FUNCTIONAL_REPAIR") &&
+      rtlEntries.length === 0
+    ) {
       throw new CoreLoopException("FIXTURE_INVALID", "Seeded fixture must contain starter RTL");
     }
 
@@ -256,7 +264,8 @@ async function prepareFixture(
       adapter: descriptor.adapter,
     };
     const fixture = NormalizedFixtureSchema.parse(
-      materialization.category !== "SEEDED_COMPILE_REPAIR"
+      materialization.category !== "SEEDED_COMPILE_REPAIR" &&
+        materialization.category !== "SEEDED_FUNCTIONAL_REPAIR"
         ? {
             schemaVersion: 1,
             fixtureId: materialization.fixtureId,

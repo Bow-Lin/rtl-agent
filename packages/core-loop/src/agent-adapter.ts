@@ -173,11 +173,17 @@ export async function loadRtlAgentGuidance(
   return { content: normalized, digest: sha256Bytes(bytes) };
 }
 
-function turnPrompt(guidance: string, profile: RtlGuidanceProfile): string {
+function turnPrompt(
+  guidance: string,
+  profile: RtlGuidanceProfile,
+  taskKind?: AgentAttemptInput["taskKind"],
+): string {
   const taskPrompt =
     profile === "coverage-improvement"
       ? "Load the rtl-core-loop skill, read context/agent-input.json, and execute exactly one bounded verification coverage improvement attempt. Preserve protected DUT RTL and improve only the mutable verification assets."
-      : FIXED_PROMPT;
+      : taskKind === "FUNCTIONAL_DEBUG"
+        ? "Load the rtl-core-loop skill, read context/agent-input.json, and repair the existing buggy RTL under rtl/ according to spec.md. Preserve the required interface and do not treat this as blank generation."
+        : FIXED_PROMPT;
   return `${taskPrompt}\n\nApply the following repository guidance to this attempt. The case specification remains authoritative.\n\n${guidance}`;
 }
 
@@ -946,7 +952,7 @@ export class OpenCodeRtlAgentAdapter implements RtlAgentAdapter {
       run.workspaceDirectory,
       "--title",
       `core-loop-${run.runId}-attempt-${String(input.attempt)}`,
-      turnPrompt(guidance.content, guidanceProfile),
+      turnPrompt(guidance.content, guidanceProfile, input.taskKind),
     ];
     const processResult = await executeOpenCodeProcess({
       executable: this.config.executable,

@@ -83,7 +83,11 @@ export const TEST_COMPILER_CAPABILITY: IcarusCapability = IcarusCapabilitySchema
 export interface TestCaseDefinition {
   readonly caseId: string;
   readonly fixtureId: string;
-  readonly category: "BLANK_GENERATION" | "PROMPTED_FUNCTIONAL_REPAIR" | "SEEDED_COMPILE_REPAIR";
+  readonly category:
+    | "BLANK_GENERATION"
+    | "PROMPTED_FUNCTIONAL_REPAIR"
+    | "SEEDED_FUNCTIONAL_REPAIR"
+    | "SEEDED_COMPILE_REPAIR";
 }
 
 export class EvaluationTestProvider implements FixtureProvider {
@@ -158,11 +162,16 @@ export class EvaluationTestProvider implements FixtureProvider {
       path.join(destination, "problem.md"),
       "Create module dut(input logic a, output logic y).\n",
     );
-    if (definition.category === "SEEDED_COMPILE_REPAIR") {
+    if (
+      definition.category === "SEEDED_COMPILE_REPAIR" ||
+      definition.category === "SEEDED_FUNCTIONAL_REPAIR"
+    ) {
       await mkdir(path.join(destination, "starter"), { recursive: true });
       await writeFile(
         path.join(destination, "starter", "dut.sv"),
-        "module dut; BROKEN endmodule\n",
+        definition.category === "SEEDED_COMPILE_REPAIR"
+          ? "module dut; BROKEN endmodule\n"
+          : "module dut(input logic a, output logic y); assign y = 1'b0; endmodule\n",
       );
     }
     return FixtureMaterializationSchema.parse({
@@ -172,7 +181,10 @@ export class EvaluationTestProvider implements FixtureProvider {
       caseSourceDigest: caseRef.caseSourceDigest,
       category: definition.category,
       specPath: "problem.md",
-      ...(definition.category === "SEEDED_COMPILE_REPAIR" ? { starterRtlRoot: "starter" } : {}),
+      ...(definition.category === "SEEDED_COMPILE_REPAIR" ||
+      definition.category === "SEEDED_FUNCTIONAL_REPAIR"
+        ? { starterRtlRoot: "starter" }
+        : {}),
       topModule: "dut",
       tags: ["evaluation", "test-only"],
     });

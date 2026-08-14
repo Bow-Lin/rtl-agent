@@ -46,7 +46,9 @@ async function createSyntheticDataset(root: string): Promise<ChipBenchDatasetLoc
     await writeFile(path.join(directory, "problems.txt"), `${split.caseId}\n`);
     await writeFile(
       path.join(directory, `${split.caseId}_prompt.txt`),
-      `Implement ${split.caseId} as module TopModule.\n`,
+      split.category === "BLANK_GENERATION"
+        ? `Implement ${split.caseId} as module TopModule.\n`
+        : `Implement module TopModule.\n\nBased on the problem description above, the code below in TopModule has bug, please fix that:\n\`\`\`verilog\nmodule TopModule(input logic a, output logic y); assign y = 1'b0; endmodule\n\`\`\`\n`,
     );
     await writeFile(
       path.join(directory, `${split.caseId}_ref.sv`),
@@ -143,6 +145,33 @@ describe("ChipBench pinned dataset Provider", () => {
     await expect(createFileManifest(verificationStaging)).resolves.toMatchObject({
       entries: [{ path: "reference.sv" }, { path: "testbench.sv" }],
     });
+  });
+
+  it("materializes seeded RTL only in explicit zero-shot Debug mode", async () => {
+    const root = await temporaryRoot();
+    const source = path.join(root, "source");
+    const lock = await createSyntheticDataset(source);
+    const provider = new ChipBenchFixtureProvider(source, lock, "zero-shot-seeded-debug");
+    const cases = await listFixtureCases(provider, {
+      schemaVersion: 1,
+      split: "debug-zero-shot-assignment",
+    });
+    const staging = path.join(root, "seeded-debug-staging");
+    await mkdir(staging);
+
+    await expect(
+      provider.materialize(cases[0]!, asHostDirectoryForProvider(staging)),
+    ).resolves.toMatchObject({
+      category: "SEEDED_FUNCTIONAL_REPAIR",
+      starterRtlRoot: "rtl",
+      tags: expect.arrayContaining(["seeded-functional-repair"]),
+    });
+    await expect(createFileManifest(staging)).resolves.toMatchObject({
+      entries: [{ path: "prompt.txt" }, { path: "rtl/dut.sv" }],
+    });
+    await expect(readFile(path.join(staging, "rtl", "dut.sv"), "utf8")).resolves.toContain(
+      "module TopModule",
+    );
   });
 
   it("detects source drift and rejects unsupported debugging splits", async () => {

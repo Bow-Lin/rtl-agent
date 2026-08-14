@@ -24,6 +24,8 @@
     "core-loop:fixtures:check:chipbench": "corepack pnpm build && corepack pnpm --filter @rtl-agent/rtl-core-loop fixtures:check:chipbench",
     "core-loop:evaluate:pi": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js evaluate --profile verilog-eval-kimi-v1 --agent pi",
     "core-loop:evaluate:chipbench:pi": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js evaluate --dataset chipbench --profile chipbench-kimi-v1 --agent pi",
+    "core-loop:debug-baseline:chipbench": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js debug-baseline-prepare --dataset chipbench",
+    "core-loop:debug:chipbench:pi": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js debug-evaluate --dataset chipbench --profile chipbench-debug-kimi-v1 --agent pi --memory-mode off",
     "core-loop:coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js coverage",
     "core-loop:i2c-coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js i2c-coverage",
     "core-loop:memory:build": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js memory-build",

@@ -89,6 +89,87 @@ describe("bounded Core Loop run orchestration", () => {
     expect(compiler.requests).toEqual([]);
   });
 
+  it("rejects a prompt-only fixture when the command requires seeded functional Debug", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      {
+        caseId: "case/debug-001",
+        fixtureId: "debug-001",
+        category: "PROMPTED_FUNCTIONAL_REPAIR",
+      },
+    ]);
+    const run = await createEvaluationTestRun(root, provider, 1);
+    const compiler = new ScriptedCompilerAdapter([]);
+    const validated = await validateCoreLoopRunBaseline(run, {
+      caseIndex: 0,
+      compilerAdapter: compiler,
+      lockedCompilerCapability: compilerCapabilityLockFromCapability(TEST_COMPILER_CAPABILITY),
+      seededFunctionalBaseline: {
+        normalizedFixtureDigest: run.fixture.normalizedFixtureDigest,
+        starterRtlDigest: TEST_COMPILER_CAPABILITY.executableDigest,
+        status: "MISMATCH",
+      },
+    });
+
+    expect(validated.validation).toMatchObject({
+      status: "INVALID_FIXTURE_PREPARATION",
+      category: "PROMPTED_FUNCTIONAL_REPAIR",
+      baselinePreparationStatus: "NO_RTL_SOURCE",
+      baselineCompileStatus: null,
+    });
+    expect(compiler.requests).toEqual([]);
+  });
+
+  it("binds seeded functional Debug to cached mismatch proof before the first Agent turn", async () => {
+    const root = await temporaryRoot();
+    const provider = new EvaluationTestProvider([
+      {
+        caseId: "case/debug-001",
+        fixtureId: "debug-001",
+        category: "SEEDED_FUNCTIONAL_REPAIR",
+      },
+    ]);
+    const run = await createEvaluationTestRun(root, provider, 1);
+    const compiler = new ScriptedCompilerAdapter(["COMPILE_PASSED", "COMPILE_PASSED"]);
+    const validated = await validateCoreLoopRunBaseline(run, {
+      caseIndex: 0,
+      compilerAdapter: compiler,
+      lockedCompilerCapability: compilerCapabilityLockFromCapability(TEST_COMPILER_CAPABILITY),
+      seededFunctionalBaseline: {
+        normalizedFixtureDigest: run.fixture.normalizedFixtureDigest,
+        starterRtlDigest:
+          run.fixture.category === "SEEDED_FUNCTIONAL_REPAIR"
+            ? run.fixture.starterRtlDigest
+            : "unexpected",
+        status: "MISMATCH",
+      },
+    });
+    expect(validated.validation).toMatchObject({
+      status: "VALID",
+      category: "SEEDED_FUNCTIONAL_REPAIR",
+      baselinePreparationStatus: "READY",
+      baselineCompileStatus: "COMPILE_PASSED",
+    });
+    expect(compiler.requests).toEqual([]);
+
+    const agent = new ScriptedAgentAdapter([
+      {
+        outcome: "RTL_CHANGED",
+        source: "module dut(input logic a, output logic y); assign y = a; endmodule\n",
+      },
+    ]);
+    const result = await executeValidatedCoreLoopRun(validated, executionOptions(agent, compiler));
+    expect(result).toMatchObject({
+      status: "COMPLETE",
+      finalResult: { outcome: "COMPILE_PASSED" },
+    });
+    expect(agent.inputs[0]).toMatchObject({
+      category: "SEEDED_FUNCTIONAL_REPAIR",
+      taskKind: "FUNCTIONAL_DEBUG",
+      rtlSourceFiles: ["rtl/dut.sv"],
+    });
+  });
+
   it("repairs only after COMPILE_ERROR and independently recompiles the final pass", async () => {
     const root = await temporaryRoot();
     const compiler = new ScriptedCompilerAdapter([

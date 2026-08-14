@@ -33,6 +33,7 @@ import { sha256Jcs } from "./filesystem.js";
 import { createCoreLoopRun } from "./materialize.js";
 import type { CoreLoopRun } from "./materialize.js";
 import type { CandidateFunctionalValidation } from "./functional-repair-contracts.js";
+import type { ChipBenchDebugBaselineCase } from "./chipbench-debug-baseline.js";
 import type { RtlAgentAdapter } from "./agent-adapter.js";
 import {
   agentCapabilityMatches,
@@ -78,6 +79,10 @@ export interface EvaluateCoreLoopBatchOptions {
     context: CoreLoopBatchAgentTurnPreparation,
   ) => Promise<"context/relevant-rtl-memory.md" | null>;
   readonly onCaseComplete?: (completion: CoreLoopBatchCaseCompletion) => Promise<void>;
+  readonly debugBaseline?: {
+    readonly manifestDigest: string;
+    readonly cases: ReadonlyMap<string, ChipBenchDebugBaselineCase>;
+  };
 }
 
 export interface CoreLoopBatchCaseProgress {
@@ -269,6 +274,16 @@ export async function evaluateCoreLoopBatch(
     );
   }
   const profile = profileResult.data;
+  if (
+    (profile.taskMode === "SEEDED_FUNCTIONAL_DEBUG") !== (options.debugBaseline !== undefined) ||
+    (profile.taskMode === "SEEDED_FUNCTIONAL_DEBUG" &&
+      profile.debugBaselineManifestDigest !== options.debugBaseline?.manifestDigest)
+  ) {
+    throw new CoreLoopException(
+      "DEBUG_BASELINE_INVALID",
+      "Seeded functional Debug evaluation requires the profile-bound baseline cache",
+    );
+  }
   const provider = requireFixtureProvider(options.provider);
   if (options.providerImplementationDigest !== profile.providerImplementationDigest) {
     throw new CoreLoopException(
@@ -347,6 +362,18 @@ export async function evaluateCoreLoopBatch(
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
       "Provider case selection does not match the locked count and ordered case digest",
+    );
+  }
+  if (
+    profile.taskMode === "SEEDED_FUNCTIONAL_DEBUG" &&
+    cases.some((caseRef) => {
+      const cached = options.debugBaseline!.cases.get(caseRef.identity.caseId);
+      return cached === undefined || sha256Jcs(cached.caseRef) !== sha256Jcs(caseRef);
+    })
+  ) {
+    throw new CoreLoopException(
+      "DEBUG_BASELINE_INVALID",
+      "Seeded functional Debug baseline does not cover the selected cases",
     );
   }
   await Promise.all([
@@ -430,6 +457,13 @@ export async function evaluateCoreLoopBatch(
         caseIndex: candidate.caseIndex,
         compilerAdapter: options.compilerAdapter,
         lockedCompilerCapability: profile.compilerCapability,
+        ...(profile.taskMode !== "SEEDED_FUNCTIONAL_DEBUG"
+          ? {}
+          : {
+              seededFunctionalBaseline: options.debugBaseline!.cases.get(
+                candidate.caseRef.identity.caseId,
+              )!,
+            }),
         clock,
       });
       validations.push(validated.validation);

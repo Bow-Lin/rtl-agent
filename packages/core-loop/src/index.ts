@@ -4,6 +4,7 @@ export * from "./pi-agent-adapter.js";
 export * from "./batch-evaluator.js";
 export * from "./catalog.js";
 export * from "./chipbench-lock.js";
+export * from "./chipbench-debug-baseline.js";
 export * from "./chipbench-prepare.js";
 export * from "./chipbench-provider.js";
 export * from "./compile-preparation.js";

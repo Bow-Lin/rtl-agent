@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CHIPBENCH_DATASET_LOCK,
+  chipBenchDebugBaselineCacheRoot,
   CompileRequestSchema,
   ChipBenchFixtureProvider,
   CoreLoopException,
@@ -30,6 +31,8 @@ import {
   chipBenchCacheRoot,
   chipBenchDatasetDirectory,
   createBaselineWorkspaceManifest,
+  compilerCapabilityLockFromCapability,
+  debugBaselineCaseMap,
   evaluateCoreLoopBatch,
   evaluateFunctionalSimulationCase,
   publishFunctionalSimulationCase,
@@ -38,9 +41,11 @@ import {
   createRunId,
   icarusExecutableFromEnvironment,
   listFixtureCases,
+  loadChipBenchDebugBaseline,
   openCodeExperimentConfigFromEnvironment,
   piExperimentConfigFromEnvironment,
   prepareChipBenchDataset,
+  prepareChipBenchDebugBaseline,
   prepareVerilogEvalDataset,
   requireFixtureProvider,
   scanRegularFiles,
@@ -64,6 +69,10 @@ import { parseNamedOptions } from "./cli-arguments.js";
 import {
   CHIPBENCH_KIMI_PI_PROFILE_ID,
   CHIPBENCH_KIMI_PROFILE_ID,
+  CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID,
+  CHIPBENCH_DEBUG_KIMI_PROFILE_ID,
+  createChipBenchDebugKimiBaseProfile,
+  createChipBenchDebugKimiPiBaseProfile,
   createChipBenchKimiBaseProfile,
   createChipBenchKimiPiBaseProfile,
   parseChipBenchSplit,
@@ -117,6 +126,7 @@ export interface RtlCoreLoopEvaluationDependencies {
   readonly experienceSummarizer?: CoreLoop.ExperienceSummarizer;
   readonly memorySelector?: CoreLoop.MemorySelector;
   readonly memoryConsolidator?: CoreLoop.MemoryConsolidator;
+  readonly debugBaselineManifest?: CoreLoop.ChipBenchDebugBaselineManifest;
 }
 
 export interface RtlCoreLoopDatasetDependencies {
@@ -159,8 +169,8 @@ async function persistMemoryBuildExperience(options: {
   );
 }
 
-function parseFunctionalRepairIterations(value: string | undefined): number {
-  if (value === undefined) return DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS;
+function parseFunctionalRepairIterations(value: string | undefined, defaultValue: number): number {
+  if (value === undefined) return defaultValue;
   if (!/^(?:0|[1-9]|10)$/u.test(value)) {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
@@ -254,7 +264,9 @@ function selectedDataset(arguments_: readonly string[]): DatasetName | undefined
 function standaloneDataset(arguments_: readonly string[]): DatasetName {
   const prepared = selectedDataset(arguments_);
   if (prepared !== undefined) return prepared;
-  if (arguments_[0] !== "evaluate") return "verilog-eval";
+  if (arguments_[0] !== "evaluate" && arguments_[0] !== "debug-evaluate") {
+    return arguments_[0] === "debug-baseline-prepare" ? "chipbench" : "verilog-eval";
+  }
   for (let index = 1; index + 1 < arguments_.length; index += 2) {
     if (arguments_[index] !== "--dataset") continue;
     const value = arguments_[index + 1];
@@ -270,6 +282,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
   const mismatchAnalyzerBackend = parseMismatchAnalyzerBackend(options.get("--analyzer"));
   const functionalRepairIterations = parseFunctionalRepairIterations(
     options.get("--functional-repair-iterations"),
+    command === "debug-evaluate" ? 0 : DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS,
   );
   const memory = parseMemoryCommandOptions(options);
   if (profileId === undefined) {
@@ -314,7 +327,7 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     };
   }
 
-  if (command !== "evaluate") {
+  if (command !== "evaluate" && command !== "debug-evaluate") {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
       "Core Loop evaluation command arguments are invalid",
@@ -344,6 +357,21 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
       "ChipBench evaluation requires --dataset chipbench with --split",
+    );
+  }
+  if (
+    command === "debug-evaluate" &&
+    (dataset !== "chipbench" || split === undefined || !split.startsWith("debug-zero-shot-"))
+  ) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "debug-evaluate requires one locked ChipBench zero-shot Debug split",
+    );
+  }
+  if (command === "debug-evaluate" && memory.memoryMode !== "off") {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "Seeded functional Debug v1 requires --memory-mode off",
     );
   }
   const allowedOptions = new Set([
@@ -457,6 +485,17 @@ function profileIdForAgentBackend(command: ParsedEvaluationCommand): string {
   }
   if (command.profileId === CHIPBENCH_KIMI_PROFILE_ID) {
     return command.agentBackend === "pi" ? CHIPBENCH_KIMI_PI_PROFILE_ID : CHIPBENCH_KIMI_PROFILE_ID;
+  }
+  if (command.profileId === CHIPBENCH_DEBUG_KIMI_PROFILE_ID) {
+    return command.agentBackend === "pi"
+      ? CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID
+      : CHIPBENCH_DEBUG_KIMI_PROFILE_ID;
+  }
+  if (command.profileId === CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID && command.agentBackend !== "pi") {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      `${CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID} requires --agent pi`,
+    );
   }
   if (command.profileId === CHIPBENCH_KIMI_PI_PROFILE_ID && command.agentBackend !== "pi") {
     throw new CoreLoopException(
@@ -644,6 +683,54 @@ export async function runRtlCoreLoopCli(
       });
     }, writeError);
   }
+  if (command === "debug-baseline-prepare") {
+    return executeCliCommand(async () => {
+      const options = parseNamedOptions(arguments_.slice(1));
+      if (
+        options.size !== 2 ||
+        options.get("--dataset") !== "chipbench" ||
+        options.get("--split") === undefined
+      ) {
+        throw new CoreLoopException(
+          "EVALUATION_PROFILE_INVALID",
+          "debug-baseline-prepare requires --dataset chipbench and one --split",
+        );
+      }
+      const split = parseChipBenchSplit(options.get("--split"));
+      const configuredProvider = requireFixtureProvider(provider);
+      if (!(configuredProvider instanceof ChipBenchFixtureProvider)) {
+        throw new CoreLoopException(
+          "EVALUATION_PROFILE_INVALID",
+          "debug-baseline-prepare requires the locked ChipBench Debug Provider",
+        );
+      }
+      const iverilogExecutable = icarusExecutableFromEnvironment(environment);
+      const result = await prepareChipBenchDebugBaseline({
+        provider: configuredProvider,
+        split,
+        compilerAdapter: new IcarusCompileAdapter({
+          executable: iverilogExecutable,
+          probeWorkingDirectory: repositoryRoot,
+        }),
+        providerImplementationDigest: CHIPBENCH_DATASET_LOCK.providerImplementationDigest,
+        cacheRoot: chipBenchDebugBaselineCacheRoot(repositoryRoot),
+        iverilogExecutable,
+        ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
+          ? {}
+          : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
+      });
+      writeOutput(
+        JSON.stringify({
+          ok: true,
+          reused: result.reused,
+          split,
+          caseCount: result.manifest.cases.length,
+          manifestDigest: result.manifest.manifestDigest,
+        }),
+      );
+      return 0;
+    }, writeError);
+  }
   if (command === "i2c-coverage") {
     return executeCliCommand(
       () =>
@@ -694,7 +781,7 @@ export async function runRtlCoreLoopCli(
       writeError,
     );
   }
-  if (command === "run" || command === "evaluate") {
+  if (command === "run" || command === "evaluate" || command === "debug-evaluate") {
     return executeCliCommand(async () => {
       const configuredProvider = requireFixtureProvider(provider);
       const parsedCommand = parseEvaluationCommand(arguments_);
@@ -702,6 +789,7 @@ export async function runRtlCoreLoopCli(
       let agentAdapter = evaluationDependencies?.agentAdapter;
       let compilerAdapter = evaluationDependencies?.compilerAdapter;
       let providerImplementationDigest = evaluationDependencies?.providerImplementationDigest;
+      let debugBaselineManifest = evaluationDependencies?.debugBaselineManifest;
       let registered = evaluationDependencies?.profiles.find(
         (profile) => profile.evaluationProfileId === requestedProfileId,
       );
@@ -748,7 +836,9 @@ export async function runRtlCoreLoopCli(
         registered === undefined &&
         evaluationDependencies === undefined &&
         (requestedProfileId === CHIPBENCH_KIMI_PROFILE_ID ||
-          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID)
+          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID ||
+          requestedProfileId === CHIPBENCH_DEBUG_KIMI_PROFILE_ID ||
+          requestedProfileId === CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID)
       ) {
         if (parsedCommand.dataset !== "chipbench") {
           throw new CoreLoopException(
@@ -757,7 +847,10 @@ export async function runRtlCoreLoopCli(
           );
         }
         const split = parseChipBenchSplit(parsedCommand.split);
-        if (requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID) {
+        if (
+          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID ||
+          requestedProfileId === CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID
+        ) {
           agentAdapter = new PiRtlAgentAdapter(
             piExperimentConfigFromEnvironment(environment, repositoryRoot),
           );
@@ -770,20 +863,54 @@ export async function runRtlCoreLoopCli(
           executable: icarusExecutableFromEnvironment(environment),
           probeWorkingDirectory: repositoryRoot,
         });
-        registered =
-          requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID
-            ? await createChipBenchKimiPiBaseProfile(
-                configuredProvider,
-                agentAdapter,
-                compilerAdapter,
-                split,
-              )
-            : await createChipBenchKimiBaseProfile(
-                configuredProvider,
-                agentAdapter,
-                compilerAdapter,
-                split,
-              );
+        if (
+          requestedProfileId === CHIPBENCH_DEBUG_KIMI_PROFILE_ID ||
+          requestedProfileId === CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID
+        ) {
+          const iverilogExecutable = icarusExecutableFromEnvironment(environment);
+          debugBaselineManifest = await loadChipBenchDebugBaseline({
+            provider: configuredProvider,
+            split,
+            compilerCapability: compilerCapabilityLockFromCapability(await compilerAdapter.probe()),
+            providerImplementationDigest: CHIPBENCH_DATASET_LOCK.providerImplementationDigest,
+            cacheRoot: chipBenchDebugBaselineCacheRoot(repositoryRoot),
+            iverilogExecutable,
+            ...(environment.RTL_AGENT_VVP_EXECUTABLE === undefined
+              ? {}
+              : { vvpExecutable: environment.RTL_AGENT_VVP_EXECUTABLE }),
+          });
+          registered =
+            requestedProfileId === CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID
+              ? await createChipBenchDebugKimiPiBaseProfile(
+                  configuredProvider,
+                  agentAdapter,
+                  compilerAdapter,
+                  split,
+                  debugBaselineManifest.manifestDigest,
+                )
+              : await createChipBenchDebugKimiBaseProfile(
+                  configuredProvider,
+                  agentAdapter,
+                  compilerAdapter,
+                  split,
+                  debugBaselineManifest.manifestDigest,
+                );
+        } else {
+          registered =
+            requestedProfileId === CHIPBENCH_KIMI_PI_PROFILE_ID
+              ? await createChipBenchKimiPiBaseProfile(
+                  configuredProvider,
+                  agentAdapter,
+                  compilerAdapter,
+                  split,
+                )
+              : await createChipBenchKimiBaseProfile(
+                  configuredProvider,
+                  agentAdapter,
+                  compilerAdapter,
+                  split,
+                );
+        }
         providerImplementationDigest = CHIPBENCH_DATASET_LOCK.providerImplementationDigest;
       }
       if (registered === undefined) {
@@ -912,6 +1039,14 @@ export async function runRtlCoreLoopCli(
         agentAdapter,
         compilerAdapter,
         batchesRoot,
+        ...(debugBaselineManifest === undefined
+          ? {}
+          : {
+              debugBaseline: {
+                manifestDigest: debugBaselineManifest.manifestDigest,
+                cases: debugBaselineCaseMap(debugBaselineManifest),
+              },
+            }),
         ...(preparedMemory.snapshot === null || memorySelector === undefined
           ? {}
           : {
@@ -1176,7 +1311,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|debug-baseline-prepare --dataset chipbench --split <debug-zero-shot-split>|debug-evaluate --dataset chipbench --split <debug-zero-shot-split> --profile <id> [--agent <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode off]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }
@@ -1187,6 +1322,8 @@ const invokedPath = process.argv[1];
 if (invokedPath !== undefined && fileURLToPath(import.meta.url) === invokedPath) {
   const repositoryEnvironment = await loadRepositoryEnvironment(DEFAULT_REPOSITORY_ROOT);
   const requestedDataset = standaloneDataset(process.argv.slice(2));
+  const seededDebug =
+    process.argv[2] === "debug-baseline-prepare" || process.argv[2] === "debug-evaluate";
   const datasetDirectory =
     requestedDataset === "chipbench"
       ? chipBenchDatasetDirectory(
@@ -1202,7 +1339,11 @@ if (invokedPath !== undefined && fileURLToPath(import.meta.url) === invokedPath)
     datasetStat === undefined
       ? undefined
       : requestedDataset === "chipbench"
-        ? new ChipBenchFixtureProvider(datasetDirectory, CHIPBENCH_DATASET_LOCK)
+        ? new ChipBenchFixtureProvider(
+            datasetDirectory,
+            CHIPBENCH_DATASET_LOCK,
+            seededDebug ? "zero-shot-seeded-debug" : "prompt-only",
+          )
         : new VerilogEvalFixtureProvider(datasetDirectory, VERILOG_EVAL_DATASET_LOCK);
   process.exitCode = await runRtlCoreLoopCli(
     process.argv.slice(2),

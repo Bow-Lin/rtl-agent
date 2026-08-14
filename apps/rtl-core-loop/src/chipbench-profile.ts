@@ -19,6 +19,8 @@ import type {
 
 export const CHIPBENCH_KIMI_PROFILE_ID = "chipbench-kimi-v1" as const;
 export const CHIPBENCH_KIMI_PI_PROFILE_ID = "chipbench-kimi-pi-v1" as const;
+export const CHIPBENCH_DEBUG_KIMI_PROFILE_ID = "chipbench-debug-kimi-v1" as const;
+export const CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID = "chipbench-debug-kimi-pi-v1" as const;
 const OPENCODE_KIMI_MODEL_PREFIX = "kimi-code/";
 const PI_KIMI_PROVIDER = "kimi-coding";
 
@@ -158,4 +160,60 @@ export function createChipBenchKimiPiBaseProfile(
     compilerAdapter,
     split,
   );
+}
+
+export async function createChipBenchDebugKimiBaseProfile(
+  provider: FixtureProvider,
+  agentAdapter: RtlAgentAdapter,
+  compilerAdapter: CoreLoopCompilerAdapter,
+  split: ChipBenchSplit,
+  debugBaselineManifestDigest: string,
+): Promise<EvaluationProfile> {
+  if (!split.startsWith("debug-zero-shot-")) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "ChipBench Debug profile accepts only zero-shot Debug splits",
+    );
+  }
+  const base = await createChipBenchKimiBaseProfileForAgent(
+    "opencode",
+    provider,
+    agentAdapter,
+    compilerAdapter,
+    split,
+  );
+  return EvaluationProfileSchema.parse({
+    ...base,
+    evaluationProfileId: `${CHIPBENCH_DEBUG_KIMI_PROFILE_ID}-${split}`,
+    taskMode: "SEEDED_FUNCTIONAL_DEBUG",
+    debugBaselineManifestDigest,
+  });
+}
+
+export async function createChipBenchDebugKimiPiBaseProfile(
+  provider: FixtureProvider,
+  agentAdapter: RtlAgentAdapter,
+  compilerAdapter: CoreLoopCompilerAdapter,
+  split: ChipBenchSplit,
+  debugBaselineManifestDigest: string,
+): Promise<EvaluationProfile> {
+  if (!split.startsWith("debug-zero-shot-")) {
+    throw new CoreLoopException(
+      "EVALUATION_PROFILE_INVALID",
+      "ChipBench Debug profile accepts only zero-shot Debug splits",
+    );
+  }
+  const base = await createChipBenchKimiBaseProfileForAgent(
+    "pi",
+    provider,
+    agentAdapter,
+    compilerAdapter,
+    split,
+  );
+  return EvaluationProfileSchema.parse({
+    ...base,
+    evaluationProfileId: `${CHIPBENCH_DEBUG_KIMI_PI_PROFILE_ID}-${split}`,
+    taskMode: "SEEDED_FUNCTIONAL_DEBUG",
+    debugBaselineManifestDigest,
+  });
 }

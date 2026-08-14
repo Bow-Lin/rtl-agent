@@ -5,6 +5,7 @@ import {
   createVerilogEvalKimiPiBaseProfile,
 } from "../src/verilog-eval-profile.js";
 import {
+  createChipBenchDebugKimiPiBaseProfile,
   createChipBenchKimiBaseProfile,
   createChipBenchKimiPiBaseProfile,
 } from "../src/chipbench-profile.js";
@@ -261,6 +262,27 @@ describe("ChipBench Kimi profile", () => {
       selection: { split: "debug-zero-shot-arithmetic" },
       thresholds: { minimumBlankGenerationCases: 0 },
       agentCapability: { provider: "kimi-coding", model: "k3" },
+    });
+  });
+
+  it("binds an explicit seeded Debug profile to its cached baseline", async () => {
+    const profile = await createChipBenchDebugKimiPiBaseProfile(
+      new ChipBenchProfileTestProvider(),
+      piAgent("kimi-coding", "k3"),
+      compilerAdapter(),
+      "debug-zero-shot-assignment",
+      DIGEST_C,
+    );
+
+    expect(profile).toMatchObject({
+      evaluationProfileId: "chipbench-debug-kimi-pi-v1-debug-zero-shot-assignment",
+      expectedCaseCount: 30,
+      selection: { split: "debug-zero-shot-assignment" },
+      taskMode: "SEEDED_FUNCTIONAL_DEBUG",
+      debugBaselineManifestDigest: DIGEST_C,
+      thresholds: {
+        minimumBlankGenerationCases: 0,
+      },
     });
   });
 });

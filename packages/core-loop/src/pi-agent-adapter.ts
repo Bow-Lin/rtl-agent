@@ -17,6 +17,7 @@ import {
 import type { RtlAgentAdapter, RtlWorkspaceLimits } from "./agent-adapter.js";
 import type { RtlGuidanceProfile } from "./agent-adapter.js";
 import { AgentAttemptInputSchema, ToolVersionSchema } from "./contracts.js";
+import type { AgentAttemptInput } from "./contracts.js";
 import { CoreLoopException } from "./errors.js";
 import { writeJsonEvidenceExclusive } from "./evidence.js";
 import { resolveLogicalPath, sha256Bytes, sha256Jcs } from "./filesystem.js";
@@ -285,11 +286,17 @@ function experimentConfigDigest(
   });
 }
 
-function fixedPrompt(guidance: string, profile: RtlGuidanceProfile): string {
+function fixedPrompt(
+  guidance: string,
+  profile: RtlGuidanceProfile,
+  taskKind?: AgentAttemptInput["taskKind"],
+): string {
   const taskPrompt =
     profile === "coverage-improvement"
       ? "Read context/agent-input.json and execute exactly one bounded verification coverage improvement attempt."
-      : "Read context/agent-input.json and execute exactly one bounded RTL or verification-asset editing attempt.";
+      : taskKind === "FUNCTIONAL_DEBUG"
+        ? "Read context/agent-input.json and repair the existing buggy RTL under rtl/ according to spec.md; preserve the required interface and do not treat this as blank generation."
+        : "Read context/agent-input.json and execute exactly one bounded RTL or verification-asset editing attempt.";
   return [
     taskPrompt,
     "The case specification is authoritative.",
@@ -576,7 +583,11 @@ export class PiRtlAgentAdapter implements RtlAgentAdapter {
           "--no-approve",
           "--offline",
           "--system-prompt",
-          fixedPrompt(guidance.content, this.config.guidanceProfile ?? "generation"),
+          fixedPrompt(
+            guidance.content,
+            this.config.guidanceProfile ?? "generation",
+            input.taskKind,
+          ),
           "Execute the bounded RTL attempt now.",
         ]),
         cwd: run.workspaceDirectory,

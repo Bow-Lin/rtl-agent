@@ -1941,3 +1941,39 @@ reads, selected `memory-000001`, bound
 `relevantMemoryPath` in attempt evidence, and captured the advisory Memory block in the Pi provider
 transcript. The Case compiled and passed functional simulation. These are non-authoritative local
 orchestration results, not Linux Gate evidence or proof that Memory improves aggregate capability.
+
+## 2026-08-14 - Make ChipBench zero-shot Debug an explicit cached task
+
+### Context
+
+ChipBench Debug prompts contain an initial buggy `TopModule`, but the existing prompt-only Provider
+classified them as prompted functional repair and materialized no RTL. The ordinary evaluation loop
+therefore began as blank generation. Rechecking every original buggy design before every Debug batch
+would also duplicate deterministic compiler and simulation work.
+
+### Decision
+
+Add separate `debug-baseline-prepare` and `debug-evaluate` commands. Only these commands construct the
+ChipBench Provider in `zero-shot-seeded-debug` mode. That mode extracts the target code block after
+the locked prompt marker, materializes it below `rtl/`, and records `SEEDED_FUNCTIONAL_REPAIR` plus
+`FUNCTIONAL_DEBUG` through fixture, profile, and Agent input evidence. The Agent still receives the
+repository common guidance, but task selection is fixed by the command and typed evidence rather
+than inferred from prose.
+
+Validate each zero-shot split's original RTL once with the locked hidden reference and testbench.
+Require compilation and simulation to succeed and the mismatch count to be positive for every Case.
+Publish a content-addressed manifest bound to the dataset, ordered cases, Provider digest, compiler
+capability, VVP executable, and runner version. Later Debug batches must load the exact manifest and
+match each materialized starter digest; they never silently regenerate it.
+
+Debug v1 requires Memory off and defaults to zero additional functional-repair iterations. Memory
+and Experience semantics for seeded Debug remain deferred rather than being silently borrowed from
+generation.
+
+### Consequences
+
+Generation behavior is unchanged. An operator pays the initial baseline cost once per locked
+split/toolchain identity and may reuse it across batches. A dataset, Provider, compiler, VVP, case
+order, or runner change produces a new identity and requires an explicit prepare. On 2026-08-14 the
+assignment split prepared all 30 Cases successfully; an immediate second invocation reused the same
+manifest `sha256:c19159fe6a9d84d625fda6991a5cf27b15dafca918ff359451345b296e544897`.

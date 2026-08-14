@@ -1,4 +1,4 @@
-import { lstat, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -46,6 +46,36 @@ export interface ChipBenchVerificationMaterialization {
 interface ChipBenchMetadata {
   readonly bySplit: ReadonlyMap<ChipBenchSplit, readonly ChipBenchCase[]>;
   readonly byIdentity: ReadonlyMap<string, ChipBenchCase>;
+}
+
+export type ChipBenchProviderMode = "prompt-only" | "zero-shot-seeded-debug";
+
+const DEBUG_TARGET_MARKER = "code below in TopModule has bug, please fix that:";
+
+export function extractChipBenchZeroShotBuggyRtl(prompt: string): string {
+  const markerIndex = prompt.indexOf(DEBUG_TARGET_MARKER);
+  if (markerIndex < 0) {
+    throw new CoreLoopException(
+      "DATASET_PROVENANCE_INVALID",
+      "ChipBench Debug prompt is missing the locked target marker",
+    );
+  }
+  const target = prompt.slice(markerIndex + DEBUG_TARGET_MARKER.length);
+  const match = /```(?:verilog|systemverilog)?[ \t]*\r?\n([\s\S]*?)\r?\n```/u.exec(target);
+  if (match === null || !/(?:^|\n)\s*module\s+TopModule\b/u.test(match[1]!)) {
+    throw new CoreLoopException(
+      "DATASET_PROVENANCE_INVALID",
+      "ChipBench Debug prompt does not contain one extractable TopModule target",
+    );
+  }
+  const rtl = `${match[1]!.trim()}\n`;
+  if (Buffer.byteLength(rtl, "utf8") > 1_048_576 || rtl.includes("```")) {
+    throw new CoreLoopException(
+      "DATASET_PROVENANCE_INVALID",
+      "ChipBench Debug starter RTL exceeds the locked extraction boundary",
+    );
+  }
+  return rtl;
 }
 
 function requireRegularDirectory(hostPath: string, label: string): Promise<void> {
@@ -99,6 +129,7 @@ export class ChipBenchFixtureProvider implements FixtureProvider {
   public constructor(
     private readonly datasetRoot: string,
     private readonly lock: ChipBenchDatasetLock = CHIPBENCH_DATASET_LOCK,
+    private readonly mode: ChipBenchProviderMode = "prompt-only",
   ) {}
 
   private descriptor(): DatasetDescriptor {
@@ -284,18 +315,39 @@ export class ChipBenchFixtureProvider implements FixtureProvider {
         "ChipBench case split is not present in the locked catalog",
       );
     }
+    const seededDebug = this.mode === "zero-shot-seeded-debug";
+    if (seededDebug && !entry.caseRef.identity.split.startsWith("debug-zero-shot-")) {
+      throw new CoreLoopException(
+        "DATASET_PROVENANCE_INVALID",
+        "Seeded ChipBench Debug mode accepts only locked zero-shot Debug splits",
+      );
+    }
+    if (seededDebug) {
+      const rtlDirectory = path.join(destination, "rtl");
+      await mkdir(rtlDirectory);
+      await writeFile(
+        path.join(rtlDirectory, "dut.sv"),
+        extractChipBenchZeroShotBuggyRtl(prompt.toString("utf8")),
+        { encoding: "utf8", flag: "wx" },
+      );
+    }
     return FixtureMaterializationSchema.parse({
       schemaVersion: 1,
       fixtureId: entry.caseRef.fixtureId,
       identity: entry.caseRef.identity,
       caseSourceDigest: entry.caseRef.caseSourceDigest,
-      category: split.category,
+      category: seededDebug ? "SEEDED_FUNCTIONAL_REPAIR" : split.category,
       specPath: "prompt.txt",
+      ...(seededDebug ? { starterRtlRoot: "rtl" } : {}),
       topModule: "TopModule",
       tags: [
         "chipbench",
         entry.caseRef.identity.split,
-        split.category === "BLANK_GENERATION" ? "verilog-generation" : "prompted-functional-repair",
+        seededDebug
+          ? "seeded-functional-repair"
+          : split.category === "BLANK_GENERATION"
+            ? "verilog-generation"
+            : "prompted-functional-repair",
       ].sort(),
     });
   }
