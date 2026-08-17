@@ -21,6 +21,8 @@ Implementation and local validation are complete:
   `SEEDED_FUNCTIONAL_DEBUG`; the Agent input records `FUNCTIONAL_DEBUG` and starts with the buggy RTL
   already below `rtl/`.
 - The ordinary `evaluate` generation path still uses the prompt-only ChipBench Provider.
+- `debug-evaluate` now emits the same per-Case stderr progress line as ordinary `evaluate`, for
+  example `正在处理 Prob001... (1/30)`.
 - Debug v1 requires `--memory-mode off` and defaults to zero additional feedback-repair iterations.
   Memory/Experience behavior for seeded Debug is intentionally deferred.
 - The assignment split's 30 Cases prepared successfully on the local Windows Icarus/VVP toolchain.
@@ -58,4 +60,4 @@ or Debug evaluation Batch was started.
 
 ## Last Updated
 
-2026-08-14T11:48:32+08:00
+2026-08-17T10:01:46+08:00

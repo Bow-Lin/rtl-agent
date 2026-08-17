@@ -1112,7 +1112,7 @@ export async function runRtlCoreLoopCli(
                 return "context/relevant-rtl-memory.md";
               },
             }),
-        ...(command === "evaluate"
+        ...(command === "evaluate" || command === "debug-evaluate"
           ? {
               onCaseStart: (progress: CoreLoop.CoreLoopBatchCaseProgress) => {
                 writeError(

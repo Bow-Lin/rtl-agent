@@ -2,7 +2,7 @@
   "task_id": "chipbench-explicit-seeded-debug",
   "status": "complete",
   "current_phase": "implemented_and_validated",
-  "last_updated": "2026-08-14T11:48:32+08:00",
+  "last_updated": "2026-08-17T10:01:46+08:00",
   "active_plan": [
     "Select ChipBench Debug at the command boundary",
     "Materialize the prompt's buggy RTL as the initial workspace",
@@ -48,20 +48,15 @@
   ],
   "validation": {
     "last_commands": [
-      "corepack pnpm@11.13.0 install --frozen-lockfile",
       "corepack pnpm@11.13.0 lint",
       "corepack pnpm@11.13.0 typecheck",
-      "corepack pnpm@11.13.0 test",
       "corepack pnpm@11.13.0 build",
-      "corepack pnpm@11.13.0 peers check",
-      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/run-orchestrator.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm@11.13.0 core-loop:debug-baseline:chipbench --split debug-zero-shot-assignment",
-      "corepack pnpm@11.13.0 core-loop:debug-baseline:chipbench --split debug-zero-shot-assignment",
-      "corepack pnpm@11.13.0 exec prettier --check <task-files-excluding-preexisting-user-files>",
+      "corepack pnpm@11.13.0 exec vitest run apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm@11.13.0 exec prettier --check apps/rtl-core-loop/src/index.ts current-task.md .harness/session-state.json .harness/session-log.md",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Commit-main verification passed frozen install, lint, typecheck, build, peer, targeted Prettier, and Harness checks. Full Vitest passed 359 tests with 2 skipped. The operator explicitly accepted the two baseline-provenance review notes as non-blocking. The real 30-Case assignment baseline prepared successfully, then a second invocation reused the same manifest without rerunning simulations.",
+    "last_result": "Debug evaluation now shares the ordinary evaluation per-Case stderr progress callback. Commit-main verification passed the 33-test CLI suite, typecheck, lint, build, targeted Prettier, diff, and Harness checks; no model-backed evaluation was started.",
     "known_failures": [
       "CVDP still has no repository Provider, profile, or functional-simulation adapter.",
       "The Windows process-tree capability probe can race under aggregate Vitest concurrency; use the documented serialized rerun if it recurs.",
@@ -78,12 +73,13 @@
       "Cached initial compiled-mismatch proof by complete dataset and toolchain identity",
       "Required explicit baseline preparation and rejected missing or stale caches",
       "Validated real assignment baseline preparation and immediate reuse",
-      "Published a prompt-only Batch report and paired it with the separately sealed starter baseline without mixing experiment identities"
+      "Published a prompt-only Batch report and paired it with the separately sealed starter baseline without mixing experiment identities",
+      "Enabled the existing per-Case progress callback for debug-evaluate"
     ],
     "blocked_on": "No implementation blocker. The operator explicitly accepted the two commit-main baseline-provenance review notes as non-blocking."
   },
   "handoff": {
-    "last_summary": "Implemented explicit seeded Debug and published the separate prompt-only b-20260814-001 baseline report: 19/30 functional passes from 30 compiled candidates.",
+    "last_summary": "Enabled per-Case stderr progress output for explicit seeded Debug; CLI tests, typecheck, and lint pass.",
     "resume_from": "Run core-loop:debug:chipbench:pi on a prepared zero-shot split, then report the resulting Batch separately from generation experiments."
   },
   "preexisting_uncommitted_changes_preserved": true

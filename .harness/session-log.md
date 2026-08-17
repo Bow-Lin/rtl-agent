@@ -3773,3 +3773,13 @@ generation, consolidation, or snapshot publication occurred during the diagnosis
   explicitly classified both as over-design and accepted them as non-blocking for this landing.
 - Commit-main verification passed frozen install, lint, typecheck, build, peer dependency, targeted
   Prettier, and Harness checks. Full Vitest passed 359 tests with two skipped.
+
+## 2026-08-17 - Show per-Case progress for seeded Debug
+
+- Extended the existing CLI `onCaseStart` progress callback from `evaluate` to `debug-evaluate`.
+- Debug runs now emit `正在处理 <case-id>... (<current>/<total>)` to stderr before each valid Case,
+  while the final machine-readable JSON remains on stdout.
+- The change does not alter model inputs, Batch evidence, baseline reuse, Memory mode, or functional
+  evaluation behavior.
+- Commit-main validation passed the 33-test CLI suite, TypeScript typecheck, lint, build, targeted
+  Prettier, diff, and Harness checks. No Pi/model evaluation was started.
