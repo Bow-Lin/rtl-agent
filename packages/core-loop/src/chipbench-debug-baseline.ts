@@ -310,7 +310,7 @@ export async function prepareChipBenchDebugBaseline(options: {
       ) {
         throw new CoreLoopException(
           "DEBUG_BASELINE_INVALID",
-          "ChipBench Debug starter RTL did not reproduce one valid functional mismatch",
+          `ChipBench Debug starter RTL for ${caseRef.identity.caseId} did not reproduce one valid functional mismatch (status=${result.status}, mismatches=${String(result.mismatches)}, samples=${String(result.samples)}, compileExitCode=${String(result.compileExitCode)}, simulationExitCode=${String(result.simulationExitCode)})`,
         );
       }
       results.push({

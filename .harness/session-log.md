@@ -3783,3 +3783,157 @@ generation, consolidation, or snapshot publication occurred during the diagnosis
   evaluation behavior.
 - Commit-main validation passed the 33-test CLI suite, TypeScript typecheck, lint, build, targeted
   Prettier, diff, and Harness checks. No Pi/model evaluation was started.
+
+## 2026-08-17 - Report the first seeded assignment Debug Batch
+
+- Published `exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-assignment.md` from sealed
+  Batch `b-20260817-001` without rerunning the model, compilation, simulation, baseline preparation,
+  Memory, consolidation, or snapshot publication.
+- Confirmed the intended experiment identity: `SEEDED_FUNCTIONAL_DEBUG`, cached starter manifest
+  `sha256:c19159fe6a9d84d625fda6991a5cf27b15dafca918ff359451345b296e544897`,
+  Pi/K3, minimal guidance, Memory off, one Agent attempt, and zero feedback-repair iterations.
+- All 30 Agent outputs changed RTL, compiled, and ran functional simulation. Twenty passed and ten
+  remained mismatches; there were no timeouts, policy violations, or verification-invalid cases.
+- Relative to the 30 buggy starters, the run produced 20 full repairs, six partial improvements,
+  and four regressions. Total mismatch samples fell from 18,564/29,235 to 4,793/29,235, a 74.18%
+  reduction.
+- Compared with the earlier prompt-only Batch `b-20260814-001`, seeded Debug gained one functional
+  pass and reduced mismatches by 1,491, but used 97,868 more provider total tokens. The report keeps
+  this as an observational comparison because task representation and uncontrolled model sampling
+  both differ.
+- Audited 30 provider transcripts and 139 usage-bearing exchanges: 418,453 provider total tokens
+  and $1.393244 provider-reported cost. Ten mismatch Analyzer calls did not persist usage and are
+  excluded.
+- The report passed targeted Prettier validation; handoff state now records the Batch as completed
+  and reported.
+
+## 2026-08-17 - Diagnose the timing baseline preparation failure
+
+- Audited all 89 pinned zero-shot Debug prompts. Arithmetic (24), assignment (30), and state-machine
+  (6) use the TopModule-qualified target marker. Timing mixes 14 qualified markers with 15 shorter
+  `code below has bug` markers; no prompt lacks both observed forms.
+- Extended the extractor to accept exactly those two marker variants while preserving the fenced
+  `TopModule` requirement and fail-closed behavior for unknown text. Updated the Provider source
+  digest in both lock representations and added positive and negative regressions.
+- Added public Case/status details to baseline validation errors. Focused Provider/baseline tests,
+  typecheck, lint, and build passed.
+- Re-ran the real timing baseline without any model call. Extraction succeeded, but preparation
+  stopped at `Prob013_least_common_multiple` with `SIMULATION_COMPILE_ERROR`, compile exit 2. The
+  starter declares `mcd_out` as `output wire` and assigns it in an `always` block.
+- The current reusable baseline intentionally accepts only compiled positive-mismatch starters.
+  Supporting all 29 timing Cases therefore requires an explicit mixed functional-debug/compile-debug
+  protocol; no Case was excluded and no dataset RTL was normalized or repaired.
+- Discovered existing completed operator Batches while refreshing state: state-machine
+  `b-20260817-002` passed 4/6, and arithmetic `b-20260817-003` passed 17/24. Their detailed reports
+  remain pending.
+
+## 2026-08-17 - Normalize and prepare the full timing functional baseline
+
+- Kept seeded Debug functional-only at the operator's direction. Added ChipBench preparation-patch
+  support using the established path, source digest, literal occurrence count, result digest, and
+  atomic publication pattern.
+- Normalized three timing starters without changing reference/testbench assets: `Prob013` retains an
+  extra registered `mcd_out`, `Prob016` retains an extra registered `clk_out7`, and `Prob022` now
+  updates its write pointer on the wrong clock edge instead of looping indefinitely in zero time.
+- Published dataset identity `c74fe7d28-r5`, adapter `v2.3.0`, normalization
+  `prompt-only-v5-timing-starter-normalization-v1`, and content manifest
+  `sha256:faaadfbe3d459eba8f87e98c9040902278c7baca99997a7d6ae0012299d2291c`.
+- Added deterministic positive preparation/reuse coverage and a source-digest mismatch rejection.
+  The focused seven-test Provider suite and TypeScript typecheck passed.
+- Real dataset preparation and the 223-Case fixture check passed. The resulting normalized files
+  match every locked result digest.
+- The complete 29-Case timing baseline prepared successfully: every starter compiled, completed
+  simulation, and produced a positive mismatch, totaling 7,368 mismatches. The manifest is
+  `sha256:1f4303f62a02cf87d1005fdf9575c0c108a314068da70a7aef2836e09943555b`;
+  an immediate repeat returned `reused: true`.
+- No Pi/K3 Debug Batch, Memory operation, Experience generation, consolidation, or snapshot
+  publication was started.
+- Final validation passed the full 361-test suite with two skipped, lint, typecheck, build, peer
+  dependency, targeted formatting, diff, JSON, lock-digest, and Harness checks.
+
+## 2026-08-17 - Report all four seeded zero-shot Debug splits
+
+- Audited sealed Batches `b-20260817-001` through `b-20260817-004` and their exact cached starter
+  manifests without rerunning Pi/K3, compilation, simulation, baseline preparation, Memory,
+  Experience, consolidation, or snapshot publication.
+- Published `exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-all-splits.md` as the concise
+  combined report for assignment, state-machine, arithmetic, and timing.
+- The strict cross-version observation is 55/89 functional passes: 20/30 assignment, 4/6
+  state-machine, 17/24 arithmetic, and 14/29 timing. There are also 16 partial improvements, two
+  unchanged mismatches, 13 regressions, and three timing candidates that did not reach functional
+  simulation.
+- On the 86 runnable paired Cases, mismatch count fell from 32,016/71,369 to 10,802/71,369, a
+  66.26% reduction. The report keeps case-level pass rate as the primary metric because micro
+  mismatch totals are sample-weighted.
+- Identified the three timing non-runs directly from Batch evidence: `Prob021` and `Prob022` omitted
+  `dual_port_RAM` and failed candidate compilation; `Prob034` timed out during the Agent attempt.
+- Aggregated 406 usage-bearing main Agent exchanges: 1,191,502 provider total tokens,
+  $4.029632 provider-reported cost, and 02:07:16 total Batch wall time. The 31 mismatch Analyzer
+  calls lack persisted usage and remain excluded.
+- Preserved the provenance boundary: the first three Batches use dataset `c74fe7d28-r2`, while
+  timing uses normalized `c74fe7d28-r5`; `55/89` is explicitly labeled a cross-version observation.
+
+## 2026-08-17 - Inspect Memory stores for the next frozen Debug experiment
+
+- Confirmed `.rtl-agent/memory-ve` is the archived VerilogEval store. Its published `mem-v0003`
+  contains nine Memory items derived from VerilogEval `spec-to-rtl` Experience.
+- Confirmed the active `.rtl-agent/memory` is the later ChipBench store. It contains self-contained
+  ChipBench Experience from `b-20260813-002`, but only an empty `mem-v0001` snapshot.
+- The runtime hard-codes `.rtl-agent/memory`, so the proposed short-term switch is logically correct:
+  archive the current store as `memory-chip`, then restore `memory-ve` as `memory`.
+- No directory was moved or renamed during inspection. Seeded Debug currently rejects frozen Memory
+  and the package command hard-codes Memory off, so implementation must precede the switch.
+- Frozen mode already prevents Experience persistence and snapshot publication, but still invokes
+  the Experience summarizer. The clean read-only comparison should suppress that unused call while
+  retaining selector-driven Memory injection.
+- One read-only snapshot-summary diagnostic repeated the documented PowerShell direct-`foreach`
+  pipeline parser error. It was corrected with an intermediate `$rows` collection and recorded in
+  `docs/error-journal.md`; no repository or Memory data was changed by the failed command.
+
+## 2026-08-17 - Enable frozen Memory for seeded Debug
+
+- Seeded `debug-evaluate` now accepts Memory `off` or an explicit `frozen` snapshot and continues to
+  reject `read_write`. Omitting Memory flags still defaults to `off`.
+- Removed the package script's hard-coded `--memory-mode off`, allowing callers to append
+  `--memory-mode frozen --memory-snapshot <id>` without changing the default behavior.
+- The first seeded Debug turn now queries `functional_simulation` / `output_mismatch` Memory and is
+  labeled as functional repair for selection. Ordinary generation still begins with
+  `initial_generation`; this separation has direct regression coverage.
+- Frozen seeded Debug skips Experience summarization, persistence, Memory Build input, and snapshot
+  publication while retaining selector-driven Memory read and prompt injection.
+- Kept the seeded Debug feedback-repair default at zero. The existing
+  `--functional-repair-iterations <0-10>` flag remains the explicit override, so repair depth can be
+  tested separately without changing the default.
+- The operator completed the store switch during implementation. Active `.rtl-agent/memory` is the
+  VerilogEval store with `mem-v0003`; `.rtl-agent/memory-chip` archives the ChipBench store. A
+  read-only load found all nine items eligible for the intended functional Debug query.
+- Validation passed the 36-test CLI suite, full Vitest suite (364 passed, two skipped), typecheck,
+  lint, build, peer dependency, targeted Prettier, diff, and Harness checks. No model-backed Debug
+  Batch, RTL compilation, simulation, Experience write, or Memory publication was started.
+
+## 2026-08-17 - Refresh the assignment baseline for the current identity
+
+- The first frozen assignment Debug attempt stopped before any model call with
+  `DEBUG_BASELINE_INVALID`.
+- Diagnosed the exact identity mismatch: the available assignment cache used dataset
+  `c74fe7d28-r2` and Provider digest `sha256:e1af69c...`, while the current lock uses dataset
+  `c74fe7d28-r5` and Provider digest `sha256:49399b...` after timing normalization and target-marker
+  extraction changes. Memory mode and `mem-v0003` were not involved in the failure.
+- Re-ran `debug-baseline-prepare` for all 30 assignment Cases. It completed without a model call and
+  published manifest `sha256:53155540d4d3286c45d9f0e4eeaa0e08455b3536cc71730e9a7e6c817ea1e3bf`.
+- An immediate second prepare returned `reused: true` with the same manifest, proving the current
+  frozen Debug command can now resolve the baseline cache.
+
+## 2026-08-17 - Guarded landing review for frozen seeded Debug
+
+- Reviewed every tracked modification plus the untracked `.claude` settings and workflow image
+  before staging. No P1/P2 finding blocks landing.
+- Scoped the commit to ChipBench timing normalization, frozen Memory support for seeded Debug,
+  tests, command/docs updates, and project handoff records.
+- Explicitly excluded `.claude/settings.local.json`, the untracked workflow PNG, and the user's
+  minimal `common-guidance.md` experiment change. The ignored `exp_result/` reports remain local
+  artifacts and were not force-added.
+- Commit-main verification passed frozen install, the full Vitest suite (364 passed, two skipped),
+  typecheck, lint, build, peer dependency checks, ChipBench `r5` dataset reuse, and the complete
+  223-Case fixture check. Final targeted formatting, diff, and Harness checks remain the last gate
+  before staging.

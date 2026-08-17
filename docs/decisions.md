@@ -1977,3 +1977,102 @@ split/toolchain identity and may reuse it across batches. A dataset, Provider, c
 order, or runner change produces a new identity and requires an explicit prepare. On 2026-08-14 the
 assignment split prepared all 30 Cases successfully; an immediate second invocation reused the same
 manifest `sha256:c19159fe6a9d84d625fda6991a5cf27b15dafca918ff359451345b296e544897`.
+
+## 2026-08-17 - Accept both locked ChipBench zero-shot target markers
+
+### Context
+
+The pinned timing split contains two fixed target-marker sentences. Fourteen prompts say
+`code below in TopModule has bug, please fix that:`, while fifteen say
+`code below has bug, please fix that:`. The seeded Debug extractor accepted only the first form, so
+timing baseline preparation failed before materialization.
+
+### Decision
+
+Accept exactly these two observed marker variants. Continue extracting only the first fenced code
+block after the matched marker and require that block to contain `module TopModule`. Unknown marker
+sentences still fail with `DATASET_PROVENANCE_INVALID`.
+
+Update the locked Provider implementation digest because the extraction boundary changed. Existing
+sealed Batch evidence remains valid under its recorded digest; a future Debug run on a previously
+prepared split must explicitly prepare the new cache identity.
+
+### Consequences
+
+All 29 timing prompts can now materialize their intended starter RTL without relaxing extraction to
+arbitrary code blocks. Baseline preparation subsequently exposed an independent dataset property:
+`Prob013_least_common_multiple` starts with a compile error, so the full timing split cannot satisfy
+the current functional-mismatch-only baseline contract. Supporting that Case requires an explicit
+compile-debug protocol decision rather than silently excluding or normalizing it.
+
+## 2026-08-17 - Normalize non-runnable timing starters as functional timing bugs
+
+### Context
+
+The operator confirmed that seeded Debug should measure functional repair, not compile repair, and
+authorized correction of obvious source-data defects. The real timing baseline then found three
+starters that could not reach a bounded functional mismatch: `Prob013` and `Prob016` failed compile,
+while `Prob022` entered a zero-time combinational pointer-update loop and timed out.
+
+### Decision
+
+Apply three preparation-time patches, each bound to an exact logical path, source digest, literal
+replacement count, and result digest:
+
+- `Prob013`: change `mcd_out` from `output wire` to `output reg`, retaining the extra registered
+  output stage that creates the timing mismatch.
+- `Prob016`: make `clk_out7` a `reg` and bind its added register block to the declared `clk_in` and
+  `rst` signals, retaining the extra registered output stage.
+- `Prob022`: replace the non-terminating combinational write-pointer update with a negedge-clocked
+  update, retaining a half-cycle timing error relative to the posedge reference.
+
+Version the normalized dataset as `c74fe7d28-r5`, adapter `v2.3.0`, with content manifest
+`sha256:faaadfbe3d459eba8f87e98c9040902278c7baca99997a7d6ae0012299d2291c`.
+Do not modify the archived source, reference RTL, or testbench.
+
+### Consequences
+
+All 29 timing starters now compile, finish simulation, and produce positive mismatches. The local
+baseline manifest is
+`sha256:1f4303f62a02cf87d1005fdf9575c0c108a314068da70a7aef2836e09943555b`;
+an immediate repeat reused it. Existing `r2` Batches remain valid under their sealed dataset and
+Provider identities, but aggregate reporting must disclose that the timing Batch uses normalized
+`r5` unless the earlier splits are rerun on the new dataset identity.
+
+## 2026-08-17 - Allow frozen Memory in explicit seeded Debug
+
+### Context
+
+The completed no-Memory seeded Debug baseline uses one Agent turn per Case and zero feedback-repair
+iterations. The next experiment changes only Memory availability by replaying the frozen VerilogEval
+`mem-v0003` snapshot. Debug v1 rejected every active Memory mode, and the convenience command
+hard-coded `--memory-mode off`. Simply removing that guard would still retrieve no useful items:
+all nine `mem-v0003` entries are scoped to `functional_simulation` / `output_mismatch`, while a
+first turn without feedback was previously classified as `initial_generation`.
+
+### Decision
+
+Allow `debug-evaluate` Memory modes `off` and `frozen`; continue rejecting `read_write`. Frozen mode
+requires the existing explicit `--memory-snapshot mem-vNNNN` identity and uses the Batch-fixed
+snapshot through the existing selector and advisory injection path.
+
+Classify the first seeded Debug turn as `functional_simulation` / `output_mismatch` retrieval and as
+a `functional_repair` selector turn, because the cached baseline already proves that the supplied
+RTL compiles, simulates, and mismatches. Keep ordinary blank generation on `initial_generation` and
+keep later mismatch-feedback turns on functional repair.
+
+Do not run the Experience summarizer for frozen seeded Debug. It may read and inject the selected
+snapshot but creates no Experience pool, consolidation input, or publication path. Remove the
+hard-coded Memory-off argument from the convenience command; omission still defaults to `off`.
+
+Keep the seeded Debug functional-repair default at zero. Operators may independently set
+`--functional-repair-iterations <0-10>`; Memory and repair depth therefore remain separately
+controlled experimental variables.
+
+### Consequences
+
+The existing no-Memory command behavior is unchanged when no Memory flags are passed. A frozen run
+must name its snapshot and records the complete Memory identity in the evaluation profile. The
+selector itself remains best-effort and model-backed, so its usage and evidence must be included
+when comparing cost with the no-Memory baseline. `read_write` Debug remains unavailable and cannot
+pollute the frozen snapshot or produce Debug-derived Experience.

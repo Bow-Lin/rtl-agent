@@ -50,17 +50,21 @@ interface ChipBenchMetadata {
 
 export type ChipBenchProviderMode = "prompt-only" | "zero-shot-seeded-debug";
 
-const DEBUG_TARGET_MARKER = "code below in TopModule has bug, please fix that:";
+const DEBUG_TARGET_MARKERS = Object.freeze([
+  "code below in TopModule has bug, please fix that:",
+  "code below has bug, please fix that:",
+] as const);
 
 export function extractChipBenchZeroShotBuggyRtl(prompt: string): string {
-  const markerIndex = prompt.indexOf(DEBUG_TARGET_MARKER);
-  if (markerIndex < 0) {
+  const marker = DEBUG_TARGET_MARKERS.find((candidate) => prompt.includes(candidate));
+  if (marker === undefined) {
     throw new CoreLoopException(
       "DATASET_PROVENANCE_INVALID",
       "ChipBench Debug prompt is missing the locked target marker",
     );
   }
-  const target = prompt.slice(markerIndex + DEBUG_TARGET_MARKER.length);
+  const markerIndex = prompt.indexOf(marker);
+  const target = prompt.slice(markerIndex + marker.length);
   const match = /```(?:verilog|systemverilog)?[ \t]*\r?\n([\s\S]*?)\r?\n```/u.exec(target);
   if (match === null || !/(?:^|\n)\s*module\s+TopModule\b/u.test(match[1]!)) {
     throw new CoreLoopException(

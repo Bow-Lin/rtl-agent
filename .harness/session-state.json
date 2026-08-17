@@ -1,18 +1,18 @@
 {
   "task_id": "chipbench-explicit-seeded-debug",
   "status": "complete",
-  "current_phase": "implemented_and_validated",
-  "last_updated": "2026-08-17T10:01:46+08:00",
+  "current_phase": "frozen_seeded_debug_ready",
+  "last_updated": "2026-08-17T17:33:00+08:00",
   "active_plan": [
     "Select ChipBench Debug at the command boundary",
     "Materialize the prompt's buggy RTL as the initial workspace",
     "Validate each locked zero-shot split once and reuse a content-addressed baseline",
-    "Keep Debug v1 independent from Memory and Experience"
+    "Allow seeded Debug to read one explicit frozen Memory snapshot without Experience or Memory writes"
   ],
   "next_3_steps": [
-    "Run the zero-shot assignment Debug Batch without Memory",
-    "Prepare and run the remaining zero-shot Debug splits as separate experiments",
-    "Add complete cross-component token usage accounting before larger model-backed comparisons"
+    "Run one seeded Debug split with --memory-mode frozen --memory-snapshot mem-v0003 and omit the repair-iteration flag for a clean comparison",
+    "Inspect the Batch selection evidence and confirm that no Experience or Memory publication artifact was created",
+    "Compare the frozen-Memory Batch with the matching Memory-off seeded Debug Batch before extending to the remaining splits"
   ],
   "changed_files": [
     "apps/rtl-core-loop/package.json",
@@ -26,6 +26,7 @@
     "packages/core-loop/src/batch-evaluator.ts",
     "packages/core-loop/src/chipbench-debug-baseline.ts",
     "packages/core-loop/src/chipbench-lock.ts",
+    "packages/core-loop/src/chipbench-prepare.ts",
     "packages/core-loop/src/chipbench-provider.ts",
     "packages/core-loop/src/contracts.ts",
     "packages/core-loop/src/errors.ts",
@@ -40,6 +41,8 @@
     "packages/core-loop/test/evaluation-test-fixtures.ts",
     "packages/core-loop/test/run-orchestrator.test.ts",
     "exp_result/chipbench/08.14-k3-pi-debug-zero-shot-assignment-baseline.md",
+    "exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-assignment.md",
+    "exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-all-splits.md",
     "docs/verification.md",
     "docs/decisions.md",
     "current-task.md",
@@ -52,20 +55,47 @@
       "corepack pnpm@11.13.0 typecheck",
       "corepack pnpm@11.13.0 build",
       "corepack pnpm@11.13.0 exec vitest run apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
-      "corepack pnpm@11.13.0 exec prettier --check apps/rtl-core-loop/src/index.ts current-task.md .harness/session-state.json .harness/session-log.md",
+      "corepack pnpm@11.13.0 exec vitest run packages/core-loop/test/chipbench-provider.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm@11.13.0 test",
+      "corepack pnpm@11.13.0 typecheck",
+      "corepack pnpm@11.13.0 lint",
+      "corepack pnpm@11.13.0 build",
+      "corepack pnpm@11.13.0 peers check",
+      "corepack pnpm exec vitest run apps/rtl-core-loop/test/cli.test.ts --config vitest.config.ts --maxWorkers=1",
+      "corepack pnpm typecheck",
+      "corepack pnpm lint",
+      "corepack pnpm build",
+      "corepack pnpm peers check",
+      "corepack pnpm test",
+      "load active mem-v0003 and filter functional_simulation/output_mismatch for SYSTEMVERILOG + iverilog",
+      "corepack pnpm exec prettier --check <frozen-Debug task files>",
+      "corepack pnpm core-loop:debug-baseline:chipbench --split debug-zero-shot-assignment (prepare current r5 identity and confirm reuse)",
+      "corepack pnpm install --frozen-lockfile",
+      "corepack pnpm test (364 passed, 2 skipped)",
+      "corepack pnpm typecheck",
+      "corepack pnpm lint",
+      "corepack pnpm build",
+      "corepack pnpm peers check",
+      "corepack pnpm core-loop:dataset:prepare:chipbench (r5 reused)",
+      "corepack pnpm core-loop:fixtures:check:chipbench (223 cases)",
+      "corepack pnpm core-loop:dataset:prepare:chipbench",
+      "corepack pnpm core-loop:fixtures:check:chipbench",
+      "corepack pnpm core-loop:debug-baseline:chipbench --split debug-zero-shot-timing (prepare and reuse)",
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Debug evaluation now shares the ordinary evaluation per-Case stderr progress callback. Commit-main verification passed the 33-test CLI suite, typecheck, lint, build, targeted Prettier, diff, and Harness checks; no model-backed evaluation was started.",
+    "last_result": "Commit-main review found no P1/P2 findings. Frozen Debug, timing normalization, tests, and handoff files are approved for landing; local .claude settings, the workflow screenshot, and the experimental minimal common-guidance change are explicitly excluded. Frozen install, all 364 tests, typecheck, lint, build, peers, ChipBench r5 dataset reuse, and the 223-Case fixture check passed.",
     "known_failures": [
       "CVDP still has no repository Provider, profile, or functional-simulation adapter.",
       "The Windows process-tree capability probe can race under aggregate Vitest concurrency; use the documented serialized rerun if it recurs.",
-      "Whole-repository format:check remains nonzero only for preexisting user files .claude/settings.local.json and config/agents/rtl-core-loop/common-guidance.md; all task files pass the same Prettier check."
+      "Whole-repository format:check remains nonzero only for preexisting user files .claude/settings.local.json and config/agents/rtl-core-loop/common-guidance.md; all task files pass the same Prettier check.",
+      "Assignment, state-machine, and arithmetic seeded Debug Batches use dataset r2, while timing uses normalized r5; the combined report discloses this boundary and is not a single-version aggregate.",
+      "Timing Batch b-20260817-004 has two candidate compile failures caused by omitted dual_port_RAM and one Agent timeout; those three Cases have no candidate mismatch value."
     ]
   },
   "cognitive_state": {
     "failure_count": 0,
-    "current_mode": "explicit_seeded_debug_validated",
+    "current_mode": "frozen_seeded_debug_ready",
     "tried_approaches": [
       "Separated Debug from generation at the CLI and Provider construction boundary",
       "Extracted only the locked target code block after the zero-shot Debug marker",
@@ -74,13 +104,24 @@
       "Required explicit baseline preparation and rejected missing or stale caches",
       "Validated real assignment baseline preparation and immediate reuse",
       "Published a prompt-only Batch report and paired it with the separately sealed starter baseline without mixing experiment identities",
-      "Enabled the existing per-Case progress callback for debug-evaluate"
+      "Enabled the existing per-Case progress callback for debug-evaluate",
+      "Analyzed the first real seeded Debug Batch against both its cached buggy starters and the earlier prompt-only run",
+      "Accepted the two exact marker variants observed across locked zero-shot prompts",
+      "Added Case-specific baseline failure diagnostics",
+      "Normalized three non-runnable timing starters with digest-locked preparation patches",
+      "Prepared and reused the complete 29-Case timing functional baseline",
+      "Audited the completed timing Debug Batch and identified two missing-submodule compile failures plus one Agent timeout",
+      "Published a concise four-split report with paired mismatch, token, cost, duration, and failure-mode analysis",
+      "Allowed off or frozen Memory at the seeded Debug command boundary while continuing to reject read_write",
+      "Classified the first seeded Debug turn as functional_simulation/output_mismatch without changing ordinary generation retrieval",
+      "Suppressed Experience summarization and all downstream write paths for frozen seeded Debug",
+      "Kept the seeded Debug repair default at zero while preserving the explicit 0-10 CLI override"
     ],
-    "blocked_on": "No implementation blocker. The operator explicitly accepted the two commit-main baseline-provenance review notes as non-blocking."
+    "blocked_on": "No implementation blocker. The current assignment baseline and active mem-v0003 are ready for the operator-authorized model-backed frozen-Memory experiment."
   },
   "handoff": {
-    "last_summary": "Enabled per-Case stderr progress output for explicit seeded Debug; CLI tests, typecheck, and lint pass.",
-    "resume_from": "Run core-loop:debug:chipbench:pi on a prepared zero-shot split, then report the resulting Batch separately from generation experiments."
+    "last_summary": "Frozen Memory support, timing normalization, and the current r5 assignment baseline are validated. Commit-main review has no P1/P2 findings and the scoped change set is ready to land; unrelated local files remain excluded.",
+    "resume_from": "Run corepack pnpm core-loop:debug:chipbench:pi --split debug-zero-shot-assignment --memory-mode frozen --memory-snapshot mem-v0003 without a repair-iteration flag, then audit selection and write-free evidence."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

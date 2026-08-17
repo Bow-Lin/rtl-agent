@@ -5,7 +5,9 @@ import path from "node:path";
 
 import {
   parseI2cCoverageCommandOptions,
+  resolveEvaluationMemorySelectionContext,
   runRtlCoreLoopCli,
+  shouldSummarizeEvaluationExperience,
   updateObservedIssuesBestEffort,
 } from "../src/index.js";
 import {
@@ -151,7 +153,32 @@ class ChipBenchCliTestProvider implements FixtureProvider {
 }
 
 describe("rtl-core-loop CLI boundary", () => {
-  it("rejects Memory before starting an explicit seeded Debug evaluation", async () => {
+  it("treats the first seeded Debug turn as functional Memory retrieval", () => {
+    expect(resolveEvaluationMemorySelectionContext("debug-evaluate", false)).toEqual({
+      queryStage: "functional_simulation",
+      failureType: "output_mismatch",
+      turnStage: "functional_repair",
+    });
+    expect(resolveEvaluationMemorySelectionContext("evaluate", false)).toEqual({
+      queryStage: "initial_generation",
+      failureType: null,
+      turnStage: "initial_generation",
+    });
+    expect(resolveEvaluationMemorySelectionContext("evaluate", true)).toEqual({
+      queryStage: "functional_simulation",
+      failureType: "output_mismatch",
+      turnStage: "functional_repair",
+    });
+  });
+
+  it("keeps frozen seeded Debug free of Experience summarization", () => {
+    expect(shouldSummarizeEvaluationExperience("debug-evaluate", "frozen")).toBe(false);
+    expect(shouldSummarizeEvaluationExperience("debug-evaluate", "off")).toBe(false);
+    expect(shouldSummarizeEvaluationExperience("evaluate", "frozen")).toBe(true);
+    expect(shouldSummarizeEvaluationExperience("evaluate", "read_write")).toBe(true);
+  });
+
+  it("rejects read-write Memory before starting an explicit seeded Debug evaluation", async () => {
     const errors: string[] = [];
     const exitCode = await runRtlCoreLoopCli(
       [
@@ -174,7 +201,45 @@ describe("rtl-core-loop CLI boundary", () => {
     expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
       error: {
         code: "EVALUATION_PROFILE_INVALID",
-        message: "Seeded functional Debug v1 requires --memory-mode off",
+        message: "Seeded functional Debug supports only --memory-mode off or frozen",
+      },
+    });
+  });
+
+  it("accepts frozen Memory at the explicit seeded Debug command boundary", async () => {
+    const errors: string[] = [];
+    const exitCode = await runRtlCoreLoopCli(
+      [
+        "debug-evaluate",
+        "--profile",
+        "chipbench-debug-kimi-v1",
+        "--dataset",
+        "chipbench",
+        "--split",
+        "debug-zero-shot-assignment",
+        "--memory-mode",
+        "frozen",
+        "--memory-snapshot",
+        "mem-v0003",
+        "--functional-repair-iterations",
+        "3",
+      ],
+      new EvaluationTestProvider(),
+      () => undefined,
+      (line) => errors.push(line),
+      {},
+      process.cwd(),
+      {
+        profiles: [],
+        providerImplementationDigest: TEST_PROVIDER_IMPLEMENTATION_DIGEST,
+      },
+    );
+
+    expect(exitCode).toBe(2);
+    expect(JSON.parse(errors[0]!) as unknown).toMatchObject({
+      error: {
+        code: "EVALUATION_PROFILE_NOT_CONFIGURED",
+        message: "Requested Core Loop evaluation profile is not configured",
       },
     });
   });

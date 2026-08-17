@@ -15,7 +15,7 @@
     "memory:build": "node dist/index.js memory-build",
     "evaluate:chipbench:pi": "node dist/index.js evaluate --dataset chipbench --profile chipbench-kimi-v1 --agent pi",
     "debug-baseline:chipbench": "node dist/index.js debug-baseline-prepare --dataset chipbench",
-    "debug:chipbench:pi": "node dist/index.js debug-evaluate --dataset chipbench --profile chipbench-debug-kimi-v1 --agent pi --memory-mode off",
+    "debug:chipbench:pi": "node dist/index.js debug-evaluate --dataset chipbench --profile chipbench-debug-kimi-v1 --agent pi",
     "dataset:prepare": "node dist/index.js dataset-prepare",
     "dataset:prepare:chipbench": "node dist/index.js dataset-prepare --dataset chipbench",
     "fixtures:check": "node dist/index.js fixtures-check",

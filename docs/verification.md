@@ -92,7 +92,14 @@ corepack pnpm core-loop:dataset:prepare:chipbench
 corepack pnpm core-loop:fixtures:check:chipbench
 ```
 
-The command extracts only `LICENSE`, `Verilog Gen/**`, and `Verilog Debugging/**`, validates the 683-file manifest, and must report 45 generation cases plus 178 debugging cases across 11 splits. Set `RTL_AGENT_CHIPBENCH_CACHE_ROOT` for an external cache. Debugging cases are `PROMPTED_FUNCTIONAL_REPAIR`: their buggy RTL is contained in the prompt. Reference-model, toolbox, script, Docker, Make, and Python paths are excluded and never executed.
+The command extracts only `LICENSE`, `Verilog Gen/**`, and `Verilog Debugging/**`, applies the
+digest-locked timing starter normalizations, validates dataset version `c74fe7d28-r5` and the
+683-file manifest, and must report 45 generation cases plus 178 debugging cases across 11 splits.
+The three preparation patches make `Prob013`, `Prob016`, and `Prob022` timing starters compilable and
+simulation-bounded while preserving an observable functional timing error. Set
+`RTL_AGENT_CHIPBENCH_CACHE_ROOT` for an external cache. Debugging cases are
+`PROMPTED_FUNCTIONAL_REPAIR`: their buggy RTL is contained in the prompt. Reference-model, toolbox,
+script, Docker, Make, and Python paths are excluded and never executed.
 
 Run one complete ChipBench split with Pi/Kimi using:
 
@@ -122,6 +129,17 @@ cache:
 ```powershell
 corepack pnpm core-loop:debug-baseline:chipbench --split debug-zero-shot-assignment
 corepack pnpm core-loop:debug:chipbench:pi --split debug-zero-shot-assignment
+
+# Read one immutable snapshot without creating Debug Experience.
+corepack pnpm core-loop:debug:chipbench:pi `
+  --split debug-zero-shot-assignment `
+  --memory-mode frozen `
+  --memory-snapshot mem-v0003
+
+# Optional separate protocol: allow up to three feedback-repair turns.
+corepack pnpm core-loop:debug:chipbench:pi `
+  --split debug-zero-shot-assignment `
+  --functional-repair-iterations 3
 ```
 
 `debug-baseline-prepare` extracts each prompt's target `TopModule`, compiles it with the locked
@@ -129,11 +147,14 @@ reference/testbench, and requires a successful simulation with at least one mism
 bound to the dataset and ordered cases, Provider implementation, compiler capability, VVP binary,
 and Debug runner version. A repeated prepare returns `reused: true`; `debug-evaluate` refuses a
 missing or stale cache instead of silently rerunning the baseline. The command, profile, fixture
-category, and Agent input all record seeded functional Debug. Debug v1 requires `--memory-mode off`
-and defaults to zero feedback repair iterations, so the measured zero-shot result is one repair
-attempt from the supplied buggy RTL. `--functional-repair-iterations` may be set explicitly for a
-separate feedback-repair experiment. The normal generation command and prompt-only Provider remain
-unchanged.
+category, and Agent input all record seeded functional Debug. Memory defaults to `off`; seeded Debug
+also accepts explicit `frozen` mode plus `--memory-snapshot`, while `read_write` remains rejected.
+Its initial repair turn queries `functional_simulation` / `output_mismatch` Memory because the
+workspace already contains a baseline-proven buggy design. Frozen Debug may select and inject
+Memory but does not summarize or persist Experience and cannot publish a snapshot.
+`--functional-repair-iterations` may be set explicitly from 0 to 10 for a separate feedback-repair
+experiment; omitting it keeps the Debug default at 0. The normal generation command and prompt-only
+Provider remain unchanged.
 
 After the normal candidate-only compile Gate, ChipBench functional evaluation privately
 materializes the locked `_ref.sv` and `_test.sv`, compiles candidate/reference/testbench with

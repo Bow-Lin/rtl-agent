@@ -1,5 +1,61 @@
 # Error Journal
 
+## 2026-08-17 - Timing baseline exposed three non-runnable functional-debug starters
+
+### Symptom
+
+After the timing marker parser was corrected, baseline preparation failed serially at `Prob013`
+with a procedural assignment to an output wire, at `Prob016` with undeclared clock/reset names plus
+a procedural output-wire assignment, and at `Prob022` with a simulation timeout.
+
+### Root Cause
+
+The timing mutations were not all runnable functional bugs. Two produced compile-invalid RTL. The
+third changed a clocked pointer register to `always @(*)`, causing repeated zero-time pointer updates
+instead of one bounded timing mismatch. The fail-fast baseline correctly prevented these Cases from
+entering a functional-repair experiment.
+
+### Fix
+
+Added three path-, source-digest-, occurrence-, and result-digest-locked preparation patches. The
+patches repair only the declaration/signal binding or non-terminating scheduling defect while
+retaining an extra-edge or extra-register timing error. Dataset `c74fe7d28-r5` then prepared all 29
+timing starters as positive functional mismatches.
+
+### Prevention
+
+Run the complete reusable starter baseline before any model-backed split. Keep Case-specific status,
+mismatch, sample, and exit-code details in baseline errors. Any source-data normalization must be a
+versioned preparation patch with deterministic provenance rather than a direct cache edit.
+
+## 2026-08-14 - Report diagnostics repeated the PowerShell direct-foreach pipeline error
+
+### Symptom
+
+Two read-only ChipBench report diagnostics failed with `An empty pipe element is not allowed` when
+a statement-style `foreach` result was sent directly into `Format-Table`.
+
+### Root Cause
+
+The commands repeated the exact PowerShell construction already prohibited by the 2026-08-06
+prevention entry. Compacting the one-off evidence assertions hid the direct `foreach (...) { ... }
+| Format-Table` boundary during review.
+
+### Fix
+
+Assigned each `foreach` result to a task-specific collection before formatting. The corrected
+read-only diagnostics completed and did not change runtime evidence.
+
+### Prevention
+
+Apply the existing collection-variable rule mechanically to every PowerShell diagnostic. Do not
+compress a statement-style `foreach` and a following pipeline onto one command segment.
+
+This exact error recurred on 2026-08-17 while summarizing Memory snapshot JSON: a compact
+`foreach (...) { ... } | Format-Table` was used despite the existing rule. The corrected command
+assigned the rows to `$rows` first and completed successfully. Future diagnostics must use the
+collection-variable form from the outset, including inside long one-line `exec` commands.
+
 ## 2026-08-13 - Valid Memory consolidation was rejected by a short metadata bound
 
 ### Symptom

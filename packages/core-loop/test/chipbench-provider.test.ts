@@ -11,6 +11,8 @@ import {
   ChipBenchFixtureProvider,
   asHostDirectoryForProvider,
   createFileManifest,
+  createManifestFromEntries,
+  extractChipBenchZeroShotBuggyRtl,
   listFixtureCases,
   prepareChipBenchDataset,
   sha256Bytes,
@@ -65,6 +67,7 @@ async function createSyntheticDataset(root: string): Promise<ChipBenchDatasetLoc
     contentManifestDigest: manifest.manifestDigest,
     expectedFileCount: manifest.entries.length,
     expectedCaseCount: splits.length,
+    preparationPatches: [],
     splits: splits.map((split) => ({
       split: split.split,
       datasetDirectory: split.datasetDirectory,
@@ -76,6 +79,29 @@ async function createSyntheticDataset(root: string): Promise<ChipBenchDatasetLoc
 }
 
 describe("ChipBench pinned dataset Provider", () => {
+  it("extracts both locked zero-shot Debug marker variants", () => {
+    const rtl = "module TopModule(input logic a, output logic y); assign y = a; endmodule";
+
+    for (const marker of [
+      "code below in TopModule has bug, please fix that:",
+      "code below has bug, please fix that:",
+    ]) {
+      expect(
+        extractChipBenchZeroShotBuggyRtl(
+          `Problem description.\n\nBased on the problem description above, the ${marker}\n\`\`\`verilog\n${rtl}\n\`\`\`\n`,
+        ),
+      ).toBe(`${rtl}\n`);
+    }
+  });
+
+  it("rejects an unrecognized zero-shot Debug target marker", () => {
+    expect(() =>
+      extractChipBenchZeroShotBuggyRtl(
+        "Problem description.\n\nThe following implementation is buggy.\n```verilog\nmodule TopModule; endmodule\n```\n",
+      ),
+    ).toThrowError(/missing the locked target marker/u);
+  });
+
   it("lists all generation splits and materializes only the public prompt", async () => {
     const root = await temporaryRoot();
     const source = path.join(root, "source");
@@ -195,7 +221,8 @@ describe("ChipBench pinned dataset Provider", () => {
     const sourceParent = path.join(root, "archive-source");
     const archiveRoot = path.join(sourceParent, baseLock.archiveRoot);
     await mkdir(archiveRoot, { recursive: true });
-    for (const entry of (await createFileManifest(contentRoot)).entries) {
+    const rawManifest = await createFileManifest(contentRoot);
+    for (const entry of rawManifest.entries) {
       const sourcePath = path.join(contentRoot, ...entry.path.split("/"));
       const targetPath = path.join(archiveRoot, ...entry.path.split("/"));
       await mkdir(path.dirname(targetPath), { recursive: true });
@@ -206,7 +233,39 @@ describe("ChipBench pinned dataset Provider", () => {
     const archivePath = path.join(root, "source.tar.gz");
     await createTar({ cwd: sourceParent, file: archivePath, gzip: true }, [baseLock.archiveRoot]);
     const archiveBytes = await readFile(archivePath);
-    const lock = { ...baseLock, archiveDigest: sha256Bytes(archiveBytes) };
+    const patchedLogicalPath =
+      "Verilog Debugging/dataset_debug_zero_shot_timing/Prob009_case_9_prompt.txt";
+    const patchSource = await readFile(path.join(contentRoot, ...patchedLogicalPath.split("/")));
+    const patchResult = Buffer.from(
+      patchSource.toString("utf8").replace("assign y = 1'b0;", "assign y = a;"),
+      "utf8",
+    );
+    const patchedManifest = createManifestFromEntries(
+      rawManifest.entries.map((entry) =>
+        entry.path === patchedLogicalPath
+          ? {
+              ...entry,
+              byteLength: patchResult.byteLength,
+              contentDigest: sha256Bytes(patchResult),
+            }
+          : entry,
+      ),
+    );
+    const lock: ChipBenchDatasetLock = {
+      ...baseLock,
+      datasetVersion: "test-patched",
+      archiveDigest: sha256Bytes(archiveBytes),
+      contentManifestDigest: patchedManifest.manifestDigest,
+      preparationPatches: [
+        {
+          patchId: "synthetic-prompt-normalization-v1",
+          logicalPath: patchedLogicalPath,
+          sourceDigest: sha256Bytes(patchSource),
+          resultDigest: sha256Bytes(patchResult),
+          replacements: [{ from: "assign y = 1'b0;", to: "assign y = a;", expectedOccurrences: 1 }],
+        },
+      ],
+    };
     const destination = path.join(root, "cache", lock.datasetVersion);
 
     await expect(
@@ -220,6 +279,9 @@ describe("ChipBench pinned dataset Provider", () => {
       readFile(path.join(destination, "Tool_Box", "must-not-extract.txt")),
     ).rejects.toThrow();
     await expect(
+      readFile(path.join(destination, ...patchedLogicalPath.split("/")), "utf8"),
+    ).resolves.toContain("assign y = a;");
+    await expect(
       prepareChipBenchDataset({
         destinationDirectory: destination,
         lock,
@@ -228,6 +290,24 @@ describe("ChipBench pinned dataset Provider", () => {
         },
       }),
     ).resolves.toMatchObject({ reused: true });
+
+    const invalidPatchLock: ChipBenchDatasetLock = {
+      ...lock,
+      datasetVersion: "test-invalid-patch",
+      preparationPatches: [
+        {
+          ...lock.preparationPatches[0]!,
+          sourceDigest: sha256Bytes(Buffer.from("unexpected source", "utf8")),
+        },
+      ],
+    };
+    await expect(
+      prepareChipBenchDataset({
+        destinationDirectory: path.join(root, "cache", invalidPatchLock.datasetVersion),
+        lock: invalidPatchLock,
+        downloadArchive: async () => archiveBytes,
+      }),
+    ).rejects.toMatchObject({ error: { code: "DATASET_PROVENANCE_INVALID" } });
   });
 
   it("keeps committed lock metadata and Provider source digest synchronized", async () => {

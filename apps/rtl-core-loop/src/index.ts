@@ -152,6 +152,37 @@ interface ParsedEvaluationCommand {
   readonly memoryBuildSplits: readonly CoreLoop.MemoryBuildScope[];
 }
 
+type EvaluationCommand = "run" | "evaluate" | "debug-evaluate";
+
+export function resolveEvaluationMemorySelectionContext(
+  command: EvaluationCommand,
+  hasFunctionalFeedback: boolean,
+): {
+  readonly queryStage: "initial_generation" | "functional_simulation";
+  readonly failureType: "output_mismatch" | null;
+  readonly turnStage: "initial_generation" | "functional_repair";
+} {
+  const functionalRepair = command === "debug-evaluate" || hasFunctionalFeedback;
+  return functionalRepair
+    ? {
+        queryStage: "functional_simulation",
+        failureType: "output_mismatch",
+        turnStage: "functional_repair",
+      }
+    : {
+        queryStage: "initial_generation",
+        failureType: null,
+        turnStage: "initial_generation",
+      };
+}
+
+export function shouldSummarizeEvaluationExperience(
+  command: EvaluationCommand,
+  memoryMode: CoreLoop.MemoryMode,
+): boolean {
+  return memoryMode !== "off" && !(command === "debug-evaluate" && memoryMode === "frozen");
+}
+
 const DEFAULT_FUNCTIONAL_REPAIR_ITERATIONS = 3;
 
 async function persistMemoryBuildExperience(options: {
@@ -368,10 +399,10 @@ function parseEvaluationCommand(arguments_: readonly string[]): ParsedEvaluation
       "debug-evaluate requires one locked ChipBench zero-shot Debug split",
     );
   }
-  if (command === "debug-evaluate" && memory.memoryMode !== "off") {
+  if (command === "debug-evaluate" && memory.memoryMode === "read_write") {
     throw new CoreLoopException(
       "EVALUATION_PROFILE_INVALID",
-      "Seeded functional Debug v1 requires --memory-mode off",
+      "Seeded functional Debug supports only --memory-mode off or frozen",
     );
   }
   const allowedOptions = new Set([
@@ -994,13 +1025,15 @@ export async function runRtlCoreLoopCli(
           );
         }
       }
-      const experienceSummarizer =
-        preparedMemory.identity.mode === "off"
-          ? undefined
-          : (evaluationDependencies?.experienceSummarizer ??
-            new PiExperienceSummarizer(
-              piExperimentConfigFromEnvironment(environment, repositoryRoot),
-            ));
+      const experienceSummarizer = shouldSummarizeEvaluationExperience(
+        command,
+        preparedMemory.identity.mode,
+      )
+        ? (evaluationDependencies?.experienceSummarizer ??
+          new PiExperienceSummarizer(
+            piExperimentConfigFromEnvironment(environment, repositoryRoot),
+          ))
+        : undefined;
       const memorySelector =
         preparedMemory.identity.mode === "off"
           ? undefined
@@ -1053,6 +1086,10 @@ export async function runRtlCoreLoopCli(
               prepareAgentTurn: async (
                 turn: CoreLoop.CoreLoopBatchAgentTurnPreparation,
               ): Promise<"context/relevant-rtl-memory.md" | null> => {
+                const selectionContext = resolveEvaluationMemorySelectionContext(
+                  command,
+                  turn.functionalSimulationFeedbackPath !== undefined,
+                );
                 const feedback =
                   turn.functionalSimulationFeedbackPath === undefined
                     ? null
@@ -1066,15 +1103,9 @@ export async function runRtlCoreLoopCli(
                 const selected = await selectMemoryBestEffort({
                   snapshot: preparedMemory.snapshot!,
                   query: {
-                    stage:
-                      turn.functionalSimulationFeedbackPath === undefined
-                        ? "initial_generation"
-                        : "functional_simulation",
+                    stage: selectionContext.queryStage,
                     circuit_type: null,
-                    failure_type:
-                      turn.functionalSimulationFeedbackPath === undefined
-                        ? null
-                        : "output_mismatch",
+                    failure_type: selectionContext.failureType,
                     language: "SYSTEMVERILOG",
                     tool: "iverilog",
                   },
@@ -1083,10 +1114,7 @@ export async function runRtlCoreLoopCli(
                     "utf8",
                   ),
                   feedback,
-                  stage:
-                    turn.functionalSimulationFeedbackPath === undefined
-                      ? "initial_generation"
-                      : "functional_repair",
+                  stage: selectionContext.turnStage,
                   evidenceDirectory: path.join(
                     turn.batchDirectory,
                     "_internal",
@@ -1311,7 +1339,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|debug-baseline-prepare --dataset chipbench --split <debug-zero-shot-split>|debug-evaluate --dataset chipbench --split <debug-zero-shot-split> --profile <id> [--agent <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode off]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|debug-baseline-prepare --dataset chipbench --split <debug-zero-shot-split>|debug-evaluate --dataset chipbench --split <debug-zero-shot-split> --profile <id> [--agent <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|frozen>] [--memory-snapshot <mem-vNNNN>]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }
