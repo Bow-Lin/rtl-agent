@@ -1,18 +1,17 @@
 {
-  "task_id": "chipbench-explicit-seeded-debug",
+  "task_id": "verification-coverage-assessment",
   "status": "complete",
-  "current_phase": "frozen_seeded_debug_ready",
-  "last_updated": "2026-08-17T17:33:00+08:00",
+  "current_phase": "coverage_assessment_ready_to_land",
+  "last_updated": "2026-08-19T14:57:54+08:00",
   "active_plan": [
-    "Select ChipBench Debug at the command boundary",
-    "Materialize the prompt's buggy RTL as the initial workspace",
-    "Validate each locked zero-shot split once and reuse a content-addressed baseline",
-    "Allow seeded Debug to read one explicit frozen Memory snapshot without Experience or Memory writes"
+    "Inventory retained VerilogEval and FreeCores I2C coverage evidence",
+    "Separate structural coverage gain from verification-quality evidence",
+    "Identify the minimum reviewer-grade follow-up experiment"
   ],
   "next_3_steps": [
-    "Run one seeded Debug split with --memory-mode frozen --memory-snapshot mem-v0003 and omit the repair-iteration flag for a clean comparison",
-    "Inspect the Batch selection evidence and confirm that no Experience or Memory publication artifact was created",
-    "Compare the frozen-Memory Batch with the matching Memory-off seeded Debug Batch before extending to the remaining splits"
+    "Predeclare and run fixed-fixture, fixed-budget paired I2C repetitions with unchanged model, guidance, and tool identities",
+    "Add held-out RTL mutants or seeded faults plus an independent scoreboard and report mutation kill rate as the primary quality metric",
+    "Extend the protocol to a predeclared multi-design set and obtain Linux execution evidence before making readiness claims"
   ],
   "changed_files": [
     "apps/rtl-core-loop/package.json",
@@ -43,8 +42,10 @@
     "exp_result/chipbench/08.14-k3-pi-debug-zero-shot-assignment-baseline.md",
     "exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-assignment.md",
     "exp_result/chipbench/08.17-k3-pi-seeded-debug-zero-shot-all-splits.md",
+    "exp_result/chipbench/08.19-k3-pi-frozen-memory-seeded-debug-zero-shot-all-splits.md",
     "docs/verification.md",
     "docs/decisions.md",
+    "docs/error-journal.md",
     "current-task.md",
     ".harness/session-state.json",
     ".harness/session-log.md"
@@ -84,18 +85,21 @@
       "git diff --check",
       "C:\\Program Files\\Git\\bin\\bash.exe scripts/harness_check.sh"
     ],
-    "last_result": "Commit-main review found no P1/P2 findings. Frozen Debug, timing normalization, tests, and handoff files are approved for landing; local .claude settings, the workflow screenshot, and the experimental minimal common-guidance change are explicitly excluded. Frozen install, all 364 tests, typecheck, lint, build, peers, ChipBench r5 dataset reuse, and the 223-Case fixture check passed.",
+    "last_result": "Commit-main review found no P1/P2 findings. Targeted formatting, session-state JSON parsing, git diff checking, and the Git Bash Harness check passed. Only the four reviewed handoff/audit documents are approved for landing; the experimental minimal common guidance, local Claude settings, and workflow screenshot remain excluded.",
     "known_failures": [
       "CVDP still has no repository Provider, profile, or functional-simulation adapter.",
       "The Windows process-tree capability probe can race under aggregate Vitest concurrency; use the documented serialized rerun if it recurs.",
       "Whole-repository format:check remains nonzero only for preexisting user files .claude/settings.local.json and config/agents/rtl-core-loop/common-guidance.md; all task files pass the same Prettier check.",
       "Assignment, state-machine, and arithmetic seeded Debug Batches use dataset r2, while timing uses normalized r5; the combined report discloses this boundary and is not a single-version aggregate.",
       "Timing Batch b-20260817-004 has two candidate compile failures caused by omitted dual_port_RAM and one Agent timeout; those three Cases have no candidate mismatch value."
+      ,"Assignment, state-machine, and arithmetic Memory-off controls use r2 while frozen Batches use r5; only timing is a same-identity Memory comparison."
+      ,"Selector provider usage is not persisted, so frozen token and cost totals exclude 89 selector calls."
+      ,"Coverage evidence lacks controlled repetitions, mutation/fault-detection scoring, broad design coverage, and Linux authoritative execution."
     ]
   },
   "cognitive_state": {
     "failure_count": 0,
-    "current_mode": "frozen_seeded_debug_ready",
+    "current_mode": "coverage_assessment_ready_to_land",
     "tried_approaches": [
       "Separated Debug from generation at the CLI and Provider construction boundary",
       "Extracted only the locked target code block after the zero-shot Debug marker",
@@ -115,13 +119,16 @@
       "Allowed off or frozen Memory at the seeded Debug command boundary while continuing to reject read_write",
       "Classified the first seeded Debug turn as functional_simulation/output_mismatch without changing ordinary generation retrieval",
       "Suppressed Experience summarization and all downstream write paths for frozen seeded Debug",
-      "Kept the seeded Debug repair default at zero while preserving the explicit 0-10 CLI override"
+      "Kept the seeded Debug repair default at zero while preserving the explicit 0-10 CLI override",
+      "Audited all four frozen mem-v0003 Debug Batches against the available Memory-off Batches, including Case transitions, mismatch totals, selection frequency, token, cost, latency, and write-free evidence",
+      "Published the frozen-Memory all-splits report and separated the strict timing comparison from the r2-to-r5 observational comparisons",
+      "Audited retained VerilogEval and I2C coverage artifacts and separated structural coverage gain from verification-quality evidence"
     ],
-    "blocked_on": "No implementation blocker. The current assignment baseline and active mem-v0003 are ready for the operator-authorized model-backed frozen-Memory experiment."
+    "blocked_on": "No implementation blocker. A stronger coverage claim requires new controlled runs, held-out fault-detection evidence, broader fixtures, and Linux execution."
   },
   "handoff": {
-    "last_summary": "Frozen Memory support, timing normalization, and the current r5 assignment baseline are validated. Commit-main review has no P1/P2 findings and the scoped change set is ready to land; unrelated local files remain excluded.",
-    "resume_from": "Run corepack pnpm core-loop:debug:chipbench:pi --split debug-zero-shot-assignment --memory-mode frozen --memory-snapshot mem-v0003 without a repair-iteration flag, then audit selection and write-free evidence."
+    "last_summary": "Coverage-loop mechanics and real structural gains are demonstrated, while reviewer-grade gaps remain documented. Commit-main review found no P1/P2 findings and the four-file handoff/audit scope is ready to land; unrelated local and experimental files remain excluded.",
+    "resume_from": "Write a preregistered I2C paired-repetition protocol and mutant suite before launching more expensive Agent runs."
   },
   "preexisting_uncommitted_changes_preserved": true
 }

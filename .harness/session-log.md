@@ -1,5 +1,60 @@
 # Session Log
 
+## Entry: Guarded Commit Review for Coverage Assessment Handoff
+
+### Review
+
+The `commit-main` review inspected the complete tracked diff and both untracked files. No P1/P2
+finding blocks landing the reviewed handoff/audit documents.
+
+The two-line experimental change to `config/agents/rtl-core-loop/common-guidance.md` would replace
+the active v3 guidance and is explicitly excluded. Local `.claude/settings.local.json` and the
+workflow screenshot are also excluded. The intended scope is limited to `current-task.md`,
+`.harness/session-state.json`, `.harness/session-log.md`, and `docs/error-journal.md`.
+
+### Verification
+
+- Session-state JSON parse: passed.
+- Targeted Prettier check over the four intended files: passed.
+- `git diff --check`: passed.
+- `scripts/harness_check.sh` through Git Bash: passed.
+
+No model call, RTL compile, simulation, coverage run, or runtime artifact mutation occurred.
+
+## Entry: Assess Verification Coverage Experiment Evidence
+
+### Summary
+
+Audited the implemented Verilator coverage loops, their documentation, the nine retained
+VerilogEval result artifacts, and all six retained FreeCores I2C result artifacts. No model call,
+RTL edit, compile, simulation, or new coverage run was performed.
+
+### Findings
+
+- The infrastructure measures DUT-only line/branch/toggle coverage, preserves typed denominators,
+  emits structured uncovered targets, protects DUT digests, and supports bounded repair feedback
+  for missing assets plus generated-source compile and confirmed simulation failures.
+- The published I2C run raised the fixed baseline from 78.16% to 93.99%. A later unreported run
+  reached 100% line/branch score and 87.03% toggle, but remains `PENDING_HUMAN_REVIEW`.
+- The VerilogEval artifacts cover only four unique Cases and mainly represent implementation
+  bring-up. The I2C artifacts are six evolving attempts on one fixture rather than controlled
+  replications.
+- Structural coverage gain is not yet backed by mutation score, independent oracle quality,
+  repeated paired statistics, broad design coverage, or Linux authoritative evidence.
+
+### Recommended Next Evidence
+
+Predeclare a fixed-fixture, fixed-budget repeated comparison; use held-out mutants/faults and an
+independent scoreboard as the primary verification-quality test; separately report line, branch,
+toggle, regression, timeout, token, cost, and wall time; then extend to a predeclared multi-design
+set and Linux execution.
+
+### Validation and Limits
+
+Read-only artifact inventory and JSON parsing reconciled nine VerilogEval results and six I2C
+results. Documentation and retained results were inspected directly. The only source change was a
+required error-journal entry for repeating a previously documented PowerShell diagnostic mistake.
+
 ## Entry: Plan the Next Reviewer-Grade RTL Agent Experiments
 
 ### Summary
@@ -3937,3 +3992,23 @@ generation, consolidation, or snapshot publication occurred during the diagnosis
   typecheck, lint, build, peer dependency checks, ChipBench `r5` dataset reuse, and the complete
   223-Case fixture check. Final targeted formatting, diff, and Harness checks remain the last gate
   before staging.
+
+## 2026-08-19 - Analyze all frozen-Memory seeded Debug splits
+
+- Audited sealed frozen `mem-v0003` Batches `b-20260817-005`, `b-20260818-001`,
+  `b-20260818-002`, and `b-20260818-003` without rerunning Pi/K3, compilation, or simulation.
+- Frozen Memory passed 53/89 Cases: 20/30 assignment, 3/6 state-machine, 17/24 arithmetic, and
+  13/29 timing. The available Memory-off comparison passed 55/89.
+- On 86 runnable paired Cases, frozen final mismatch count was 10,935 versus 10,802 for Memory-off.
+  Sixteen Cases flipped pass/fail status: seven improved to pass and nine regressed from pass.
+- The strict same-r5 timing comparison fell from 14 to 13 passes while mismatch count improved from
+  4,737 to 4,355. The first three split comparisons remain observational because Off uses r2 and
+  frozen uses r5, even though starter mismatch totals are unchanged.
+- All 89 selector calls produced selection evidence; 85 selected at least one Memory and injected
+  179 references. `memory-000002` and `memory-000007` dominated retrieval. No corresponding
+  Experience directory or new snapshot was created.
+- Main Agent transcripts recorded 1,615,691 provider tokens and $5.187995 cost. Selector calls add
+  about 47:19 cumulative latency, but their provider token/cost usage is not persisted.
+- Published `exp_result/chipbench/08.19-k3-pi-frozen-memory-seeded-debug-zero-shot-all-splits.md`
+  with result tables, outcome transitions, retrieval analysis, cost accounting, provenance limits,
+  and recommended strict controls.

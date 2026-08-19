@@ -61,9 +61,9 @@ Implementation and local validation are complete:
 
 ## Commands
 
-After validation, the next model-backed command may run one split with `--memory-mode frozen
---memory-snapshot mem-v0003`. Omit `--functional-repair-iterations` to preserve the zero-iteration
-baseline, or pass an explicit value only for a separate repair-depth experiment.
+The four frozen-Memory splits are complete. Before attributing their result solely to Memory, prepare
+and run r5 Memory-off controls for assignment, state-machine, and arithmetic; the existing timing
+Memory-off Batch already shares the r5 dataset, Provider implementation, and starter baseline.
 
 ## Validation Boundary
 
@@ -115,7 +115,37 @@ simulation, Memory, Experience, consolidation, or snapshot publication.
   before any new mismatch feedback exists.
 - Frozen seeded Debug retains selector-driven read/injection but skips Experience summarization,
   persistence, Memory Build input, and snapshot publication.
+- Completed frozen `mem-v0003` Batches `b-20260817-005`, `b-20260818-001`,
+  `b-20260818-002`, and `b-20260818-003` for all four zero-shot Debug splits.
+- Published `exp_result/chipbench/08.19-k3-pi-frozen-memory-seeded-debug-zero-shot-all-splits.md`.
+  Frozen Memory passed 53/89 Cases versus 55/89 in the available Memory-off comparison. On the 86
+  runnable paired Cases, final mismatch count was 10,935 versus 10,802.
+- Memory selection completed for all 89 Cases; 85 selected at least one item and injected 179 total
+  references. Frozen read-only evidence is intact: no Batch Experience directory or new snapshot
+  was created.
+- Main Agent transcripts recorded 1,615,691 provider total tokens and $5.187995 cost. Selector
+  metadata records 47:19 cumulative latency but no provider usage, so selector token/cost remains
+  excluded.
+
+## Verification Coverage Assessment
+
+- The repository has a bounded, non-authoritative Verilator coverage loop for generated
+  VerilogEval verification assets and a separate locked FreeCores I2C refinement loop.
+- Local evidence contains nine VerilogEval result artifacts across only four unique Cases. These
+  runs primarily validate orchestration and edge cases; they are not a representative benchmark.
+- Six I2C attempts share the same 78.16% baseline. Two ended `PENDING_HUMAN_REVIEW`: the published
+  run reached 93.99%, and a later unreported run reached 100% line/branch score with 87.03% toggle.
+  The other four attempts exposed Agent timeout, simulation/assertion, and later-turn failure modes.
+- The existing evidence proves that the loop can increase structural coverage while protecting the
+  DUT, but it does not yet prove improved bug-finding power, stable repeatability, Linux readiness,
+  or sign-off-quality verification.
+- Highest-priority follow-up is a preregistered, repeated paired experiment with fixed fixtures and
+  budgets, mutation/fault-detection as the primary quality metric, independent checker/oracle
+  validation, and a broader predeclared design set.
+- Commit-main review found no P1/P2 findings. The reviewed handoff/audit documents are ready to
+  land; the experimental minimal common guidance, local Claude settings, and workflow screenshot
+  remain explicitly excluded.
 
 ## Last Updated
 
-2026-08-17T17:33:00+08:00
+2026-08-19T14:57:54+08:00

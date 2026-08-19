@@ -1060,3 +1060,22 @@ then parsed parameterized commands and property comparisons differently from the
 Use explicit forms such as `Test-Path -LiteralPath $path` and
 `Where-Object { $_.status -eq 'PASSED' }`. Treat compact diagnostic syntax as unsafe when it can
 change parsing, and validate aggregate counts against the 156-Case Batch total before reporting.
+
+## 2026-08-19 - Repeated direct foreach pipeline in coverage inventory
+
+### Symptom
+
+A read-only inventory of coverage result files failed with `An empty pipe element is not allowed`
+when a statement-style PowerShell `foreach (...) { ... }` block was piped directly to
+`Format-Table`.
+
+### Root Cause
+
+The diagnostic repeated the exact PowerShell construction already documented on 2026-08-06
+instead of assigning the loop results to a task-specific collection first.
+
+### Fix and Prevention
+
+Reissue the inventory as `$rows = foreach (...) { ... }; $rows | Format-Table`. For future
+PowerShell diagnostics, do not place a statement-style `foreach` directly before a pipeline.
+No experiment artifact or runtime state was changed by the failed read-only command.
