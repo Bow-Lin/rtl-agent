@@ -234,6 +234,7 @@ export interface VerilatorCoverageConfig {
   readonly cflags?: readonly string[];
   readonly dutSourcePaths?: readonly string[];
   readonly includeDirectories?: readonly string[];
+  readonly includeToggleInScore?: boolean;
 }
 
 export interface CoverageRoundRunner {
@@ -242,6 +243,19 @@ export interface CoverageRoundRunner {
 
 function percent(hit: number, found: number): number {
   return found === 0 ? 100 : Math.round((hit / found) * 10_000) / 100;
+}
+
+export function combinedCoverageScoreWithToggle(
+  metrics: Pick<CoverageFeedback, "line" | "branch" | "toggle">,
+): number {
+  return (
+    Math.round(
+      (metrics.line.percent * (metrics.branch.found === 0 ? 0.7 : 0.5) +
+        metrics.branch.percent * (metrics.branch.found === 0 ? 0 : 0.2) +
+        metrics.toggle.percent * 0.3) *
+        100,
+    ) / 100
+  );
 }
 
 function normalizedDutSourcePaths(sourcePaths: readonly string[] | undefined): readonly string[] {
@@ -642,8 +656,18 @@ export class VerilatorCoverageRunner implements CoverageRoundRunner {
         "Verilator report contains no DUT coverage points",
       );
     }
-    const useToggleTargets = lineFeedback.line.found === 0;
-    const score = useToggleTargets ? toggleFeedback.metric.percent : lineFeedback.score;
+    const useToggleTargets =
+      lineFeedback.line.found === 0 || this.config.includeToggleInScore === true;
+    const score =
+      lineFeedback.line.found === 0
+        ? toggleFeedback.metric.percent
+        : this.config.includeToggleInScore === true
+          ? combinedCoverageScoreWithToggle({
+              line: lineFeedback.line,
+              branch: lineFeedback.branch,
+              toggle: toggleFeedback.metric,
+            })
+          : lineFeedback.score;
     return CoverageFeedbackSchema.parse({
       ...lineFeedback,
       toggle: toggleFeedback.metric,
