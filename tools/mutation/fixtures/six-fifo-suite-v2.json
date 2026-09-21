@@ -1,0 +1,8 @@
+{
+  "version": "six-fifo-transfer-v2",
+  "seed": 42,
+  "modelCalls": false,
+  "sources": ["source/versatile-reviewed-v2", "source/eth-fifo-v2", "source/ufifo-v2"],
+  "targets": ["target/openhmc-v2", "target/dpretet-reviewed-v2", "target/axis-reviewed-v2"],
+  "note": "Repository-disjoint, not proof of independent algorithm ancestry. All equivalence reviews remain unproven. No target-derived Memory."
+}

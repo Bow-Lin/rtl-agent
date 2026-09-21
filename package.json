@@ -29,6 +29,7 @@
     "core-loop:coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js coverage",
     "core-loop:i2c-coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js i2c-coverage",
     "core-loop:project-coverage": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js project-coverage",
+    "mutation:run": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js mutation-run",
     "core-loop:memory:build": "corepack pnpm build && node apps/rtl-core-loop/dist/index.js memory-build",
     "test:pi-connection": "node test_pi_connection.ts"
   },

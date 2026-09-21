@@ -1,0 +1,38 @@
+{
+  "id": "axis",
+  "excludedMutations": [
+    {
+      "line": 393,
+      "operator": "transfer_lsb",
+      "reason": "Duplicates the input memory LSB corruption under the locked word-FIFO configuration."
+    },
+    {
+      "line": 385,
+      "operator": "transfer_lsb",
+      "reason": "Duplicates the input memory LSB corruption under the locked word-FIFO configuration."
+    }
+  ],
+  "role": "target",
+  "root": ".rtl-agent/datasets/fifo-transfer/target/verilog-axis",
+  "module": "axis_fifo",
+  "revision": "48ff7a7e2ef782cf778d47910cf85835c64b1bce",
+  "reference": "https://github.com/alexforencich/verilog-axis",
+  "license": "MIT",
+  "files": {
+    "rtl/axis_fifo.v": "b29a492b29dcb6b060a3d40d77206e490533433b23d2a954d3b84b08985db16e"
+  },
+  "dut": "rtl/axis_fifo.v",
+  "tb": "tools/mutation/fixtures/axis-golden-tb.sv",
+  "ranges": [
+    [200, 202],
+    [311, 311],
+    [338, 340],
+    [351, 353],
+    [368, 369],
+    [376, 378],
+    [382, 386],
+    [390, 403],
+    [411, 416]
+  ],
+  "policyVersion": 2
+}

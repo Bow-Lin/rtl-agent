@@ -1,0 +1,15 @@
+{
+  "id": "ufifo",
+  "role": "source",
+  "root": ".rtl-agent/datasets/fifo-transfer/source/wbuart32",
+  "module": "ufifo",
+  "revision": "f43a6b83c3a70fb2ac0696a45c5545b233fb860b",
+  "reference": "https://github.com/ZipCPU/wbuart32",
+  "license": "GPL-3.0-or-later",
+  "files": {
+    "rtl/ufifo.v": "43a9a03d00db96bd6e8a956663b01654a5cf0308456eca8c6f4c95787ef46f9d"
+  },
+  "dut": "rtl/ufifo.v",
+  "tb": "tools/mutation/fixtures/ufifo-golden-tb.sv",
+  "ranges": [[80, 315]]
+}

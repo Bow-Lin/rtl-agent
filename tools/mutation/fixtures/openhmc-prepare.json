@@ -1,0 +1,15 @@
+{
+  "id": "openhmc",
+  "role": "target",
+  "root": ".rtl-agent/datasets/fifo-transfer/target/openhmc",
+  "module": "openhmc_async_fifo",
+  "revision": "0cf58e2f60c79aa64d35650b6e30e4d5c13e4a78",
+  "reference": "https://github.com/unihd-cag/openhmc",
+  "license": "LGPL-3.0-or-later",
+  "files": {
+    "rtl/building_blocks/fifos/async/openhmc_async_fifo.v": "4365548b7ca8f02012a290b58d0002d5f43bfbd5a983c3574288eb2f856672bb"
+  },
+  "dut": "rtl/building_blocks/fifos/async/openhmc_async_fifo.v",
+  "tb": "tools/mutation/fixtures/openhmc-golden-tb.sv",
+  "ranges": [[120, 270]]
+}

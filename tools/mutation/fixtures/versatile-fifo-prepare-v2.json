@@ -1,0 +1,33 @@
+{
+  "id": "versatile-fifo",
+  "excludedMutations": [
+    {
+      "line": 56,
+      "operator": "bit_constant",
+      "before": "1'b0",
+      "reason": "For length=2, add all-ones duplicates subtract-one modulo pointer width."
+    }
+  ],
+  "role": "source",
+  "root": ".rtl-agent/project-coverage-runs/versatile-fifo-async-duplex/run_20260907-224018-009/workspace",
+  "module": "TopModule",
+  "revision": "3c0ea00773805b3f697583fb2d1e330d6bfe4220",
+  "reference": "existing locked baseline run_20260907-224018-009; upstream freecores/versatile_fifo; existing TopModule rename preserved",
+  "license": "LGPL-2.1-or-later",
+  "files": {
+    "rtl/dut/async_fifo_dw_simplex.v": "fb5bce90e7c900282eab6e42394d469e8eec6c2d918ceb47e55d5fbfbcebc138",
+    "rtl/checker.sv": "fbb2bfd9eaf31eb6b6b778ca5414596193ac0c5466c7951572f1ed17141f6178"
+  },
+  "dut": "rtl/dut/async_fifo_dw_simplex.v",
+  "tb": "tools/mutation/fixtures/versatile-golden-tb.sv",
+  "units": ["rtl/dut/async_fifo_dw_simplex.v", "rtl/checker.sv"],
+  "ranges": [
+    [56, 72],
+    [108, 116],
+    [170, 175],
+    [253, 286],
+    [301, 304],
+    [364, 365]
+  ],
+  "policyVersion": 2
+}

@@ -1,0 +1,62 @@
+{
+  "id": "dpretet",
+  "excludedMutations": [
+    {
+      "file": "rtl/rptr_empty.v",
+      "line": 57,
+      "operator": "transfer_lsb",
+      "reason": "Inverting the registered flag duplicates inverting its upstream equality comparator."
+    },
+    {
+      "file": "rtl/rptr_empty.v",
+      "line": 58,
+      "operator": "transfer_lsb",
+      "reason": "Inverting the registered flag duplicates inverting its upstream equality comparator."
+    },
+    {
+      "file": "rtl/wptr_full.v",
+      "line": 58,
+      "operator": "transfer_lsb",
+      "reason": "Inverting the registered flag duplicates inverting its upstream equality comparator."
+    },
+    {
+      "file": "rtl/wptr_full.v",
+      "line": 59,
+      "operator": "transfer_lsb",
+      "reason": "Inverting the registered flag duplicates inverting its upstream equality comparator."
+    }
+  ],
+  "role": "target",
+  "root": ".rtl-agent/datasets/fifo-transfer/target/dpretet-async",
+  "module": "async_fifo",
+  "revision": "38c22208d3948833f275b917c920e02b1cdadf56",
+  "reference": "https://github.com/dpretet/async_fifo",
+  "license": "MIT",
+  "files": {
+    "rtl/async_fifo.v": "be8a1387eabbfcba04ea20d5915ae9dba037081da94147bffc1dde9be0b2b55b",
+    "rtl/fifomem.v": "fc8faaf8e7331967da47a6d26ed4c5e2012abf119c08bdea1db179f2c15eeb7c",
+    "rtl/rptr_empty.v": "41ee0e38a5bb73b3a4e4656fcb3fc624152795d4d92eb3d8c86ba5d9a43ebcc3",
+    "rtl/wptr_full.v": "a8d8cca5ae74ae4ab9016862b568c4c40ef205c57983ca09dd591e958fec9b04",
+    "rtl/sync_r2w.v": "416da6a6d0812e4f2a4413672baf7c3cfd4d28f0459e6f0e3993be705a7b342c",
+    "rtl/sync_w2r.v": "6d6f85b9c3c6d3c66de225f379053e78d1c2e9ab955699def5e0f5473551f823"
+  },
+  "dut": "rtl/async_fifo.v",
+  "units": [
+    "rtl/async_fifo.v",
+    "rtl/fifomem.v",
+    "rtl/rptr_empty.v",
+    "rtl/wptr_full.v",
+    "rtl/sync_r2w.v",
+    "rtl/sync_w2r.v"
+  ],
+  "tb": "tools/mutation/fixtures/dpretet-golden-tb.sv",
+  "ranges": [],
+  "mutationFiles": {
+    "rtl/rptr_empty.v": [[25, 80]],
+    "rtl/wptr_full.v": [[25, 80]],
+    "rtl/sync_r2w.v": [[20, 26]],
+    "rtl/sync_w2r.v": [[20, 26]],
+    "rtl/fifomem.v": [[30, 32]]
+  },
+  "policyVersion": 2
+}

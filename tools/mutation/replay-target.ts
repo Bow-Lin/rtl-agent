@@ -1,0 +1,248 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { simulationVerdict } from "./replay-verdict.ts";
+
+// Target evaluation-only replay. No Agent or Memory inputs. Frozen patches unchanged.
+const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+const repo = process.cwd();
+const logical = process.argv[2];
+assert.match(logical ?? "", /^\.rtl-agent\/fifo-replays\/[a-z0-9-]+$/);
+const out = path.resolve(repo, ...logical.split("/"));
+const smoke = process.argv[5] === "--smoke";
+assert.ok(process.argv[5] === undefined || smoke);
+const target = process.argv[3];
+assert.ok(target === "dpretet" || target === "axis");
+const runLogical = process.argv[4];
+assert.match(
+  runLogical ?? "",
+  /^\.rtl-agent\/fifo-target-runs\/[a-z0-9-]+\/(?:dpretet|axis)-depth8-width8\/run_[a-z0-9-]+$/,
+);
+const publication = path.join(repo, "mutation", "fifo-transfer-v2");
+const suite = JSON.parse(await readFile(path.join(publication, "manifest.json"), "utf8"));
+const dir = path.join(publication, target);
+const manifestBytes = await readFile(path.join(dir, "manifest.json"));
+assert.equal(
+  sha(manifestBytes),
+  suite.ips.find((ip: { id: string }) => ip.id === target).manifestDigest,
+);
+const m = JSON.parse(manifestBytes.toString());
+assert.equal(m.mutants.length, 30);
+const run = path.join(repo, ...runLogical!.split("/"));
+const result = JSON.parse(
+  await readFile(path.join(run, "evidence", "project-coverage-experiment-result.json"), "utf8"),
+);
+assert.equal(result.projectId, target);
+const snapshots = path.join(run, "evidence", "verification-assets");
+const normalize = (bytes: Buffer) => bytes.toString("utf8").replace(/\r\n?/g, "\n");
+const rawAssets = new Map<string, Buffer>();
+for (const [file, digest] of Object.entries(m.sourceHashes)) {
+  assert.match(file, /^rtl\/[a-z0-9_]+\.v$/);
+  const bytes = await readFile(path.join(dir, "golden-source", ...file.split("/")));
+  assert.equal(sha(bytes), digest);
+  rawAssets.set(file, bytes);
+}
+const windows = process.platform === "win32";
+const env = { ...process.env };
+if (windows) {
+  env.PATH = ["C:/msys64/ucrt64/bin", "C:/msys64/usr/bin", env.PATH ?? ""].join(path.delimiter);
+  env.VERILATOR_ROOT = "C:/msys64/ucrt64/share/verilator";
+}
+const exe = windows ? "C:/msys64/ucrt64/bin/verilator_bin.exe" : "verilator";
+await mkdir(path.dirname(out), { recursive: true });
+await mkdir(out);
+async function command(
+  executable: string,
+  argv: string[],
+  cwd: string,
+  name: string,
+  timeout = 180000,
+) {
+  const start = Date.now();
+  const r = spawnSync(executable, argv, {
+    cwd,
+    env,
+    shell: false,
+    windowsHide: true,
+    timeout,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const result = {
+    exitCode: r.status,
+    error: r.error?.message ?? null,
+    signal: r.signal,
+    stdout: r.stdout ?? "",
+    stderr: r.stderr ?? "",
+    durationMs: Date.now() - start,
+  };
+  await writeFile(
+    path.join(cwd, `${name}.json`),
+    JSON.stringify({ ...result, executable: path.basename(executable), argv }, null, 2) + "\n",
+    { flag: "wx" },
+  );
+  if (result.error?.includes("ETIMEDOUT") && name === "compile")
+    throw new Error("COMPILE_TIMEOUT_STOP_CHECK_DESCENDANTS");
+  return result;
+}
+await command(exe, ["--version"], out, "tool-version", 10000);
+const summary = [];
+for (const [stage, attempt] of [
+  ["baseline", 0],
+  ["first", result.agentAttempts > 0 ? 2 : null],
+  ["final", result.agentAttempts > 0 ? result.agentAttempts + 1 : 0],
+] as const) {
+  if (smoke && stage !== "baseline") continue;
+  if (attempt === null) {
+    summary.push({ stage, results: [], reason: "NO_AGENT_ATTEMPT" });
+    continue;
+  }
+  const source = path.join(snapshots, `attempt-${attempt}`);
+  const snapshotBytes = await readFile(path.join(source, "manifest.json"), "utf8").catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    },
+  );
+  if (snapshotBytes === null) {
+    summary.push({ stage, results: [], reason: "ATTEMPT_ASSETS_UNAVAILABLE" });
+    continue;
+  }
+  const snapshot = JSON.parse(snapshotBytes);
+  assert.equal(snapshot.attempt, attempt);
+  const assets = new Map<string, Buffer>(rawAssets);
+  for (const entry of snapshot.entries) {
+    assert.match(entry.path, /^rtl\/(?:dut\/)?[a-z0-9_]+\.(?:sv|v)$/);
+    const bytes = await readFile(path.join(source, ...entry.path.split("/")));
+    assert.equal(`sha256:${sha(bytes)}`, entry.contentDigest);
+    assert.equal(bytes.length, entry.byteLength);
+    if (entry.path.startsWith("rtl/dut/") && entry.path !== "rtl/dut/top_wrapper.sv") {
+      const rawPath = entry.path.replace("rtl/dut/", "rtl/");
+      assert.equal(normalize(rawAssets.get(rawPath)!), bytes.toString("utf8"));
+    } else assets.set(entry.path, bytes);
+  }
+  assert.equal(assets.size, rawAssets.size + 3);
+  const stageRoot = path.join(out, stage);
+  await mkdir(stageRoot);
+  await writeFile(
+    path.join(stageRoot, "assets.json"),
+    JSON.stringify(
+      [...assets].map(([file, bytes]) => ({ path: file, sha256: sha(bytes) })),
+      null,
+      2,
+    ),
+  );
+  const results = [];
+  for (const mutant of [null, ...(smoke ? m.mutants.slice(0, 1) : m.mutants)]) {
+    const id = mutant?.id ?? "golden";
+    assert.match(id, /^(golden|M\d{3})$/);
+    const work = path.join(stageRoot, id);
+    await mkdir(work);
+    for (const [file, bytes] of assets) {
+      const dest = path.join(work, ...file.split("/"));
+      await mkdir(path.dirname(dest), { recursive: true });
+      await writeFile(dest, bytes, { flag: "wx" });
+    }
+    if (mutant) {
+      const patch = await readFile(path.join(dir, "mutants", `${id}.patch`));
+      assert.equal(sha(patch), mutant.patchDigest);
+      await writeFile(path.join(work, "mutant.patch"), patch);
+      const applied = await command(
+        windows ? "C:/Program Files/Git/cmd/git.exe" : "git",
+        ["apply", "--unidiff-zero", "--ignore-space-change", "mutant.patch"],
+        work,
+        "apply",
+      );
+      assert.equal(applied.exitCode, 0, "PATCH_APPLY_FAILED");
+      const dutPath = mutant.file as string;
+      assert.ok(rawAssets.has(dutPath));
+      const lines = rawAssets.get(dutPath)!.toString("utf8").split("\n");
+      assert.equal(lines[mutant.line - 1], mutant.originalLine);
+      lines[mutant.line - 1] = mutant.mutatedLine;
+      const expected = Buffer.from(lines.join("\n"));
+      assert.equal(sha(expected), mutant.mutatedDigest);
+      const appliedBytes = await readFile(path.join(work, ...dutPath.split("/")));
+      assert.equal(normalize(appliedBytes), normalize(expected));
+      await writeFile(
+        path.join(work, "digest-audit.json"),
+        JSON.stringify({
+          published: sha(expected),
+          applied: sha(appliedBytes),
+          normalized: sha(Buffer.from(normalize(expected))),
+          normalizationOnly: true,
+        }),
+      );
+    }
+    const compile = await command(
+      exe,
+      [
+        "--binary",
+        "--assert",
+        "--timing",
+        "-Wno-fatal",
+        "--top-module",
+        "tb",
+        "--Mdir",
+        "build",
+        "-o",
+        windows ? "sim.exe" : "sim",
+        ...(windows ? ["-CFLAGS", "-D_GLIBCXX_USE_CXX11_ABI=0"] : []),
+        "-Irtl",
+        ...rawAssets.keys(),
+        "rtl/dut/top_wrapper.sv",
+        "rtl/checker.sv",
+        "rtl/tb.sv",
+      ],
+      work,
+      "compile",
+    );
+    let verdict = compile.error ? "infrastructure-error" : "compile-invalid";
+    if (!compile.error && compile.exitCode === 0) {
+      const sim = await command(
+        path.join(work, "build", windows ? "sim.exe" : "sim"),
+        [],
+        work,
+        "simulation",
+        30000,
+      );
+      verdict = simulationVerdict(
+        sim,
+        target === "dpretet" ? "DPRETET_GOLDEN_PASS" : "AXIS_GOLDEN_PASS",
+      );
+    }
+    if (!mutant && verdict === "killed") verdict = "golden-invalid";
+    results.push({ id, verdict });
+    await writeFile(path.join(work, "result.json"), JSON.stringify({ id, verdict }) + "\n");
+    process.stdout.write(JSON.stringify({ stage, id, verdict }) + "\n");
+    assert.notEqual(verdict, "infrastructure-error", "REPLAY_INFRASTRUCTURE_STOP");
+    if (!mutant && verdict !== "survived") {
+      await writeFile(
+        path.join(stageRoot, "invalid.json"),
+        JSON.stringify({
+          reason: "GOLDEN_FAILED",
+          verdict,
+          mutantsNotRun: 30,
+        }),
+      );
+      break;
+    }
+  }
+  summary.push({ stage, results });
+  await writeFile(path.join(stageRoot, "summary.json"), JSON.stringify(results, null, 2));
+}
+await writeFile(
+  path.join(out, "summary.json"),
+  JSON.stringify(
+    {
+      authoritative: false,
+      diagnosticSmoke: smoke,
+      platform: process.platform,
+      modelCalls: 0,
+      summary,
+    },
+    null,
+    2,
+  ),
+);

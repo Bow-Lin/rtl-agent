@@ -85,6 +85,7 @@ import {
 } from "./i2c-coverage-command.js";
 import { loadRepositoryEnvironment } from "./environment.js";
 import { runMemoryBuildCommand } from "./memory-build-command.js";
+import { runMutationCommand, type MutationCommandDependencies } from "./mutation-command.js";
 import {
   runProjectCoverageCommand,
   type RtlCoreLoopProjectCoverageDependencies,
@@ -109,6 +110,7 @@ import { runReanalysisCommand, updateObservedIssuesBestEffort } from "./reanalys
 
 export { updateObservedIssuesBestEffort } from "./reanalysis-command.js";
 export { parseI2cCoverageCommandOptions } from "./i2c-coverage-command.js";
+export { parseMutationCommandOptions } from "./mutation-command.js";
 export { parseProjectCoverageCommandOptions } from "./project-coverage-command.js";
 export type { RtlCoreLoopCoverageDependencies } from "./coverage-command.js";
 export type {
@@ -620,6 +622,7 @@ export async function runRtlCoreLoopCli(
   datasetDependencies?: RtlCoreLoopDatasetDependencies,
   coverageDependencies?: RtlCoreLoopCoverageDependencies,
   i2cCoverageDependencies?: RtlCoreLoopI2cCoverageDependencies,
+  mutationDependencies?: MutationCommandDependencies,
   projectCoverageDependencies?: RtlCoreLoopProjectCoverageDependencies,
 ): Promise<number> {
   const dataset =
@@ -698,6 +701,19 @@ export async function runRtlCoreLoopCli(
   }
 
   const command = arguments_[0];
+  if (command === "mutation-run") {
+    return executeCliCommand(
+      () =>
+        runMutationCommand({
+          arguments_,
+          writeOutput,
+          environment,
+          repositoryRoot,
+          ...(mutationDependencies === undefined ? {} : { dependencies: mutationDependencies }),
+        }),
+      writeError,
+    );
+  }
   if (command === "project-coverage") {
     return executeCliCommand(
       () =>
@@ -1364,7 +1380,7 @@ export async function runRtlCoreLoopCli(
     }, writeError);
   }
   writeError(
-    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|debug-baseline-prepare --dataset chipbench --split <debug-zero-shot-split>|debug-evaluate --dataset chipbench --split <debug-zero-shot-split> --profile <id> [--agent <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|frozen>] [--memory-snapshot <mem-vNNNN>]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|project-coverage --project <versatile-fifo|aes-highthroughput-lowarea|scalable-arbiter> [--agent <opencode|pi>] [--iterations <0-10>] [--coverage-threshold <0-100>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
+    "Usage: rtl-core-loop <dataset-prepare [--dataset <verilog-eval|chipbench>]|fixtures-check [--dataset <verilog-eval|chipbench>]|debug-baseline-prepare --dataset chipbench --split <debug-zero-shot-split>|debug-evaluate --dataset chipbench --split <debug-zero-shot-split> --profile <id> [--agent <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|frozen>] [--memory-snapshot <mem-vNNNN>]|agent-probe|pi-agent-probe|compile-smoke|memory-build --experience-batches <batch-id,...>|coverage --case <id> [--agent <opencode|pi>]|i2c-coverage [--agent <opencode|pi>] [--iterations <1-10>] [--coverage-threshold <0-100>]|project-coverage --project <versatile-fifo|aes-highthroughput-lowarea|scalable-arbiter> [--agent <opencode|pi>] [--iterations <0-10>] [--coverage-threshold <0-100>]|mutation-run [--suite <baseline-78.16|enhanced-93.99|enhanced-100.00>] [--timeout-ms <1000-600000>]|run --profile <id> --case <id> [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>]|evaluate --profile <id> [--agent <opencode|pi>] [--dataset chipbench --split <split>] [--analyzer <opencode|pi>] [--functional-repair-iterations <0-10>] [--memory-mode <off|read_write|frozen>] [--memory-snapshot <mem-vNNNN>] [--memory-build-splits <dataset:split,...>] [--begin <case> --end <case>|--cases <case,...>]|reanalyze --batch <batch-id> [--analyzer <opencode|pi>]>",
   );
   return 2;
 }

@@ -1,0 +1,20 @@
+{
+  "id": "eth-fifo",
+  "role": "source",
+  "root": ".rtl-agent/datasets/fifo-transfer/source/ethmac",
+  "module": "eth_fifo",
+  "revision": "dd26899086edf3b797d2775ef9502d204a9a8149",
+  "reference": "https://github.com/freecores/ethmac",
+  "license": "LGPL-2.1-or-later",
+  "files": {
+    "rtl/verilog/eth_fifo.v": "4a97114f4b263bce3f4385d2123eafd19fe5e10c89dfd8d16c7fe4e17399773d",
+    "rtl/verilog/ethmac_defines.v": "88e9096db268711651a088fe318fafc0772842bd300c8ed5658edaabb4fe91c5",
+    "rtl/verilog/timescale.v": "cc1b144cfb9f34b259f5e2692a912c1d1f8b9d901baf9a99eccf53d448568f08"
+  },
+  "dut": "rtl/verilog/eth_fifo.v",
+  "tb": "tools/mutation/fixtures/ethmac-golden-tb.sv",
+  "ranges": [
+    [105, 151],
+    [186, 211]
+  ]
+}

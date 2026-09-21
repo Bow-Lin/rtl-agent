@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "project": "ethmac",
+  "module": "eth_fifo",
+  "role": "source",
+  "source_url": "https://github.com/freecores/ethmac",
+  "opencores_url": "https://opencores.org/projects/ethmac",
+  "commit": "dd26899086edf3b797d2775ef9502d204a9a8149",
+  "license": "LGPL-2.1-or-later",
+  "author": "Igor Mohor",
+  "parameters": { "DATA_WIDTH": 32, "DEPTH": 8, "CNT_WIDTH": 4 },
+  "files": {
+    "rtl/verilog/eth_fifo.v": "sha256:4a97114f4b263bce3f4385d2123eafd19fe5e10c89dfd8d16c7fe4e17399773d",
+    "rtl/verilog/ethmac_defines.v": "sha256:88e9096db268711651a088fe318fafc0772842bd300c8ed5658edaabb4fe91c5",
+    "rtl/verilog/timescale.v": "sha256:cc1b144cfb9f34b259f5e2692a912c1d1f8b9d901baf9a99eccf53d448568f08"
+  },
+  "golden_tb": "tools/mutation/fixtures/ethmac-golden-tb.sv",
+  "golden_tb_sha256": "sha256:6622e2d1ba3a1e76c8061e14ce6a199a65070e5b7440ed4859831fa7a3e54dc8",
+  "contract": "Synchronous queue. Caller prohibits read-empty/write-full. Generic RAM branch; vendor FIFO defines disabled. This initial smoke covers clear without simultaneous operations; additional interface cases remain for full fixture preparation.",
+  "readiness": "replacement_golden_smoke_passed_not_full_mutation_ready"
+}
