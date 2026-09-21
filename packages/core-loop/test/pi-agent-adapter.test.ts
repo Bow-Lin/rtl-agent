@@ -40,6 +40,7 @@ if (process.env.FAKE_PI_LOG) {
     cwd: process.cwd(),
     configDir: process.env.PI_CODING_AGENT_DIR,
     policyRequired: process.env.RTL_AGENT_PI_POLICY_REQUIRED,
+    signatureNormalization: process.env.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED,
     workspaceRoot: process.env.RTL_AGENT_PI_WORKSPACE_ROOT,
     offline: process.env.PI_OFFLINE,
     telemetry: process.env.PI_TELEMETRY
@@ -147,6 +148,7 @@ afterEach(async () => {
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS;
   delete process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES;
+  delete process.env.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED;
   delete process.env.RTL_AGENT_PI_RELEVANT_MEMORY_PATH;
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -283,6 +285,7 @@ describe("Pi RTL Agent adapter", () => {
     });
     expect(invocation.cwd).toBe(run.workspaceDirectory);
     expect(invocation.policyRequired).toBe("1");
+    expect(invocation.signatureNormalization).toBe("1");
     expect(invocation.workspaceRoot).toBe(run.workspaceDirectory);
     expect(invocation.offline).toBe("1");
     expect(invocation.telemetry).toBe("0");
@@ -676,6 +679,59 @@ describe("Pi RTL policy extension", () => {
     await expect(
       toolHandler?.({ toolName: "write", input: { path: "analysis.json" } }),
     ).resolves.toMatchObject({ block: true });
+  });
+
+  it("normalizes Kimi reasoning signatures to base64url in the captured provider payload", async () => {
+    const root = await temporaryRoot();
+    const workspace = path.join(root, "workspace");
+    const capturePath = path.join(root, "provider-transcript.jsonl");
+    process.env.RTL_AGENT_PI_POLICY_REQUIRED = "1";
+    process.env.RTL_AGENT_PI_WORKSPACE_ROOT = workspace;
+    process.env.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = capturePath;
+    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = "1";
+    process.env.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = "4096";
+    process.env.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED = "1";
+    let providerHandler: ((event: { payload: unknown }) => unknown) | undefined;
+    const extension = (await import(pathToFileURL(POLICY_EXTENSION).href)) as {
+      default(pi: {
+        on(name: string, callback: (event: { payload: unknown }) => unknown): void;
+      }): void;
+    };
+    extension.default({
+      on: (name, callback) => {
+        if (name === "before_provider_request") providerHandler = callback;
+      },
+    });
+    const payload = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "bounded reasoning", signature: "ab+/cd==" },
+            { type: "tool_use", id: "tool-1", name: "read", input: { path: "spec.md" } },
+          ],
+        },
+      ],
+    };
+
+    const normalized = providerHandler?.({ payload });
+
+    expect(normalized).toEqual({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "bounded reasoning", signature: "ab-_cd" },
+            { type: "tool_use", id: "tool-1", name: "read", input: { path: "spec.md" } },
+          ],
+        },
+      ],
+    });
+    expect(payload.messages[0]?.content[0]).toMatchObject({ signature: "ab+/cd==" });
+    const captured = JSON.parse((await readFile(capturePath, "utf8")).trim()) as {
+      readonly payload: unknown;
+    };
+    expect(captured.payload).toEqual(normalized);
   });
 
   it("rejects a provider payload before writing when the byte limit would be exceeded", async () => {

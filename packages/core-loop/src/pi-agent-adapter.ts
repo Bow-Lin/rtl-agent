@@ -184,6 +184,7 @@ export function buildIsolatedPiEnvironment(
   delete environment.PI_PACKAGE_DIR;
   delete environment.RTL_AGENT_PI_PROVIDER_CAPTURE_PATH;
   delete environment.RTL_AGENT_PI_MISMATCH_POLICY_REQUIRED;
+  delete environment.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED;
   environment.PI_CODING_AGENT_DIR = config.configDirectory;
   environment.PI_CODING_AGENT_SESSION_DIR = path.join(
     config.repositoryRoot,
@@ -205,6 +206,9 @@ export function buildIsolatedPiEnvironment(
     environment.RTL_AGENT_PI_PROVIDER_TRANSCRIPT_PATH = providerTranscriptPath;
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_REQUESTS = String(MAXIMUM_PROVIDER_REQUESTS);
     environment.RTL_AGENT_PI_PROVIDER_CAPTURE_MAX_BYTES = String(MAXIMUM_PROVIDER_CAPTURE_BYTES);
+    if (config.provider === "kimi-coding") {
+      environment.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED = "1";
+    }
     if (relevantMemoryPath !== undefined) {
       if (!path.isAbsolute(relevantMemoryPath)) {
         throw new TypeError("Relevant RTL Memory path must be absolute for an Agent turn");
@@ -247,6 +251,8 @@ function isolationConfig(
       maximumRequests: MAXIMUM_PROVIDER_REQUESTS,
       maximumBytes: MAXIMUM_PROVIDER_CAPTURE_BYTES,
     },
+    providerRequestNormalization:
+      config.provider === "kimi-coding" ? "KIMI_REASONING_SIGNATURE_BASE64URL_V1" : "NONE",
   };
 }
 

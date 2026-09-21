@@ -45,6 +45,53 @@ function requiredPositiveIntegerEnvironment(name) {
   return value;
 }
 
+function normalizedKimiReasoningPayload(payload) {
+  if (
+    process.env.RTL_AGENT_PI_KIMI_SIGNATURE_NORMALIZATION_REQUIRED !== "1" ||
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload) ||
+    !Array.isArray(payload.messages)
+  ) {
+    return payload;
+  }
+  let payloadChanged = false;
+  const messages = payload.messages.map((message) => {
+    if (
+      typeof message !== "object" ||
+      message === null ||
+      Array.isArray(message) ||
+      !Array.isArray(message.content)
+    ) {
+      return message;
+    }
+    let messageChanged = false;
+    const content = message.content.map((block) => {
+      if (
+        typeof block !== "object" ||
+        block === null ||
+        Array.isArray(block) ||
+        block.type !== "thinking" ||
+        typeof block.signature !== "string" ||
+        !/^[A-Za-z0-9+/_=-]+$/.test(block.signature)
+      ) {
+        return block;
+      }
+      const signature = block.signature
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .replace(/=+$/u, "");
+      if (signature === block.signature) return block;
+      messageChanged = true;
+      return { ...block, signature };
+    });
+    if (!messageChanged) return message;
+    payloadChanged = true;
+    return { ...message, content };
+  });
+  return payloadChanged ? { ...payload, messages } : payload;
+}
+
 export default function rtlCoreLoopPolicy(pi) {
   if (process.env.RTL_AGENT_PI_POLICY_REQUIRED !== "1") {
     return;
@@ -109,12 +156,13 @@ export default function rtlCoreLoopPolicy(pi) {
     if (nextSequence > maximumProviderRequests) {
       throw new Error("Pi provider request capture count limit exceeded");
     }
+    const payload = normalizedKimiReasoningPayload(event.payload);
     appendProviderTranscriptEntry(
-      { kind: "request", sequence: nextSequence, payload: event.payload },
+      { kind: "request", sequence: nextSequence, payload },
       "request payload",
     );
     providerRequestSequence = nextSequence;
-    return undefined;
+    return payload === event.payload ? undefined : payload;
   });
 
   pi.on("message_end", (event) => {
