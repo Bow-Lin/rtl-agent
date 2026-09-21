@@ -147,6 +147,92 @@ describe("Memory consolidation", () => {
     });
   });
 
+  it("repairs safe generic simulation vocabulary before validating and publishing Memory", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-memory-consolidation-"));
+    const snapshot = await new FilesystemMemoryStore(root).ensureInitialSnapshot();
+    const content = CONTENT.replace(
+      "Map each externally visible value to the exact sampling edge before changing equations.",
+      "Check every register that feeds an output observed by the testbench for a defined time-zero value.",
+    );
+    const applied = applyMemoryConsolidation(snapshot, [EXPERIENCE], {
+      schema_version: 1,
+      operations: [
+        {
+          operation: "ADD",
+          memory: {
+            stage: "functional_simulation",
+            circuit_type: "finite state machine",
+            failure_type: "output_mismatch",
+            language: "SYSTEMVERILOG",
+            tool: "iverilog",
+            content,
+          },
+          experience_indexes: [0],
+        },
+      ],
+    });
+
+    expect(applied.items[0]?.content).toContain("output observed during simulation");
+    expect(applied.output.operations[0]).toMatchObject({
+      memory: { content: expect.stringContaining("output observed during simulation") },
+    });
+    expect(applied.items[0]?.content).not.toContain("testbench");
+  });
+
+  it("rejects only the unsafe Memory operation while applying safe sibling operations", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "rtl-memory-consolidation-"));
+    const snapshot = await new FilesystemMemoryStore(root).ensureInitialSnapshot();
+    const content = CONTENT.replace(
+      "Map each externally visible value to the exact sampling edge before changing equations.",
+      "Inspect the testbench implementation and preserve its expected output sequence verbatim.",
+    );
+    const secondExperience = ExperienceRecordSchema.parse({
+      ...EXPERIENCE,
+      source: { ...EXPERIENCE.source, case_id: "case-002" },
+    });
+
+    const applied = applyMemoryConsolidation(snapshot, [EXPERIENCE, secondExperience], {
+      schema_version: 1,
+      operations: [
+        {
+          operation: "ADD",
+          memory: {
+            stage: "functional_simulation",
+            circuit_type: "finite state machine",
+            failure_type: "output_mismatch",
+            language: "SYSTEMVERILOG",
+            tool: "iverilog",
+            content,
+          },
+          experience_indexes: [0],
+        },
+        {
+          operation: "ADD",
+          memory: {
+            stage: "initial_generation",
+            circuit_type: "counter",
+            failure_type: null,
+            language: "SYSTEMVERILOG",
+            tool: "iverilog",
+            content: CONTENT,
+          },
+          experience_indexes: [1],
+        },
+      ],
+    });
+
+    expect(applied.output.operations[0]).toMatchObject({
+      operation: "REJECT",
+      experience_indexes: [0],
+      reason: expect.stringContaining("forbidden hidden or case-specific content"),
+    });
+    expect(applied.output.operations[1]).toMatchObject({ operation: "ADD" });
+    expect(applied.items).toHaveLength(1);
+    expect(applied.items[0]?.metadata.evidence).toEqual([
+      { dataset: "synthetic", split: "build", case_id: "case-002" },
+    ]);
+  });
+
   it("publishes only after a complete valid consolidation", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "rtl-memory-consolidation-"));
     const store = new FilesystemMemoryStore(root);

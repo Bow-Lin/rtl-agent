@@ -323,6 +323,13 @@ const MEMORY_HEADINGS = [
   "## Verification",
 ] as const;
 
+const FORBIDDEN_MEMORY_ITEM_CONTENT_PATTERN =
+  /(?:hidden\s+(?:reference|test)|golden\s+rtl|reference\.sv|testbench|specific\s+testcase)/iu;
+
+export function containsForbiddenMemoryItemContent(content: string): boolean {
+  return FORBIDDEN_MEMORY_ITEM_CONTENT_PATTERN.test(content);
+}
+
 export function validateMemoryItemContent(content: string): string {
   if (Buffer.byteLength(content, "utf8") > 32_768 || content.length < 120) {
     throw new CoreLoopException("MEMORY_STORE_INVALID", "Memory item size is outside V1 bounds");
@@ -338,11 +345,7 @@ export function validateMemoryItemContent(content: string): string {
     }
     previous = position;
   }
-  if (
-    /(?:hidden\s+(?:reference|test)|golden\s+rtl|reference\.sv|testbench|specific\s+testcase)/iu.test(
-      content,
-    )
-  ) {
+  if (containsForbiddenMemoryItemContent(content)) {
     throw new CoreLoopException(
       "MEMORY_STORE_INVALID",
       "Memory item contains forbidden hidden or case-specific solution content",

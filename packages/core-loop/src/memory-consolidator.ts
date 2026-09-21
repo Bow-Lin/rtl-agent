@@ -7,6 +7,7 @@ import { writeJsonEvidenceExclusive } from "./evidence.js";
 import { ExperienceRecordSchema } from "./experience.js";
 import type { ExperienceRecord } from "./experience.js";
 import {
+  containsForbiddenMemoryItemContent,
   MemoryCatalogEntrySchema,
   MemoryItemIdSchema,
   MemoryMetadataValueSchema,
@@ -91,6 +92,39 @@ export interface MemoryConsolidator {
   consolidate(request: MemoryConsolidatorRequest): Promise<MemoryConsolidatorOutput>;
 }
 
+const SAFE_CONSOLIDATOR_VOCABULARY_REPAIRS = [
+  {
+    pattern:
+      /\b(observed|checked|sampled|monitored|verified)\s+by\s+(?:the\s+)?testbench(?:es)?\b/giu,
+    replacement: "$1 during simulation",
+  },
+] as const;
+
+function repairSafeConsolidatorVocabulary(content: string): string {
+  return SAFE_CONSOLIDATOR_VOCABULARY_REPAIRS.reduce(
+    (repaired, rule) => repaired.replace(rule.pattern, rule.replacement),
+    content,
+  );
+}
+
+function repairSafeConsolidatorOutput(output: MemoryConsolidatorOutput): MemoryConsolidatorOutput {
+  return MemoryConsolidatorOutputSchema.parse({
+    ...output,
+    operations: output.operations.map((operation) => {
+      if (operation.operation !== "ADD" && operation.operation !== "MERGE") return operation;
+      const content = repairSafeConsolidatorVocabulary(operation.memory.content);
+      return containsForbiddenMemoryItemContent(content)
+        ? {
+            operation: "REJECT",
+            experience_indexes: operation.experience_indexes,
+            reason:
+              "Memory draft still contained forbidden hidden or case-specific content after safe vocabulary repair.",
+          }
+        : { ...operation, memory: { ...operation.memory, content } };
+    }),
+  });
+}
+
 export const MemoryBatchConsolidationResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     schema_version: z.literal(1),
@@ -159,7 +193,7 @@ export function applyMemoryConsolidation(
   const parsedExperiences = experiences.map((experience) =>
     ExperienceRecordSchema.parse(experience),
   );
-  const output = MemoryConsolidatorOutputSchema.parse(rawOutput);
+  const output = repairSafeConsolidatorOutput(MemoryConsolidatorOutputSchema.parse(rawOutput));
   const referencedIndexes = output.operations
     .flatMap((operation) => operation.experience_indexes)
     .sort((left, right) => left - right);
