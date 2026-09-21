@@ -1,5 +1,363 @@
 # Decision Log
 
+## 2026-09-21 - Repair contracts prospectively before ten scoped commits
+
+User authorizes repair followed by the ten agreed commit groups. The extraction output
+schema stays v2, while new requests identify prompt contract v2.1. Share exact execution
+enums between prompt and parser, declare top-level trajectory/nested-reference aggregation
+requirements, and give those provenance failures field-specific errors. Generic-guide
+revision 1.1 states and enforces 50-600 Unicode code points after trimming outer whitespace.
+Keep historical raw outputs and failed preparation records unchanged; archive original
+contract sources with hashes matching old receipts before editing. New prompts/runtime
+hashes intentionally prevent reuse of old preparations. No model or RTL run is authorized.
+
+The pre-commit review also found destructive I2C output replacement and unvalidated PASS
+labels. Require a fresh output directory before source loading/compilation and exclusive
+creation at publication. Skipped compilation records NOT_RUN and cannot enter the existing
+PASS-only frozen execution path. Preserve existing mutation datasets and runtime/dist bytes.
+
+## 2026-09-21 - Keep mutation dataset assets local
+
+User excludes datasets from submission. Ignore the root /mutation/ publication directory,
+including source RTL, mutants, manifests and provenance; retain the files locally.
+This exclusion does not cover tools/mutation implementation, tests or preparation fixtures.
+Dataset-dependent replay and integration checks need the local dataset provisioned separately.
+User explicitly accepts errors when that prerequisite is absent. Preserve current failure
+behavior; do not add skipping, fallback fixtures or automatic downloads solely for Git exclusion.
+No commit or remote synchronization is performed as part of this scope adjustment.
+
+## 2026-09-20 - Keep dynamic baseline separate from survivor validity witnesses
+
+User limits the next task to the fixed190 Icarus baseline and preliminary survivor review.
+Accept the complete v2 replay after seven goldens and190 mutant pairs:165 killed,25 survived,
+zero infrastructure/unknown execution outcomes. The four X-sensitive kills retain explicit
+Icarus four-state labeling; never merge with a Verilator score. Do not exclude unproved-equivalent
+mutants or compute an adjusted denominator. Source/target assignment and model work remain pending.
+
+Separate evaluator-only witnesses establish a functional difference for uart16550/M021 (two
+queued legal 8N1 frames expose a short stop bit) and aes-pipeline/M011 (extra valid at the first
+post-reset rising edge, with the original TB/stimulus unchanged). Both remain baseline survived;
+the other23 survivors retain unresolved validity. Keep diagnostic reasoning out of future Agent
+and Memory inputs. AES Core/Tiny AES30/30 saturation is retained without weakening checkers.
+
+Original family-process.ts is bound by historical FIFO hashes. Restore/retain its exact bytes;
+derive a scoped replay version of the same runner with token/PID-checked shared serial ownership,
+rather than changing old experiment runtime. New replay results snapshot their actual runtime.
+
+## 2026-09-19 - Retain preparation failures; separate contract and semantic findings
+
+The authorized preparation budget is exhausted with five normal complete calls and no
+retries: G is frozen, while four source outputs with 14 raw drafts remain unpublished.
+Do not report gate acceptance 0/4 as a transfer-effect result or as proof that every strategy
+lacks value. ETH's direct rejections reveal unstated reference aggregation rules, and the
+model-facing execution enum conflicts with the parser. These two P2 findings remain open;
+the earlier recovery-entry review still has zero unresolved P1/P2 findings.
+
+Keep raw failures, prompts, validator and runtime immutable. Do not strip fences, move
+fields, rewrite enum values, fill references, or selectively republish repaired drafts as
+original successes. Any later contract correction requires a new, prospectively defined
+version and offline checks before another extraction batch. No additional provider call is
+part of this completed five-call authorization. Target cohort/native integration and the
+source Memory publication gate remain pending; the formal 27-draw pilot has not started.
+
+## 2026-09-19 - Complete only the three uncalled preparation requests
+
+The user explicitly authorized the fixed five-call Kimi K3 batch. G and versatile each
+completed one provider request; versatile's structural failure stopped the original queue.
+Retain that terminal failure and raw response. G passed independent generic-content and
+source-isolation review and is frozen verbatim; it is not source Memory or transfer evidence.
+
+Use the separately reviewed recovery-v1 entry to execute only the original uncalled eth,
+ufifo and openhmc requests. The total remains five, with no replacement, repair, normalization,
+consolidation or failed-source retry. This is an explicit execution-protocol deviation:
+structural rejection now consumes its call and permits the next uncalled source; provider,
+audit, timeout or infrastructure failure still stops. Registered system/prompt/model remain
+unchanged; the SDK-added current-directory suffix points to the recovery directory.
+
+The recovery binds 138 original/runtime/new recovery files, uses the same exclusive locks,
+and rejects reentry after any start. Valid outputs require source-only semantic review;
+this entry never publishes a library. No target generation, mutant inspection or RTL run
+belongs to this batch. Seven offline tests, strict typecheck, lint, formatting, real preflight
+and independent review passed before launch at 2026-09-19T10:49:55Z.
+
+## 2026-09-19 - Autonomous work items replace designated-strategy diagnosis
+
+User closes dpretet/M010 diagnosis and directs a new N/G/M comparison on three independent new
+targets. All groups share semantic gap analysis, zero-to-two cumulative work items, target mapping,
+execution evidence checks and at most three Agent turns. Coverage stagnation cannot bypass pending
+checker work. Zero-edit analysis/review is legal; budget exhaustion is not completion. Do not
+modify the frozen old103 runtime or reuse the old loop's zero-turn coverage-saturation shortcut.
+
+Source v2 is re-extracted from original103 records plus4 explicitly supplemental source specs,
+not rewritten from13 summaries. Separate source discovery from target applicability and abstract
+strategy from concrete evidence. Four serial source calls, no retry or LLM merge; item-level
+semantic review before publication. One fresh no-tool/no-source-context K3 call authors G because
+available reviewer agents have historical context and the service cannot spawn a fresh agent.
+Preparation budget is5 calls, distinct from27 future target draws. G output is not source experience.
+
+Formal pilot must freeze new-target criteria/lineage, assets/configurations, library, guide and
+method before generation and evaluate the whole frozen mutant set only after all generation is
+sealed. Report newly detected and lost sets, raw kills, semantic acceptance and final validity
+separately. No three unused FIFO implementations are ready; target family was asked asynchronously.
+Native integration/cohort preparation and Linux validation remain pending; unit tests do not freeze
+or validate the complete target method.
+
+## 2026-09-19 - Directed execution succeeds without establishing autonomous transfer
+
+Fixed3draw originalMemory10-only designated-work diagnostic completes with3/3 correct executed
+reset-effective checks and3/3 independent golden passes; M010 caught at10/28/42ns by those
+checks.5 Agentturns, no retries/budget increase, allNO_MEANINGFUL_GAIN. E1 coverage stays96.79
+while newchecker detects M010, confirming structure score and checking ability differ.
+This supports originalitem usability under explicit designation. Removing12items, designating
+the action and changing priority are joint interventions; do not infer selection alone caused
+earlier failure, stable success probability, Memory harm, or held-out transfer. E3 delayedgate
+extends beyond resetrelease; correct initial42/56ns windows are supported by fixedTB schedule,
+but8gatehits must not all be called reset-effective and method is not generally certified.
+Stop this fixedbatch without more M010 prompt tuning. Future checker-gap phase is a new equal-
+budget off/Memory protocol and requires untuned target implementations for transfer claims.
+
+## 2026-09-19 - Apply explicit approval to the prepared directed batch
+
+User "启动吧" approves the previously disclosed3sample Memory10-directed diagnostic and
+repository/Memory payload to Kimi coding API K3. Use original validated protocol and label,
+preserve prior declined-launch receipt as historical, and do not reopen consent for the same
+operation. No expanded experiments or prompt tuning authorized by this approval.
+
+## 2026-09-18 - Stop unchanged expansion; isolate designated strategy execution
+
+Follow user's next scope: audit task goals/stopping, then one fixed3draw Memory10-only batch.
+Preserve verbatim original item and current runtime; add neutral designated-work instruction,
+same target/assets/provider/permissions/max3/earlystop. This changes selection/context/priority
+jointly and cannot prove selection alone caused earlier failure. Final-only independent
+golden/M010 after all3, failure draws retained and no prompt optimization loop. Future checker-gap
+phase would be a new equal-budget off/Memory protocol, not retroactive scoring or a trusted oracle.
+
+## 2026-09-18 - Keep raw kill separate from correct strategy enactment
+
+Fixed-v1 usage2x2 final primary A0/3 B0/3 C1/3 D0/3; C/D raw M010 both1/3. C3 independently
+derives reset checks, repairs NBA timing within3turn budget, executes13/8 reset branches and
+kills at10ns with golden pass. D1's post-release75ns global mutual-exclusion kill is raw
+evidence only. Do not infer Memory increment, stable generic-check effectiveness, Memory harm,
+or blind transfer. Visible work prioritizes coverage gaps; exact internal nonadoption cause
+remains unresolved. Next mechanism study should separate selection/priority from code conversion;
+do not automatically launch v2 or more repeats from this diagnostic.
+
+A3 extra-DUT generation remains a failed draw in denominator3. Preserve original noexecution
+infra label and explicit sidecar correction; only previously unstarted D3/B3 resumed under
+original97runtime hashes. No rerun, best-intermediate selection or changed scoring rubric.
+
+## 2026-09-18 - Isolate Memory use from Memory content
+
+Freeze original13 v1 items and compare a2x2 Memory x generic implementation-check
+intervention with3 independent dpretet runs per group. C is essential to distinguish
+general diligence from Memory gain; D/C is the primary descriptive comparison. Inject
+the identical short instruction only as an append-only workspace spec workflow section,
+preserving DUT contract bytes, capabilities, early stopping and max3 Agent-turn budget.
+Final snapshot is last attempted, even if failed; no selection using mutant outcomes.
+All12 generation samples precede independent golden/M010 evaluation. Missing execution
+evidence is unconfirmed adoption, not infrastructure failure. Known target/M010 imply
+development diagnosis only; defer v2 extraction and unseen targets until use is isolated.
+
+
+## 2026-09-18 - Separate mechanism success, actual adoption and extraction objectives
+
+User authorized a bounded golden/known-M010 reset diagnosis, three-item adoption audit and
+future extraction redesign. New reset-active oracle fixes the baseline observation gap without
+global asynchronous flag mutual exclusion: golden passes, known fault fails at70ns. Use accepted
+golden reset behavior as explicit authority; keep this post-hoc evidence out of raw scores and
+source prompts. It does not prove Memory Agent adoption or blind transfer.
+
+Adoption evidence shows distinct causes: Memory1 is implemented but matched by off, Memory9
+largely baseline/redundant or ineffective under actual two-state compilation, Memory10's dpretet
+window absent. Do not conflate those into generic Memory failure or assume illegal AXIS driving.
+Opt-in Experience v2 now requires scenario/oracle/sampling/correctness fields and keeps observed
+source outcomes separate from hypothetical detection. Current permissions/stop policies stay
+outside transferred items. Keep legacy default/catalog unchanged until separately validated.
+
+## 2026-09-18 - Inspect transferable behavior and oracle timing before more repeats
+
+User prioritizes a checkable source-strategy/applicability/baseline-gap/benefit/reproduction
+chain. Preserve and expose all13 frozen Memory texts rather than silently rewriting them.
+M010's extra final kill is specifically a reset-value observation at the first post-release
+write edge; both off/frozen add the same assertion. Treat it as evidence of an oracle timing
+gap, not proof of Memory benefit or universal full/empty mutual exclusion across async domains.
+Keep raw counts and separate semantic review; no new repeated experiments launched this turn.
+
+## 2026-09-18 - Report recovered FIFO paired quality as a tie
+
+Use only completed fifo-target-recovery-20260917-153613 for target comparisons; old campaign
+remains diagnostic. All4 off/frozen pairs have identical first/final coverage and exact killed
+mutant sets. State no observed quality gain under this seeded-TB/frozen13/max3 setting, not
+general Memory ineffectiveness. Keep raw30 denominator and pending semantic/equivalence review.
+Report provider tokens/cost and observed duration separately; cache effects, one repaired
+golden failure, only2 repetitions and earlier compilation overlap prevent causal speedup claims.
+
+## 2026-09-17 - Accept UART/AES preparation with serial process evidence
+
+Publish seven new implementations and 190 mutants after all golden/frontend/actual-patch
+checks pass; retain OSDVU's explicit 20-mutant shortfall. Bind per-site static review, frontend,
+native coverage and provenance to published manifests. Roles remain unassigned; model provider
+integration, kill replay and source/target experiments remain separate from asset acceptance.
+
+After FIFO completed and all prior descendants exited, resume with a preparation-only async
+process runner. Persist live logs and ownership; boundary failures leave a pause before cleanup,
+and unconfirmed cleanup blocks later jobs. Do not alter shared FIFO runtime. Use host C++ -O0
+and ABI0 on Windows to avoid the earlier optimizer stall while preserving RTL/configuration/
+instrumentation. UART16550 raw coverage agrees with its preceding profile. Native process tests
+pass, but Linux execution/formal Gate remain unverified. Stop the authorized heartbeat on delivery.
+
+## 2026-09-17 - User authorized exact FIFO cache cleanup
+
+After reviewing exp_result/09.17-fifo-cleanup-inventory.md, user requested deletion of
+the listed2736 rebuildable compiler files. Scope is the immutable exact-file JSON inventory,
+not its parent directories. Retain all experiment evidence and regression inputs; exclude
+the active FIFO recovery campaign, UART/AES work and frozen Memory. Validate file paths,
+names and sizes, reject reparse points, delete files individually with native PowerShell,
+then verify absence and retained-file SHA256 hashes. Preserve a separate deletion receipt.
+
+## 2026-09-17 - UART/AES preparation scope, serialization and hash contract
+
+Prepare UART4/AES3 with FIFO seed42 single-site operators and frontend-only selection; target30
+per IP with honest shortfalls. Roles remain unassigned; existing AES baseline is referenced and
+FIFO assets remain unchanged. OSDVU has10 under the declared operator/scope policy; do not pad.
+Separate raw upstream hashes from LF publication hashes to obey .gitattributes while preserving
+provenance. Actual patch application must reproduce the normalized published mutant digest.
+
+An independently launched FIFO recovery overlapped ongoing dataset coverage. User explicitly
+selected serial execution and waiting for FIFO idle. Pause subsequent RTL; confirm own residual
+compiler exit before resuming. Overlapped wall times cannot support isolated performance claims.
+User then authorized a 30-minute heartbeat, which was created as `uart-aes`; it waits quietly,
+finishes local validation/publication only, reports completion and disables itself. No models,
+Memory, mutant simulation or knowledge-transfer experiment is authorized by this continuation.
+
+
+## 2026-09-17 - User confirmed disclosed K3 payload; resume launch
+
+After the explicit confirmation request naming target RTL, TB/checker, experiment feedback,
+instructions and frozen13 Memory sent to Kimi coding API (https://api.kimi.com/coding, K3),
+user replied "继续恢复". This confirms that disclosed external payload/destination and
+8-condition serial recovery scope. Prior launch rejection was not executed; no active lock.
+Existing validated guards and golden evidence remain current. Launch a fresh replacement label
+with supersedes fifo-target-20260917-1120, no old artifact changes or silent trial retry.
+
+## 2026-09-17 - Authorized controlled target recovery plan
+
+User asked to continue after connection failure. Preserve prior campaign as diagnostic: off
+final changed DUT configuration; frozen provider turns incomplete. Run a fresh explicit
+replacement campaign with the same 8 conditions, K3/Chinese13/max3 and score/stop rules.
+Before launch: target-only fixed topology guard locks seeded TB prefix through sole DUT
+instance, rejects extra DUT/raw modules/defparam/macros; coverage denominator must remain
+constant. Add target provider completion audit rejecting errors even after edits. Strengthen
+identical off/frozen spec constraints, test prior failure regressions, typecheck/lint/build,
+model-free golden baselines, then one isolated K3 connection canary. Serial hidden launch
+only after positive connection evidence and no active prior campaign. No silent retry or
+changes to frozen Memory, original DUT or mutants. Linux readiness remains unclaimed.
+
+## 2026-09-17 - Implement and launch target repetitions
+
+Plan: add locked dpretet/axis providers using published golden source and seeded TB; preserve
+DUT module bytes via parameter-compatible TopModule alias in seeded TB only. Add bounded
+verification-specific select-all frozen adapter using existing injection transport, with
+manifest/item digest locks and exclusive per-attempt evidence. All 13 items included verbatim;
+no additional selector inference or target-derived updates. Off remains unwrapped.
+Implement serial 8-run campaign with per-condition baseline/first/final mutation replay and
+fail-closed infrastructure handling. Validate focused tests, typecheck/lint/build, two golden
+baselines and digest checks before model launch. Original review status stays pending.
+Windows evidence only, not formal Linux readiness.
+
+## 2026-09-17 - Project K3 owns extraction and consolidation
+
+User rejected Codex-curated candidates as experimental Memory. Implement verification:memory
+with fixed-source evidence, isolated no-tool Pi K3 sessions, four independent extraction calls,
+then pooled consolidation. Do not pass the six-item Codex draft to K3. Publish a separate
+manifest-last verification snapshot after schema/provenance validation; human semantic review
+remains explicit. No fixed count, old RTL store changes, target runs or dual-goal experiments.
+
+## 2026-09-17 - Curate coverage-only Memory before new dual-goal experiments
+
+User agreed to future coverage AND mutation-kill goals, but explicitly deferred that experiment.
+For now curate existing four-source coverage-loop experience. Replace coarse keyword rejection
+conceptually with source allowlisting and evidence checking; generic scoreboard reasoning is
+allowed, evaluator-only mutation information and target evidence are excluded. Assistant-curated
+review candidates are not an isolated Kimi Summarizer run or a published frozen snapshot.
+No stopping-rule changes, target launch or new source experiment in this scope.
+
+## 2026-09-16 - Separate verification Memory input boundary
+
+All four source runs/replays finished. Old RTL Experience schema rejects testbench and uses
+RTL-generation outcomes; do not weaken it for verification learning. Start separate source
+provenance/metrics audit with four fixed run allowlist and scalar-only projection. No raw
+transcript, TB, mutant or oracle in this audit. This is not extracted Experience or a frozen
+snapshot; verification-specific extraction/consolidation/selection remains implementation work.
+
+## 2026-09-15 - openHMC as independent fourth source
+
+Use existing frozen raw file from historical target directory without changing preparation
+manifest roles. New4+2 protocol makes it a source. Fixed DWIDTH8/ENTRIES8 wrapper, original
+source seed TB, local full/empty legal-operation assertions, max3/Memory off. No other source
+Memory or mutation feedback; keep ufifo saturated30/30 result without mutant reselection.
+
+## 2026-09-15 - ufifo independent source fixture
+
+Reuse published source-side golden seed with BW8/LGFLEN4/RXFIFO1 (15 usable entries),
+fixed TopModule wrapper and count checker. Preserve original ufifo and snapshot/patch bytes;
+only existing LF normalization at provider boundary. Source never receives replay outcomes
+or other source Memory. Baseline golden must pass before max3 Agent improvement turns.
+
+## 2026-09-15 - Failed first verification assets remain first
+
+Eth attempt2 golden simulation fails; do not substitute successful attempt3 for first.
+Replay stages gate independently. Failed golden excludes its30 mutant runs; never killed.
+Git patch normalization must match the published raw mutated digest before normalized byte
+comparison. Published source and patches stay immutable; normalization is evidence-only.
+
+## 2026-09-14 - eth_fifo source coverage fixture
+
+Reuse source-side prepared legal-operation TB as seed, with fixed width32/depth8 wrapper and
+count-range checker. Original source repository and mutation publication unchanged. Existing
+provider LF normalization retained; future replay must bind same normalized source bytes.
+This source does not receive any other source experience or mutant feedback.
+
+## 2026-09-13 - Independent four-source FIFO verification learning
+
+User explicitly chose independent source runs, then pooled Memory, and authorized execution.
+Experiment roles4+2 supersede previous3+3 preparation roles without editing frozen manifests.
+Protocol docs/fifo-verification-transfer-protocol.md records defaults: max3 improvement turns,
+two target paired rounds, evaluation-only mutation and separate verification Memory store.
+
+## 2026-09-09 - User-authorized downloadable targets and six-by-thirty v2
+
+Replace Generic Gray and ogfx with MIT dpretet async_fifo and verilog-axis axis_fifo, pinned
+author commits in mutation/fifo-transfer-v2. Retain source Versatile/eth_fifo/ufifo and target
+openHMC. Choose synchronous axis FIFO instead of another async implementation; disclose shared
+Cummings algorithm ancestry where relevant. Olofk FWFT candidate not adopted due weaker wrapper
+license evidence. This is cross-implementation, not proven independent-algorithm sampling.
+Expand mutation operators and reviewed executable scopes, not arbitrary bit positions. Fixed
+seed42, static duplicate exclusions, compile-only filtering, no kill/coverage selection. Preserve
+old100 and intermediate results as superseded. Final180 have two-frontend and golden evidence;
+human equivalence review remains pending. Preparation does not authorize exposing target
+oracle/mutants to TB generation or building Memory from target assets.
+
+## 2026-09-09 - Replace S2 with ethmac/eth_fifo rather than repair the upstream DUT
+
+The user chose replacement. Select Igor Mohor's standalone eth_fifo from OpenCores ethmac,
+commit dd26899086edf3b797d2775ef9502d204a9a8149, at default 32-bit/depth-8 generic-RAM settings.
+Its independent legal-operation scoreboard passed Icarus and Windows Verilator unchanged.
+Caller must avoid read-empty/write-full. Preserve rejected synchronous_reset_fifo and its
+diagnostic, excluded from Memory/score denominators. Other five roles remain unchanged;
+full standalone fixture, coverage and mutant preparation are still required.
+
+## 2026-09-08 - Prepare six-FIFO source/target assets at the next idle checkpoint
+
+The user approved the proposed three-source/three-target grouping and requested I2C-standard
+datasets and mutants. Preserve the running frozen-Memory Batch; insert preparation after its
+exit and validation, before the next long condition. This stage calls no model and builds no
+Memory. Audit independent provenance and standalone simulation before freezing membership;
+unusable candidates require a user decision, not silent substitution. Use seed 42 and target
+30 distinct single-site compile-valid mutants per IP, with FIFO-appropriate quotas selected
+without coverage/kill evidence. Record shortages rather than padding. Separate target artifacts
+from source Memory inputs. The detailed plan is in current-task.md and the existing heartbeat.
+
 Use this file to record stable project decisions.
 
 ## Format
@@ -25,6 +383,70 @@ What tradeoffs or future implications does this create?
 ```
 
 ## Decisions
+
+## 2026-09-03 - Run Mutation Validation Only After the Frozen-Memory Campaign
+
+### Context
+
+The repository has a locked 30-patch `i2c-mutants-v1` fixture and retained I2C verification assets
+at 78.16%, 93.99%, and 100% structural coverage, but it has no deterministic mutation replay
+runner or mutation-score evidence. The active frozen-Memory campaign repeatedly builds the same
+control plane and runs long Provider-backed Generation and Debug evaluations.
+
+### Decision
+
+Append mutation validation after every frozen-Memory condition and its report. First implement and
+validate a deterministic, model-free `mutation:run` runner, then replay the unchanged 30 mutants
+against the three retained verification assets. Require a passing golden DUT before each suite and
+persist per-mutant apply, compile, simulation, timeout, not-run, kill, and survival evidence. Do
+not rerun the mutation generator. Do not begin implementation or execution while a frozen-Memory,
+I2C coverage, mutation, or related Verilator process is active.
+
+### Alternatives Considered
+
+Running mutation replay concurrently could shorten wall time, but would compete for local build and
+Verilator resources. Implementing the runner during the active campaign could also change build
+outputs used by later campaign commands. Regenerating mutants would break the fixed-fixture
+comparison. These alternatives were rejected.
+
+### Consequences
+
+Mutation evidence arrives later but preserves the frozen-Memory experiment version boundary. The
+final verification claim will report raw and equivalence-adjusted mutation score, per-mutant
+transitions, survivor review, and operator/module breakdown. Its scope is fault detection within
+the same I2C DUT and does not establish cross-IP generalization.
+
+## 2026-08-25 - Separate Generation and Debug in Cross-Dataset Frozen-Memory Evaluation
+
+### Context
+
+The earlier campaign grew and evaluated Memory on small ChipBench Generation runs, mixed old and
+new baseline identities, and was censored by Provider quota before it could establish a controlled
+final-Memory comparison. It could not distinguish first-generation quality, direct Debug ability,
+and feedback-assisted repair.
+
+### Decision
+
+Use complete datasets as non-overlapping Memory sources and evaluation targets. G evaluates frozen
+ChipBench Generation `mem-v0008` on all 156 VerilogEval Generation Cases with repair zero. D0
+evaluates Memory off, frozen VerilogEval `mem-v0003`, and frozen ChipBench `mem-v0008` on all 89
+ChipBench zero-shot Debug r5 Cases with repair zero. G and D0 use swapped-order rounds. D3 separately
+compares frozen VerilogEval Memory with off on all 89 Debug Cases using three feedback repairs.
+Target evaluation never updates Memory, and no target is split into train and test subsets.
+
+### Alternatives Considered
+
+Reuse the old 30-Case Generation comparison, reuse r2 Debug-off results, mix zero-shot and repaired
+Debug into one final accuracy, or grow Memory during target evaluation. Each option weakens pairing
+or makes the Memory effect inseparable from repair feedback or target leakage.
+
+### Consequences
+
+The campaign is longer and requires reversible switching between two frozen stores because the
+runtime reads only `.rtl-agent/memory`. A positive Memory claim now requires consistent direction
+across order-swapped rounds, favorable Case transitions, stable timeout/not-run behavior, no
+same-Case dependence, and proportionate token/cost overhead. Generation, zero-shot Debug, and
+feedback-assisted Debug must be reported as separate conclusions.
 
 ## 2026-08-13 - Bound Descriptive Memory Metadata at 1024 Characters
 
@@ -2076,3 +2498,135 @@ must name its snapshot and records the complete Memory identity in the evaluatio
 selector itself remains best-effort and model-backed, so its usage and evidence must be included
 when comparing cost with the no-Memory baseline. `read_write` Debug remains unavailable and cannot
 pollute the frozen snapshot or produce Debug-derived Experience.
+
+## 2026-08-19 - Isolate forbidden-vocabulary failures to one consolidation operation
+
+### Context
+
+Explicit Memory Build `b-20260819-001` loaded all 15 ChipBench Experiences and received a
+schema-valid Consolidator result with three `ADD` operations. One otherwise generic draft used the
+phrase `observed by the testbench`, so the strict content validator rejected the complete Batch and
+discarded the other two valid drafts.
+
+### Decision
+
+Keep the Memory Store validator fail-closed. At the Consolidation application boundary only,
+normalize an allowlisted passive generic phrase of the form `observed|checked|sampled|monitored|
+verified by the testbench(es)` to the equivalent `... during simulation` wording.
+
+After that bounded repair, convert an individual `ADD` or `MERGE` that still contains forbidden
+content into a `REJECT` covering the same Experience indexes. Continue applying safe sibling
+operations. Structural schema errors, incomplete Experience accounting, absent targets, duplicate
+target mutation, invalid sections, and invalid sizes still fail the complete consolidation.
+
+### Consequences
+
+A harmless vocabulary collision no longer loses an otherwise valid Memory draft. A genuinely
+unsafe draft cannot enter a snapshot, but it also cannot prevent independent drafts from being
+added or merged. Both the repaired operation list and the original Pi result remain available as
+evidence. Replaying the saved `b-20260819-001` inputs now yields three Memory items with operations
+`ADD, ADD, ADD, REJECT` and no forbidden `testbench` token.
+
+## 2026-08-21 - Normalize Kimi reasoning signatures at the provider boundary
+
+### Context
+
+ChipBench Batch `b-20260820-002` produced only two functional passes and 28 non-runs. Twenty-three
+Agent turns were labeled `POLICY_VIOLATION` because no RTL compile unit existed after the turn, but
+their provider transcripts showed the actual upstream failure: Kimi rejected a carried encrypted
+reasoning signature with HTTP 400 because standard Base64 characters were not valid Base64URL.
+
+### Decision
+
+For `kimi-coding` only, normalize string signatures on `thinking` content blocks immediately before
+the provider request: translate `+` to `-`, `/` to `_`, and remove trailing `=` padding. Do not
+change the encrypted bytes, disable thinking, rewrite message text, or affect other Providers.
+
+Enable this behavior through the isolated Pi environment and record the normalization mode in the
+Pi isolation configuration so the capability and experiment identity change with the behavior.
+Capture the actual normalized request payload in evidence. Keep ordinary generation and Debug task
+selection semantics unchanged.
+
+### Consequences
+
+The exact 30-Case rerun completed without a Base64URL protocol error. All Cases were scheduled,
+yielding 18 functional passes, six functional mismatches, and six real Case-level non-runs. The
+remaining failures can now be analyzed as RTL/Agent outcomes rather than provider-policy artifacts.
+
+## 2026-09-07 - Run deterministic mutation replay during the Kimi quota pause
+
+### Context
+
+The frozen-Memory campaign cannot make valid progress while Kimi returns the weekly-limit HTTP 403.
+The queued I2C mutation replay is deterministic local Git/Verilator work, calls no model, and uses
+the same host resources only when no Generation, Debug, coverage, or mutation process is active.
+The prior queue rule placed mutation after the complete frozen-Memory report.
+
+### Decision
+
+Honor the user's explicit sequence change: pause the Provider-backed queue at the complete
+D0-R1 frozen ChipBench arithmetic retry and run mutation first. Keep both campaigns strictly
+serial. Freeze `i2c-mutants-v1`, seed 42, and `M001..M030`; do not regenerate or modify any
+mutant. Use isolated copied workspaces and require each suite's golden DUT simulation to pass before
+its mutants run.
+
+### Consequences
+
+Mutation evidence can be completed without consuming Kimi quota or contaminating Memory evidence.
+Its report remains an independent same-I2C-DUT verification-validity result and cannot be presented
+as cross-IP generalization. After the mutation report, the automation returns to quota recovery
+checks and resumes the frozen-Memory queue only under its existing canary and full-retry rules.
+
+The completed replay reports raw scores only: 53.33% for both the 78.16% baseline and 93.99%
+asset, and 83.33% for the 100% asset. Keep adjusted score unset until a human or formal review
+confirms survivor equivalence or unreachability; `suspected_non_equivalent` is not such proof.
+
+## 2026-09-07 - Add three revision-locked, toggle-aware project coverage fixtures
+
+### Context
+
+I2C mutation evidence shows that structural coverage gain can correspond to stronger bug finding,
+but a same-DUT result cannot establish cross-IP behavior. The user selected Versatile FIFO, AES
+high-throughput/low-area, and Scalable Arbiter to add storage/CDC, cryptographic datapath, and
+fairness/control diversity while Kimi quota prevents model-backed work.
+
+### Decision
+
+Add one generic `project-coverage` control plane with exact upstream commits, consumed-file byte
+digests, deterministic bounded golden assets, protected DUT paths, and baseline-only operation at
+`--iterations 0`. Use the same raw line/branch/toggle collection as I2C, but opt the new command into
+a documented combined score of 50% line, 20% branch, and 30% toggle; redistribute the absent branch
+weight to line. Preserve the legacy I2C score by keeping this option off by default.
+
+Use the official two-level `arbiter_x2` at width 16. The simpler width-8 `arbiter` reached every
+instrumented line under minimal stimulus and therefore offered no line/branch refinement target,
+while still leaving substantial toggle behavior unexercised.
+
+### Consequences
+
+All three projects expose structural headroom under one comparable command without changing their
+source trees. Baseline-only runs can proceed during Provider quota outages and call no model.
+Agent runs remain serialized with frozen-Memory and require the existing credible-recovery plus
+real-canary gate. These results remain non-authoritative Windows evidence and need repeated Agent
+runs plus independent fault detection before supporting a cross-IP effectiveness claim.
+
+## 2026-09-08 - Keep result-producing long experiments serial after Provider recovery
+
+### Context
+
+The user authorized concurrency when tasks do not conflict. Remaining frozen-Memory conditions and
+multi-IP Agent coverage all call the same Kimi account, invoke RTL tools, and write experiment
+evidence beneath the same repository. The frozen-Memory protocol also uses intentional condition
+order and reversible global Memory-store selection.
+
+### Decision
+
+Permit read-only process, profile, digest, and progress audits while one experiment runs, but keep
+all model-backed or Verilator-writing result-producing commands serial. Reassess only if a future
+runner has an isolated Provider budget, workspace, store, and preregistered concurrency design.
+
+### Consequences
+
+This forgoes unsafe wall-clock parallelism while preserving condition order, quota attribution,
+resource measurements, and store integrity. The active long process remains the single source of
+new experimental evidence.

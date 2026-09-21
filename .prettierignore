@@ -12,3 +12,8 @@ scripts
 AGENTS.md
 current-task.md
 pnpm-lock.yaml
+
+# Local editor settings are not part of the submitted source.
+.claude/
+# The active prompt bytes are bound by historical experiment runtime hashes.
+config/agents/rtl-core-loop/common-guidance.md

@@ -1,5 +1,141 @@
 # Verification Guide
 
+## Commit preparation contract and generator regressions (2026-09-21)
+
+Run the verification-memory-v2, verification-memory-v2-build and verification-generic-guidance
+Node tests, plus `python -B -m unittest discover -s tools/mutation -p test_generate_i2c_mutants.py -v`.
+The Python tests mock all source/RTL operations and verify preservation of an existing output.
+Run all tool Node tests serially on native Windows when process termination requires it,
+then repository Vitest, lint and no-emit source/test/tools TypeScript validation. Preserve
+historically bound dist artifacts; use an isolated output tree for build verification.
+New extraction preparations use contract v2.1; old payloads/hashes must never be rewritten.
+
+## UART/AES Icarus baseline and survivor review (2026-09-20)
+
+Plan: docs/uart-aes-baseline-replay.md. Run Node tests family-replay, family-replay-process,
+family-preparation and fifo-candidates (22 tests), strict tools NodeNext noEmit, ESLint and
+Prettier. Native Windows process tests exercise owned-tree cleanup and serial token drift.
+Do not edit the original family-process.ts: historical FIFO runs also bind its source hash.
+The replay-specific version retains that mechanism and adds owned serial token/PID support.
+
+Preflight verifies all published bytes. Real acceptance requires seven fresh goldens plus all
+190 fixed-patch Icarus compile/simulations, with separate timings, actual LF patch application,
+workspace hashes and process cleanup. Raw TB fatal remains pending until valid-cycle/interface
+review; host timeout, compile/runtime failure and unconfirmed cleanup never count as killed.
+Independent diagnostic witnesses cannot replace a frozen TB or overwrite baseline outcomes.
+Revalidate 297 publication files, replay inputs/runtime snapshots, old103 FIFO runtime hashes,
+diff/harness and report links. Preserve every interrupted or failed diagnostic.
+No full build, model call, Linux Gate or formal equivalence claim is part of this local baseline.
+
+## Autonomous verification workflow and source v2 preparation (2026-09-19)
+
+Plan: docs/autonomous-verification-work-items-plan.md. Run focused Node tests for
+verification-work-items/loop, verification-workflow-context/policy, verification-memory-v2/build,
+verification-generic-guidance and verification-kill-comparison, plus source/legacy extraction
+regressions. Run strict NodeNext noEmit, focused ESLint/Prettier, diff/harness and real source
+prepare-only verification of103 original +4 specs. Preserve all103 frozen prior runtime hashes;
+do not run a full build that overwrites dist. Synthetic fixtures are engineering evidence only.
+Real no-tool K3 preparation (one G author +four source extractions) is separate from target
+generation, with raw payloads/responses retained and no retries/consolidation. Structural/reference
+gates do not establish semantic correctness. Native target integration and cohort/golden/whole-set
+evaluation remain separate gates. Windows evidence does not establish Linux readiness.
+
+## Directed Memory10 development diagnostic (2026-09-18)
+
+Protocol docs/fifo-memory10-directed-diagnostic.md. New wrapper/entry/campaign/evaluator only;
+old97runtime remain locked. Run18 focused Node tests in verification-directed-memory,
+fifo-directed-campaign and evaluate-fifo-directed, explicit strict NodeNext noEmit, ESLint,
+Prettier, diff/harness, real-data campaign --preflight and independent review before launch.
+Three final-only draws, no model retries or best-intermediate fallback; all generation must
+seal before independent golden/M010. Preserve rawkills separately from semantic/execution
+review, include failures in denominator3 and usage. Windows-only; no Linux readiness claim.
+
+## Fixed-v1 usage2x2 diagnostic (2026-09-18)
+
+Protocol: docs/fifo-memory-usage-2x2.md. Focused Node tests on the implementation-check
+wrapper, campaign, evaluator and existing frozen/provider/topology boundaries; explicit
+NodeNext noEmit, ESLint, Prettier, diff and harness. Confirm real provider request exposure,
+equal baseline/configuration and frozen digests across12 new samples before sealing final
+selections. Then run only final golden/M010 and review code+execution evidence separately
+from raw kills. Do not infer semantic correctness from regex, model self-report or kill alone.
+Windows evidence is non-authoritative for Linux/formal readiness.
+
+
+## FIFO strategy mechanism diagnostic and Experience v2 (2026-09-18)
+
+See docs/fifo-memory-mechanism-diagnostic.md and docs/verification-memory-v2.md. The isolated
+reset diagnostic compiles/runs only baseline+new-oracle golden and known M010, checks reset-active
+observations and preserves frozen hashes/raw scores. Existing baseline controls are hash-verified.
+Run focused NodeNext noEmit/ESLint on diagnose-fifo-reset.ts and opt-in verification-memory-v2
+module/tests, plus legacy/source/v2 Node tests. Actual source prepare smoke uses no model call.
+Do not infer blind transfer, semantic validity or Linux readiness from this post-hoc Windows assay.
+
+## UART/AES preparation (2026-09-17)
+
+See docs/uart-aes-dataset-preparation.md for locked scope, serial resume procedure and CLI usage.
+Run `node --test tools/mutation/fifo-candidates.test.ts tools/mutation/family-preparation.test.ts tools/mutation/family-process.test.ts`,
+focused TypeScript NodeNext noEmit and ESLint on family-preparation, family-publication,
+create-uart-aes-fixtures, family-process and their tests. The native process tests exercise
+real owned parent/descendant termination; restricted Windows taskkill cannot supply that evidence.
+RTL work waits for FIFO and residual
+preparation compilers to be idle. Require seven golden Icarus/Verilator records, selected-mutant
+Icarus compile/Verilator lint, digest-bound static review, actual patch application and publication
+audits before acceptance. OSDVU shortfall is allowed; do not substitute mutants by kill outcomes.
+No Linux CI/formal Gate or transfer-effect acceptance follows from Windows preparation alone.
+
+## Target recovery guards (2026-09-17)
+
+Run Node tests target-topology-guard, target-provider-guard, target-coverage-domain,
+verification-frozen-adapter and replay-verdict under tools/mutation. Validate explicit tools
+NodeNext typecheck, ESLint, full build/typecheck and focused project-coverage provider/CLI Vitest.
+Both target baseline-only integrations must pass with scope audits before recovery launch;
+model connection probe is separate and diagnostic only. Windows only is not Linux readiness.
+
+## FIFO target integration (2026-09-17)
+
+Run `node --test tools/mutation/verification-frozen-adapter.test.ts tools/mutation/replay-verdict.test.ts`,
+focused project-coverage provider/CLI Vitest, `corepack pnpm typecheck`, focused tools NodeNext
+typecheck and ESLint, build and harness. Run both target baseline-only golden integrations and
+replay-target diagnostic smoke before campaign launch. Target evidence remains Windows-only
+and non-authoritative; Linux CI and formal Gate readiness not established.
+
+## K3 verification Memory pipeline (2026-09-17)
+
+See docs/verification-memory.md for focused Node tests, explicit tools typecheck/lint, build,
+prepare-only source audit and real-model integration separation. Publication requires valid
+K3 responses and source-bound references; semantic correctness remains pending human review.
+
+## Versatile source mutation replay (2026-09-14)
+
+`node --test tools/mutation/replay-verdict.test.ts` covers conservative outcome classification.
+Run explicit NodeNext noEmit and focused ESLint for replay tools. `replay-versatile.ts` accepts
+only a new .rtl-agent/fifo-replays/<name> output, fixed baseline/first/final source assets and
+frozen30 patches. Three golden gates and90 independent compile/simulations are integration
+evidence. Timeout is not killed; compile timeout aborts for process-tree inspection. Linux
+CI/full repository suite remain separate, not established by Windows replay.
+
+## Verification asset evidence snapshots (2026-09-14)
+
+Run focused project-coverage.test.ts with Vitest, pnpm typecheck/build, and ESLint on changed
+files. Snapshot tests cover baseline bytes, edited-version separation, digest and exclusive
+output rejection. Snapshots reside in run evidence/verification-assets/attempt-N, never Agent
+workspace. Historical recovery script is exclusive-output, fixed-run, and validates exact
+final-byte reconstruction; recovered first TB still requires independent golden replay.
+
+## FIFO preparation v2 tools (2026-09-09)
+
+`node --test tools/mutation/fifo-candidates.test.ts` validates deterministic single-site rules.
+Run explicit `pnpm exec tsc --ignoreConfig --noEmit --types node --target ES2023 --module NodeNext
+--moduleResolution NodeNext --allowImportingTsExtensions --strict --skipLibCheck` on the FIFO
+tool files (including audit/verify/publish), focused ESLint, normal build and harness check.
+`prepare-fifo.ts` requires a locked config and NEW output directory; `audit-fifo.ts` accepts
+preparation roots. `verify-fifo-suite.ts` runs golden Verilator coverage and each mutant's
+lint/elaboration serially. Its locked suite must point to fresh prepared roots for another run;
+do not delete/overwrite existing validation evidence. `publish-fifo-suite.ts` publishes an
+exclusive source/TB/patch/manifest bundle. Six real golden runs and180 frontend checks are
+integration evidence, not mutant kill replay. Never format/rewrite frozen source/patch bytes.
+Windows results remain non-authoritative; Linux CI, formal CDC and non-equivalence not claimed.
+
 ## Purpose
 
 This file defines how agents should verify changes before declaring work complete.
@@ -447,6 +583,31 @@ R04 ordinary tests cover branch-dependent preparation/result evidence, all stric
 
 The standalone bin intentionally has no built-in dataset/profile and must fail closed. A successful real batch writes under `.rtl-agent/batches/**`; the committed report at `docs/experiments/spec-to-rtl-core-loop-report.md` remains pending until those operator inputs exist. Synthetic mechanics results cannot populate that report's capability metrics or checkpoint recommendation.
 
+For deterministic I2C mutation replay, validate the control plane before running the fixed suite:
+
+```powershell
+corepack pnpm exec vitest run apps/rtl-core-loop/test/mutation-command.test.ts apps/rtl-core-loop/test/cli.test.ts
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm build
+corepack pnpm mutation:run
+```
+
+The runner must audit the locked manifest, selection, and 30 patches; gate every verification asset
+on a passing golden compile/simulation; use isolated workspaces; and persist apply, compile,
+simulation, timeout, termination, and outcome evidence per mutant. Compile-invalid, apply failure,
+timeout, infrastructure failure, and not-run are never counted as killed. Raw mutation score uses
+only killed plus survived in its denominator. Adjusted score remains unset until equivalence or
+unreachability is confirmed by human or formal review. A Windows replay is non-authoritative
+same-DUT functional evidence and does not establish Linux Gate readiness or cross-IP generalization.
+
+For Pi Provider request-compatibility changes, validate both the adapter environment and the final
+extension hook. A focused regression must prove that the original payload is not mutated, the
+captured actual request matches the transformed payload, and non-target Providers do not enable
+the behavior. Run the real `pi-agent-probe` after build. If the failure was provider-specific and
+intermittent, a completed real Batch with transcript search showing zero recurrences is required
+before calling the operational issue fixed; this remains non-authoritative experiment evidence.
+
 ## Change-Type Validation Matrix
 
 | Change Type | Required Validation |
@@ -463,6 +624,27 @@ The standalone bin intentionally has no built-in dataset/profile and must fail c
 | R01–R04 Core Loop | Unified checks plus task-specific real OpenCode/Icarus smoke or batch evidence; results remain non-authoritative |
 | Verilator coverage Agent experiment | Focused unit tests plus `RUN_VERILATOR_COVERAGE=1` integration and one real `coverage --case`; result remains non-authoritative and requires human review |
 | I2C baseline coverage Agent experiment | Provider/contract/orchestration tests plus a real normalized I2C baseline Verilator round; a real Agent run remains non-authoritative and requires human review |
+| Deterministic I2C mutation replay | Focused runner/CLI tests, typecheck, lint, build, three passing golden gates, and complete persisted replay of the locked mutant set; Windows evidence remains non-authoritative and same-DUT only |
+| Multi-IP project coverage fixture | Project provider/CLI/orchestration tests, typecheck, lint, build, clean locked source trees, and one real baseline-only golden Verilator run per project; Agent refinement additionally requires a successful Provider canary and remains non-authoritative |
+
+For the locked FIFO, AES, and Scalable Arbiter fixtures, run the deterministic preparation checks
+and baseline coverage without a model:
+
+```powershell
+corepack pnpm exec vitest run packages/core-loop/test/project-coverage.test.ts apps/rtl-core-loop/test/project-coverage-command.test.ts --config vitest.config.ts
+corepack pnpm typecheck
+corepack pnpm lint
+corepack pnpm build
+corepack pnpm core-loop:project-coverage --project versatile-fifo --iterations 0
+corepack pnpm core-loop:project-coverage --project aes-highthroughput-lowarea --iterations 0
+corepack pnpm core-loop:project-coverage --project scalable-arbiter --iterations 0
+```
+
+The final three commands must be serialized. They validate the locked source bytes, materialize an
+isolated protected DUT plus bounded testbench/checker, require golden compile/simulation, and
+persist line, branch, toggle, combined-score and process evidence. The cross-project command uses
+toggle-inclusive scoring while preserving the legacy I2C default. A baseline-only run is readiness
+evidence, not proof that Agent refinement is effective.
 
 ## If Validation Cannot Be Run
 

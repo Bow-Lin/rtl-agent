@@ -1,5 +1,326 @@
 # Error Journal
 
+## 2026-09-21 - Pre-commit contract and generator review repairs
+
+The v2 prompt exposed an annotated enum rejected by its parser and omitted required
+top-level provenance aggregation. Revision v2.1 declares both rules and shares literal
+enum values with validation; new regressions exercise every advertised execution value
+and distinguish missing trajectory from incomplete reference aggregation. The generic
+guide had an undeclared 50-character lower bound; revision 1.1 declares both limits and
+uses one Unicode code-point measure. Historical sources were archived against old receipt
+hashes; historical requests/responses remain unchanged and cannot be reused as new runs.
+
+The I2C generator recursively removed existing output and labeled skipped compilation
+PASS. Review caught both without running generation against the retained datasets. It now
+rejects existing output before loading inputs and uses exclusive publication; skipped
+validation is NOT_RUN. Offline tests preserve an existing sentinel and mock compilation
+to distinguish validated and unvalidated output. Never infer validation from generation.
+
+## 2026-09-20 - Replay Git autocrlf and Icarus option ordering
+
+Baseline v1 passed seven goldens then stopped before its first mutant compile: Git application
+inherited core.autocrlf and rewrote uart_receiver.v to CRLF. The raw mutant digest mismatched;
+LF-normalizing that diagnostic exactly matched the published expected digest. Preserve v1 and
+its original runtime. Pin core.autocrlf=false only on each patch command; an actual patch test
+with scratch core.autocrlf=true now passes. Complete replacement v2 runs all190 without asset edits.
+
+The independent witness v1 completed UART golden/M021, then AES golden compilation interpreted
+a trailing -s as a filename. Preserve its compile failure and original script. Put all Icarus
+options before files, and complete only the previously unexecuted AES pair in a separate recovery
+root with unchanged observer/TB/DUT. Do not rerun the successful UART witness or mix these setup
+failures with baseline kills. Baseline runtime/source/TB hashes remain unchanged.
+
+The shared process file was initially extended before noticing it was one of the old103 runtime
+bindings. No old experiment was executed with that edit; exact original hash was restored and all
+103 rechecked. Future edits must inspect existing runtime bindings before touching reusable helpers.
+
+## 2026-09-19 - Completed batch exposes prompt/validator mismatch
+
+All five authorized provider calls completed normally: G plus four source extractions.
+There was no connection failure. Four source responses were rejected by the frozen gate;
+14 raw drafts and all original failures remain intact, with no repair or replacement call.
+
+Two extraction-contract P2 findings remain open for a future version. The prompt does not
+state that item.evidenceIds must contain trajectory and cover every nested reference; these
+hidden aggregation rules directly reject all three otherwise well-shaped eth items. The
+prompt also offers the literal enum 'not-added (oracle only)' while the parser accepts only
+'not-added'; ufifo uses the offered value twice and openhmc once. Do not attribute these
+contract failures solely to model noncompliance. The generic MISSING_OBSERVATION error can
+mean missing top-level trajectory, not missing observed-event evidence.
+
+Other failures are distinct: versatile misplaces explicitly shown fields and repeats JSON
+keys; ufifo/openhmc wrap their JSON in Markdown despite the only-JSON instruction. Source
+review additionally finds unsupported oracle-execution claims and historical-policy leakage.
+Those semantic problems would not be fixed by stripping fences or adding aggregate refs.
+
+Preserve this frozen run. Before any future extraction, align the published contract and
+validator offline, separate enum values from explanatory prose, expose required reference
+rules and give errors precise field paths. Do not retune the gate to accept these samples.
+Details: exp_result/09.19-v2-prompt-contract-audit.md and per-source extraction-audit.json files.
+
+## 2026-09-19 - First v2 extraction violates schema and evidence levels
+
+The authorized original G+four-source preparation stopped after G and versatile, both complete
+single K3 responses. Versatile failed structural-and-reference-validation before any later source
+call. All five raw items misplace simulatorSemantics, omit oracle.evidenceIds and repeat the
+top-level evidenceIds key. Standard JSON.parse keeps only the last duplicate value; do not repair
+the response silently or treat its parsed object as a faithful lossless representation. Even an
+assumed field relocation leaves incomplete provenance and a missing trajectory reference.
+
+Source-only review also finds observed-oracle claims supported only by aggregate PASS logs,
+incorrect source line attribution, a narrated43 toggle count versus actual45TOGGLE+2LINE residuals,
+and an interface-contract authority tag whose prose admits the expected-value authority is absent.
+Raw output remains rejected/unpublished; no normalization or replacement model call. Original
+response SHA6068335ef62ec17e82f847899c70e65bef68c1617ce9ba7f01bb6e31a6f35281;
+diagnostic audit exp_result/09.19-versatile-v2-extraction-audit.json. Recover only the three original
+unstarted requests under the same totalfive-call authorization; preserve original terminalfailure.
+
+## 2026-09-19 - External v2 preparation requires specific data-transfer authorization
+
+Automatic approval review rejected creation of the prepared five-call Kimi K3 batch before any
+process/model request: user approved next-stage research direction but had not explicitly approved
+transmitting original source RTL, trajectories, logs and specifications to that external service.
+The earlier directed-three-draw approval covered a different concrete payload/batch and does not
+resolve this rejection. Do not bypass with another transport or run partial calls indirectly.
+Prepared input/runtime receipts remain ready; exact5call/data approval asked asynchronously.
+No run-started markers or active locks exist; no model/RTL cost incurred by the rejected launch.
+After approval, the same command must reverify immutable receipts and no-retry budget.
+
+## 2026-09-18 - Usage study A-R3 repeated forbidden alternate DUT configuration
+
+The fixed-v1 usage2x2 queue stopped after sample10 when A-R3's second provider-complete
+turn added a second TopModule. TARGET_EXTRA_DUT_INSTANCE correctly rejected it before
+compile/snapshot. Both provider audits PASSED; this is program/boundary failure, not network.
+As in the earlier rejected target run, do not relax topology to reach excluded specialization
+coverage. Missing execution.json made the outer queue's raw label infrastructure-failed;
+retain raw evidence and add an explicit review reclassification for reporting. Native idle
+inspection confirmed no residual experiment/compiler process. Recover only unstarted D-R3/B-R3
+with unchanged frozen runtime/protocol; never rerun A-R3 or fall back to its earlier success.
+
+
+## 2026-09-17 - UART/AES process recovery and final boundary regression
+
+The interrupted Tiny AES descendants exited naturally before resumption. After FIFO finished,
+replaced preparation's spawnSync wrapper with owned async execution and incrementally persisted
+logs, exclusive marker, FIFO/pause monitoring and bounded tree termination. Restricted Windows
+taskkill in the first isolated process test could not confirm cleanup; its scratch evidence was
+retained. Native Windows tests then confirmed termination of the test's own parent/descendant.
+Fresh Tiny AES v2 and AES Pipeline goldens passed with the documented C++ -O0 build profile;
+the incomplete v1 remains excluded. No old denied process was bypassed or treated as successful.
+
+Final review found the exact parent path produces path.relative == '..', which was not covered
+by the prefix '..<separator>' guard. Added the explicit rejection and a pre-launch regression;
+all 13 focused tests pass. This changes process input validation, not frozen RTL/TB/mutant bytes.
+
+## 2026-09-17 - Cleanup shell guard required Git Bash login environment
+
+Two cleanup attempts stopped before deleting any files because safe_bash_guard.sh could
+not find tr in a non-login Git Bash environment; prepending the Windows tool path did not
+resolve it. A direct Git Bash --login guard check passed. Use that login entry point for
+the guard and harness checks. Actual file deletion stays in PowerShell with literal paths;
+the guard only evaluates the described command. The pending receipt confirmed zero deletions
+before retry, and exact candidate paths/sizes were revalidated on every attempt.
+
+## 2026-09-17 - Interrupted Windows Verilator left compiler descendants
+
+Tiny AES native coverage C++ compilation was still active when an independently started FIFO
+recovery was detected. Scoped taskkill of the verified own Node process stopped Node19648 and
+Verilator20220, but returned Access denied for make/g++/cc1plus descendants. A verified retry
+against the remaining own make15168 also returned Access denied. No FIFO process was targeted.
+spawnSync output persistence only after exit lost a complete compiler outcome when its parent
+was interrupted. Preserve tiny-aes-v1 as incomplete; do not infer coverage success from objects.
+Pause marker prevents new preparation CLI jobs. Before continuation confirm all descendants
+have exited, improve bounded process ownership and incremental evidence, and use a new root.
+Never bypass the denial or continue into another RTL job after unconfirmed process cleanup.
+
+
+## 2026-09-17 - Target fixed configuration escaped through a second TB instance
+
+Dpretet off R1 attempt3 added TopModule FALLTHROUGH FALSE alongside the fixed TRUE instance.
+Protected DUT bytes remained intact, so existing guard accepted it; coverage denominator changed
+and final mutation gains are out-of-protocol. Preserve as diagnostic; add instance/parameter
+validation before controlled continuation. Also frozen attempt3 had four Connection error
+provider responses but exit0/no edits, becoming generic AGENT_FAILED. Classify provider failure
+from captured responses, never infer model refusal or Memory failure from unchanged RTL.
+
+Recovery v2 implements target-only provider completion auditing (including errors after edits),
+seeded-prefix/sole-instance guards and full raw DUT coverage-domain signatures. Both conditions
+share the strengthened spec. Regression tests reject the observed drift and connection traces;
+both unchanged seed baselines pass under the new guards. Old artifacts remain diagnostic.
+
+## 2026-09-14 - Background replay cannot resolve bare Git
+
+First source replay passed golden but spawnSync git returned ENOENT at M001 apply.
+Verified installed C:/Program Files/Git/cmd/git.exe and used fixed Windows executable,
+retaining portable git for Linux. Old063916 diagnostic excluded; fresh064026 replay launched.
+Do not count apply/launch failures as killed or silently overwrite partial evidence.
+
+## 2026-09-13 - Candidate RAM infinite reset loop classified verification-invalid
+
+b-20260912-001 RAM uses reg[2:0] i with for(i=0;i<8;i=i+1). The 3-bit index wraps
+and never reaches8, explaining SIMULATION_TIMEOUT at30922ms. No Provider error.
+Current functional summary treats every simulation timeout as verification-invalid.
+Do not retry to eliminate a genuine candidate failure or silently change score semantics.
+Preserve evidence and obtain protocol decision; no harness or candidate change made.
+
+
+## 2026-09-09 - Reusing another FIFO's almost-full assertion rejected a valid golden
+
+dpretet-v2 golden failed FULL_FLAGS because the reusable smoke assumed full implies almost_full.
+dpretet's look-ahead equality flag has different semantics. Removed that cross-IP implication
+from its standalone TB, retained actual full/data/reset checks, reran from scratch with unchanged
+DUT. Final reviewed-v2 passes Icarus and Verilator. Original diagnostic retained excluded.
+Do not copy reset/empty/almost semantics across FIFO IPs without reviewing the locked contract.
+The smoke does not claim exhaustive almost-flag or CDC verification.
+
+## 2026-09-06 - Bare PowerShell boolean broke a read-only quota check
+
+### Symptom
+
+A non-inference checkpoint failed while constructing its summary object because it assigned
+`userOrExternalRecoverySignal=false`.
+
+### Root Cause
+
+PowerShell boolean literals require the `$` prefix. The bare token was interpreted as a command,
+repeating the broader pattern of overly terse diagnostic syntax already recorded in this journal.
+
+### Fix and Prevention
+
+Reissued the read-only check with `$false`; it confirmed zero related processes, new Batches, logs,
+or recovery evidence. No experiment or Memory state changed. Use `$true` and `$false` explicitly in
+all PowerShell diagnostics and avoid language-neutral literal assumptions.
+
+## 2026-09-05 - Kimi weekly quota censored half of D0-R1 frozen ChipBench arithmetic
+
+### Symptom
+
+D0-R1 frozen ChipBench arithmetic Batch `b-20260904-004` was superficially sealed as
+`COMPLETED`, but only 12/24 Cases compiled. Cases 13 through 24 ended as `NO_RTL_CHANGE` and
+functional not-run; mismatch post-processing also emitted `MISMATCH_ANALYSIS_FAILED`.
+
+### Root Cause
+
+The 12 affected main-Agent transcripts each contain one zero-token HTTP 403 `permission_error`
+stating that the Kimi weekly seven-day quota was exhausted. A thirteenth identical 403 occurred
+during schema repair for mismatch analysis, leaving the placeholder diagnosis invalid. The harness
+process completed cleanly, so its top-level completion status alone did not expose the censored
+experimental condition.
+
+### Fix and Prevention
+
+Exclude the entire Batch rather than retaining the first 12 Cases, and do not start timing or a
+full retry. At a later six-hour check, run exactly one real arithmetic target Case through the same
+frozen `mem-v0008` Selector/Agent path as an excluded recovery canary. Only after that canary returns
+a real non-quota Agent result may the full 24-Case arithmetic condition restart from Case 1. Always
+inspect Provider transcripts when `NO_RTL_CHANGE` appears in a consecutive tail, even if the Batch
+summary says `COMPLETED`.
+
+The `2026-09-05T19:35:48+08:00` recovery canary, Batch `b-20260905-001`, exercised the first
+censored target Case and received the same zero-token weekly-quota 403. It is excluded, no full
+retry followed, and subsequent scheduled checks must remain non-inference until an independent
+quota-reset or purchased-capacity signal exists.
+
+## 2026-08-28 - Kimi weekly quota censored the final 28 G-R2 frozen Cases
+
+### Symptom
+
+G-R2 frozen Batch `b-20260828-001` completed with 28 consecutive `POLICY_VIOLATION` /
+`NO_COMPILE_UNIT` outcomes from Prob129 through Prob156, only 128 Selector records, and a mismatch
+analysis warning.
+
+### Root Cause
+
+Each affected main-Agent transcript contains one zero-token HTTP 403 `permission_error` stating
+that the Kimi weekly seven-day usage limit was reached. The harness then classified the unchanged
+blank workspace as `NO_COMPILE_UNIT`. The mismatch analyzer also left its schema template
+unrepaired after quota exhaustion.
+
+### Fix and Prevention
+
+Exclude the entire Batch; do not splice its first 128 Cases into a full condition and do not start
+the paired off run. During later six-hour checks, make no inference call until credible quota
+recovery evidence exists; `pi-agent-probe` is not sufficient evidence. Once recovered, rerun G-R2
+frozen from Case 1. Inspect Provider transcripts whenever a run suddenly emits fast consecutive
+`NO_COMPILE_UNIT` policy failures.
+
+## 2026-08-28 - Compact PowerShell comparison hid a live process tree
+
+### Symptom
+
+Immediately after starting G-R2 frozen, a read-only descendant inventory printed no process rows
+even though the launch PID and the repository-wide command-line scan showed the experiment alive.
+
+### Root Cause
+
+The diagnostic reused compact syntax such as `Where-Object ProcessId-eq$id`. This is the same unsafe
+PowerShell compression pattern already documented in this journal; parsing did not perform the
+intended property comparison.
+
+### Fix and Prevention
+
+Reissued the inventory with explicit script blocks such as
+`Where-Object { $_.ProcessId -eq $procId }`, which showed PID 9164, its Corepack/Node children, and
+evaluator PID 14484. The error affected only diagnostic display and did not touch the experiment.
+Do not use compact property-comparison syntax in future PowerShell checks.
+
+## 2026-08-27 - Background experiment inherited a network-restricted sandbox
+
+### Symptom
+
+The first complete 156-Case G-R1 Memory-off run finished in about 44 minutes with zero compile
+passes and 156 not-runs. Every Agent result was labeled `POLICY_VIOLATION` / `NO_COMPILE_UNIT`.
+
+### Root Cause
+
+The hidden background `corepack` process was started from a network-restricted Codex shell. All 156
+Provider transcripts contain four `Connection error.` exchanges, for 624 failures and zero tokens.
+No request reached a normal Kimi response, so the downstream workspace guard reported the missing
+RTL rather than the transport cause.
+
+### Fix
+
+Exclude Batch `b-20260825-001` from experiment evidence and pause the queue. Provider-backed runs
+must use an explicitly approved out-of-sandbox network boundary. Before repeating the full Batch,
+run one real Case as a diagnostic canary and require a non-quota Agent/compile outcome.
+
+On 2026-08-27, out-of-sandbox diagnostic Batch `b-20260827-001` passed compile and functional
+simulation with four successful Provider exchanges. This confirmed the execution-boundary diagnosis,
+and the complete G-R1 Memory-off condition was restarted through the approved local boundary.
+
+### Prevention
+
+Do not launch Provider-backed evaluation from the default network-restricted shell. Confirm the
+execution boundary before a full Batch, keep canaries outside accuracy totals, and inspect Provider
+transcripts whenever `NO_COMPILE_UNIT` occurs without a write attempt. Do not confuse this transport
+failure with the separately observed HTTP 403 billing-cycle quota failure.
+
+## 2026-08-23 - Pi capability probe was mistaken for a Provider quota probe
+
+### Symptom
+
+After a frozen-Memory Batch hit Kimi's billing-cycle usage limit, `pi-agent-probe` exited
+successfully. A full 30-Case replacement was started, but it completed with 0 compile passes and 30
+identical HTTP 403 quota failures.
+
+### Root Cause
+
+The capability probe establishes the configured Pi version, Provider/model identity, isolation,
+tools, and configuration digests. Its successful result was incorrectly treated as evidence that
+the Provider would accept normal Selector and Agent inference requests.
+
+### Fix
+
+Exclude the replacement Batch and keep the controlled sequence paused. Use one real evaluation
+Case with the intended frozen snapshot and zero repair as the quota canary before any later full
+Batch.
+
+### Prevention
+
+Do not use configuration or capability probes as billing/quota evidence. After a Provider quota
+failure, require a bounded real-model canary that exercises the same Selector and Agent path; only
+then launch a full evaluation Batch.
+
 ## 2026-08-17 - Timing baseline exposed three non-runnable functional-debug starters
 
 ### Symptom
@@ -1079,3 +1400,132 @@ instead of assigning the loop results to a task-specific collection first.
 Reissue the inventory as `$rows = foreach (...) { ... }; $rows | Format-Table`. For future
 PowerShell diagnostics, do not place a statement-style `foreach` directly before a pipeline.
 No experiment artifact or runtime state was changed by the failed read-only command.
+
+## 2026-08-19 - One generic forbidden word invalidated a complete Memory Build
+
+### Symptom
+
+Memory Build `b-20260819-001` returned `CONSOLIDATION_FAILED` even though Pi produced a valid outer
+schema, covered all 15 Experience indexes, and proposed three independent Memory additions.
+
+### Root Cause
+
+One draft said an output was `observed by the testbench`. The Memory Store's intentionally strict
+validator treated every `testbench` occurrence as possible hidden verification leakage, and the
+Batch-level catch converted that single content failure into an all-or-nothing build failure.
+
+### Fix and Prevention
+
+Apply only an allowlisted semantic-preserving rewrite for passive generic simulation wording before
+content validation. If one `ADD` or `MERGE` still contains forbidden content, convert only that
+operation to `REJECT`; do not publish it and do not block safe sibling operations. Keep all other
+schema, provenance, target, section, and size failures fail-closed. Regression tests cover both the
+safe rewrite and unsafe-operation isolation, and the saved failed build replays to three clean
+Memory items without a model call.
+
+## 2026-08-21 - Kimi reasoning signature failure masqueraded as RTL policy failure
+
+### Symptom
+
+ChipBench Batch `b-20260820-002` passed only two Cases and reported 28 functional non-runs.
+Twenty-three Agent results said `POLICY_VIOLATION` / `NO_COMPILE_UNIT`, even though their turns had
+only read the allowed input files and had not attempted an unsafe write.
+
+### Root Cause
+
+The third Kimi provider request rejected a prior `thinking.signature` with HTTP 400:
+`malformed encrypted reasoning content: invalid base64url encoding`. The response signature used
+standard Base64 characters such as `+` and `/`; the next request endpoint required Base64URL. Pi
+therefore exited before writing RTL, and the downstream workspace guard reported the missing
+compile unit as if it were a policy violation.
+
+### Fix and Prevention
+
+Normalize only Kimi thinking signatures to unpadded Base64URL in `before_provider_request`, record
+the mode in Pi isolation identity, and regression-test both payload immutability and the captured
+actual request. Batch `b-20260820-003` scheduled all 30 Cases and contained zero matching protocol
+errors. When `NO_COMPILE_UNIT` occurs without an attempted write, inspect the provider transcript
+before attributing it to policy enforcement.
+
+## 2026-08-21 - Repeated PowerShell diagnostic parsing mistakes
+
+### Symptom
+
+Two read-only diagnostics again piped a statement-style `foreach` block directly into formatting
+and failed with `An empty pipe element is not allowed`. A later diagnostic interpolated `$file:` in
+a double-quoted string and failed because PowerShell parsed the colon as part of the variable
+reference.
+
+### Root Cause
+
+The commands repeated the already documented direct-`foreach` pipeline pattern and omitted braces
+around a variable immediately followed by punctuation.
+
+### Fix and Prevention
+
+Always assign statement-loop output first (`$rows = foreach (...) { ... }; $rows | ...`) and write
+punctuated variables as `${file}:...`. These failures were read-only and did not change the running
+Batch or experiment artifacts.
+
+## 2026-09-04 - Compact `Join-Path` syntax broke a read-only diagnostic
+
+### Symptom
+
+A Batch-inspection command wrote `Join-Path$b` and adjacent path arguments without required
+PowerShell whitespace, so PowerShell attempted to resolve a nonexistent command such as
+`Join-Path$bsummary.json`.
+
+### Root Cause
+
+The diagnostic was compressed into punctuation-heavy one-line expressions instead of assigning
+each path with normal PowerShell token separation. This repeats the broader pattern of avoidable
+PowerShell parsing failures already recorded above.
+
+### Fix and Prevention
+
+Use explicit statements such as `$summaryPath = Join-Path $batch 'summary.json'` and pass the named
+variables to `Get-Content -LiteralPath`. The corrected command located the invalid functional Case;
+the failed command was read-only and changed no process, Batch, Memory, or experiment artifact.
+
+## 2026-09-07 - Multi-IP fixture diagnostics exposed metadata and pipelined-checker assumptions
+
+### Symptom
+
+The first FIFO materialization failed before Verilator because the generated fixture tags were not
+sorted. The first Scalable Arbiter golden simulation then failed because its checker asserted that
+the registered grant must be a subset of the current request. A direct PowerShell statement-loop
+pipeline used during source digest inspection also repeated the known `foreach` parsing mistake.
+
+### Root Cause
+
+Fixture metadata requires sorted unique tags. The arbiter is explicitly multi-cycle, so grant can
+legitimately remain registered after the requesting testbench cycle changes; the assertion encoded
+a combinational-interface assumption not guaranteed by the DUT. The diagnostic command again used
+a statement-style `foreach` where PowerShell required an assigned result before piping.
+
+### Fix and Prevention
+
+Sort provider tags before schema validation. Check one-hot, select consistency, enable masking and
+bounded expected grants, but do not compare a pipelined grant to the instantaneous request. The
+corrected Arbiter fixture uses `arbiter_x2` and passed a fresh complete golden run. Treat the failed
+and pre-final-score runs as diagnostics only. For PowerShell diagnostics, assign loop output to a
+variable before piping; the failed read was non-mutating.
+
+## 2026-09-08 - Recovery launch preflight assumed the wrong V1 snapshot field and item suffix
+
+### Symptom
+
+The first attempt to start the quota-recovery canary stopped at the Memory guard even though the
+locked `mem-v0008` manifest was intact. No experiment process was created.
+
+### Root Cause
+
+The ad hoc guard checked `catalog.items` and `items/*.json`; the actual V1 snapshot schema stores
+catalog records under `entries` and item bodies as `items/*.md`.
+
+### Fix and Prevention
+
+Inspect the physical snapshot first, then validate `manifest.memory_count`, `catalog.entries`, the
+Markdown item count, and the locked manifest digest. The corrected guard found 13/13/13 and the
+canary completed successfully. Future operational guards must follow the persisted V1 schema rather
+than inferring file extensions.
