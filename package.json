@@ -9,6 +9,7 @@
     "pnpm": "11.13.0"
   },
   "scripts": {
+    "verification:memory": "node tools/mutation/verification-memory-run.ts",
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json --pretty false",
     "test": "vitest run",
