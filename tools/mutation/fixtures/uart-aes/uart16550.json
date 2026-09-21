@@ -1,0 +1,106 @@
+{
+  "id": "uart16550",
+  "family": "uart",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/uart16550",
+  "module": "uart_top",
+  "revision": "2b0ad80d0968f201f95506854ad769c8a44abe2b",
+  "reference": "https://github.com/freecores/uart16550",
+  "license": "LGPL-2.1-or-later (source headers)",
+  "licenseEvidence": [],
+  "files": {
+    "rtl/verilog/uart_top.v": "d5de27df97dab203a05b840b1512e2b6721207132c5eee8e391e4d71bde29fa1",
+    "rtl/verilog/uart_wb.v": "0eee0c8c9fb608a479b1b1629827014cab130cc091f62c16d5075dcb6b7e3a8c",
+    "rtl/verilog/uart_regs.v": "70cf3cc5f7d4e57f52d9f741bdbc11b9cbde1af80514ebe54553b0f7e51364bc",
+    "rtl/verilog/uart_receiver.v": "f452ac46723e755db3faa5ef25ebcaef44e2eec5d263905274adc5b50a5252f0",
+    "rtl/verilog/uart_transmitter.v": "bf5730d5371e15e43a767f20310892a5a6a1f1c15178453e6ca4852f6569d27f",
+    "rtl/verilog/uart_rfifo.v": "ff0d610798cc564d99fed7540a08c943fb6617446cdaf1d897299700037d85c9",
+    "rtl/verilog/uart_tfifo.v": "063cec25a8ebaddeb14865dc7c8eab3c31f52500538dcd108bf6c7235a5782e0",
+    "rtl/verilog/uart_sync_flops.v": "954a36318104b9b0c2a4afd5e4ba18285333320a92f6e22f76d4eee1e08a2c7d",
+    "rtl/verilog/raminfr.v": "543c6e345a8c6ca5aa28ab8bc845c94fd4762c49a5143c0411c4f315a90a22d1",
+    "rtl/verilog/uart_debug_if.v": "1dcb11ee99850778f7b73163493050a57e6d9b98c65265f8ace085a43545417a",
+    "rtl/verilog/uart_defines.v": "4b44d6f9570fec6e7af6de5fe455d67ba1b240885e962003de22b0a3a3aa8402",
+    "rtl/verilog/timescale.v": "e32395dbf32d81190e357000592b0a6775dd9a57f598d843cd801289c7393e43"
+  },
+  "units": [
+    "rtl/verilog/uart_top.v",
+    "rtl/verilog/uart_wb.v",
+    "rtl/verilog/uart_regs.v",
+    "rtl/verilog/uart_receiver.v",
+    "rtl/verilog/uart_transmitter.v",
+    "rtl/verilog/uart_rfifo.v",
+    "rtl/verilog/uart_tfifo.v",
+    "rtl/verilog/uart_sync_flops.v",
+    "rtl/verilog/raminfr.v",
+    "rtl/verilog/uart_debug_if.v"
+  ],
+  "dut": "rtl/verilog/uart_top.v",
+  "tb": "tools/mutation/fixtures/uart-aes/uart16550-golden-tb.sv",
+  "defines": ["DATA_BUS_WIDTH_8"],
+  "mutationFiles": {
+    "rtl/verilog/uart_receiver.v": [
+      [275, 282],
+      [284, 285],
+      [287, 312],
+      [318, 333],
+      [338, 357],
+      [388, 430]
+    ],
+    "rtl/verilog/uart_transmitter.v": [
+      [210, 218],
+      [220, 240],
+      [258, 288],
+      [302, 307],
+      [321, 325],
+      [331, 338],
+      [346, 346]
+    ]
+  },
+  "specification": "8-bit Wishbone registers; 8N1; divisor 2 => 32 clocks/bit; 16-byte FIFOs; independent TX decoder and RX driver; scratch register check",
+  "ancestry": "Alex Gorban/Jacob Gorban 16550 implementation; no cross-repository independence proof",
+  "policyVersion": 2,
+  "excludedMutations": [
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 280,
+      "operator": "bit_constant",
+      "reason": "rbit_in has only a declaration and reset assignment; it has no consumers"
+    },
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 284,
+      "operator": "bit_constant",
+      "reason": "Reset framing flag is overwritten by stop-bit sampling before a FIFO push"
+    },
+    {
+      "file": "rtl/verilog/uart_transmitter.v",
+      "line": 218,
+      "operator": "bit_constant",
+      "reason": "Reset bit_out is overwritten by the FIFO byte before transmission; not an observable fixed-configuration fault"
+    },
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 285,
+      "operator": "bit_constant",
+      "reason": "Reset parity error is cleared by the 8N1 end-bit path before the first received byte"
+    },
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 425,
+      "operator": "reset_offset",
+      "reason": "Delayed push reset value is masked by rf_push=0 and overwritten before any push"
+    },
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 307,
+      "operator": "bit_constant",
+      "reason": "Flipping the compared one-bit constant duplicates the equality-to-inequality operator at this site"
+    },
+    {
+      "file": "rtl/verilog/uart_receiver.v",
+      "line": 299,
+      "operator": "bit_constant",
+      "reason": "Flipping the compared one-bit constant duplicates the equality-to-inequality operator at this site"
+    }
+  ]
+}

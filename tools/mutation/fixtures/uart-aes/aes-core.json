@@ -1,0 +1,34 @@
+{
+  "id": "aes-core",
+  "family": "aes",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/aes_core",
+  "module": "aes_cipher_top",
+  "revision": "0d81d6e0758c634c8db7c8348d7653fa20c58639",
+  "reference": "https://github.com/freecores/aes_core",
+  "license": "Source-header permission with notice/disclaimer retention (Rudolf Usselmann)",
+  "licenseEvidence": [],
+  "files": {
+    "rtl/verilog/aes_cipher_top.v": "ab39a4a094dc8cfde90fcaa4c1aaf7dc9bf75b57ed762e11a985b88f6b23996c",
+    "rtl/verilog/aes_key_expand_128.v": "bf06921c6fe80a69674f8b38160e8d677e1c4cc1a96befee2ac136bed3fe48c6",
+    "rtl/verilog/aes_rcon.v": "ff2410b3978c16916ba49a74dd6754783b54d1654737f601da05464bd1d02680",
+    "rtl/verilog/aes_sbox.v": "7febc2e86f45cf35983c43ba1e4d29a18779dc257898cbf538b3c42d043c2d8d",
+    "rtl/verilog/timescale.v": "0833b736793bc11f640ed66357614c0f5cf30a548a7e515333b1e46438b2cb6b"
+  },
+  "units": [
+    "rtl/verilog/aes_cipher_top.v",
+    "rtl/verilog/aes_key_expand_128.v",
+    "rtl/verilog/aes_rcon.v",
+    "rtl/verilog/aes_sbox.v"
+  ],
+  "dut": "rtl/verilog/aes_cipher_top.v",
+  "tb": "tools/mutation/fixtures/uart-aes/aes-core-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "rtl/verilog/aes_cipher_top.v": [[102, 290]],
+    "rtl/verilog/aes_key_expand_128.v": [[69, 80]]
+  },
+  "specification": "AES-128 encryption; synchronous active-low reset; pulse ld, wait bounded done; 16 fixed vectors, reset between vector groups",
+  "ancestry": "Rudolf Usselmann iterative implementation; shared AES algorithm is not independent ancestry evidence",
+  "policyVersion": 2
+}

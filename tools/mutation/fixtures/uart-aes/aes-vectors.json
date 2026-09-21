@@ -1,0 +1,85 @@
+{
+  "reference": "FIPS-197 two known answers cross-check Node/OpenSSL AES-128-ECB; remaining fixed SHA-derived inputs",
+  "vectors": [
+    {
+      "key": "000102030405060708090a0b0c0d0e0f",
+      "plaintext": "00112233445566778899aabbccddeeff",
+      "ciphertext": "69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "key": "2b7e151628aed2a6abf7158809cf4f3c",
+      "plaintext": "3243f6a8885a308d313198a2e0370734",
+      "ciphertext": "3925841d02dc09fbdc118597196a0b32"
+    },
+    {
+      "key": "00000000000000000000000000000000",
+      "plaintext": "00000000000000000000000000000000",
+      "ciphertext": "66e94bd4ef8a2c3b884cfa59ca342b2e"
+    },
+    {
+      "key": "8a87a4b07967f829fe88bc456bd0dfec",
+      "plaintext": "657291374d4b0aa82d44978f9fa54937",
+      "ciphertext": "0f45136ba1697655e8d33a720949463b"
+    },
+    {
+      "key": "bb34019cd0a9aada0363acc328a6d84c",
+      "plaintext": "a11ef143dd82c6197f0acd09d5e68745",
+      "ciphertext": "49c8b710b4d6ef4db472edc0aca8c6fa"
+    },
+    {
+      "key": "a0f6cbfae295403fd035afd87fe2cf80",
+      "plaintext": "f7857dcfa185cbeb50ba5b92c7ec3b11",
+      "ciphertext": "328a0caad5a1cf76c131be13e100428a"
+    },
+    {
+      "key": "b52ca34c63e0bbb6e4fe1c4fccbb1afc",
+      "plaintext": "e61e932dc6dad2f51eea54902efc3247",
+      "ciphertext": "eafbb9b52d17db76489eab95737f82d0"
+    },
+    {
+      "key": "f710d8ce9754666e0b88df4282067ab5",
+      "plaintext": "50d639451cd2dbd230a1ca785830b312",
+      "ciphertext": "1676e51ff41b409f09ba276e912cd889"
+    },
+    {
+      "key": "025054652d4f9628289bf960ec48d61f",
+      "plaintext": "b1cd68961b30d85ae26f6fa7465b4656",
+      "ciphertext": "e25b36b71ffc99162faabbe077f9fa2f"
+    },
+    {
+      "key": "fbe6518c762f6e507c1556d8eec7bc9b",
+      "plaintext": "f33683adde221a28ac28eac063df70e7",
+      "ciphertext": "90fe21f8fb111f0507263a252e3ed821"
+    },
+    {
+      "key": "9c8a6d056cccf1c2acf36311e54a114d",
+      "plaintext": "e03f186f9ad65768f9c5563b5ad58bda",
+      "ciphertext": "41940c910af5c005afc2f12a157936de"
+    },
+    {
+      "key": "46d56d7880adf74e954b2b22e928897e",
+      "plaintext": "7b7b9a9b6e89fd8a32b0b83df1a92bb5",
+      "ciphertext": "accb66806f74bf53e677f99dd6a36bfd"
+    },
+    {
+      "key": "a1683e369c34a32bd54aa2ebfacc5d6d",
+      "plaintext": "c0a11596484b49cbdcc81873062b0fbe",
+      "ciphertext": "1ba63b30f8642777cbda9c55a1a3bef9"
+    },
+    {
+      "key": "c4f9422b89c845417d355c9269f2ff4e",
+      "plaintext": "fe9c05a016b21081b4340c7d5745eee9",
+      "ciphertext": "1298ae31cf3ba765e0144b63072ad5c1"
+    },
+    {
+      "key": "319a697b84532aea1353fc1bdb40d06b",
+      "plaintext": "f09cb8f7e95be28816ef0c5aedc62d99",
+      "ciphertext": "a1a483303202dd9d76923e174412bf5b"
+    },
+    {
+      "key": "e9025dd38c47ba40e9a6ec14ef6e3310",
+      "plaintext": "0e18801ca46dca7bfdf909f3ab855f0f",
+      "ciphertext": "5e8691a2349486da5fd00da8fc00ce44"
+    }
+  ]
+}

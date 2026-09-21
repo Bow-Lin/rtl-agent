@@ -1,0 +1,24 @@
+{
+  "id": "osdvu",
+  "family": "uart",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/osdvu",
+  "module": "uart",
+  "revision": "f955ae67f278de024b72288a4bdd9f0a985ed55b",
+  "reference": "https://github.com/freecores/osdvu",
+  "license": "MIT (full source header)",
+  "licenseEvidence": [],
+  "files": {
+    "uart.v": "a6b9de90e25d3835c622d2d4db163d64a8c3267260e3d1fb5c0a47a3fbf3c234"
+  },
+  "units": ["uart.v"],
+  "dut": "uart.v",
+  "tb": "tools/mutation/fixtures/uart-aes/osdvu-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "uart.v": [[85, 225]]
+  },
+  "specification": "CLOCK_DIVIDE=4; 16 clocks/bit; 8 data bits, TX two stop bits; native byte handshake and RX status; no inferred parity support",
+  "ancestry": "Timothy Goddard documented UART; full ancestry comparison pending",
+  "policyVersion": 2
+}

@@ -1,0 +1,34 @@
+{
+  "id": "uart2bus-uart",
+  "family": "uart",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/uart2bus",
+  "module": "uart_top",
+  "revision": "f85211ec749895de51a3eaaff620b17c00a5f41a",
+  "reference": "https://github.com/freecores/uart2bus",
+  "license": "BSD (OpenCores project metadata; variant not specified)",
+  "licenseEvidence": [],
+  "files": {
+    "verilog/rtl/uart_top.v": "b26c1232aea5434e0fadb8145b857d3de0f4dde8a2ee466ae855596bcb76d825",
+    "verilog/rtl/uart_tx.v": "b39a57ce8d7a1752a5fecaa9c145666973c4684a626a2c6b80fffd676733ffcf",
+    "verilog/rtl/uart_rx.v": "eca57ade813d467b6e6b5e183cef3783d6e5ee9fe8d3f545e09868b9d83590c4",
+    "verilog/rtl/baud_gen.v": "4e874c5bbf70b1d6356d7b143f9eadef823d69eabf69f4be2ffb9fec80e362a2"
+  },
+  "units": [
+    "verilog/rtl/uart_top.v",
+    "verilog/rtl/uart_tx.v",
+    "verilog/rtl/uart_rx.v",
+    "verilog/rtl/baud_gen.v"
+  ],
+  "dut": "verilog/rtl/uart_top.v",
+  "tb": "tools/mutation/fixtures/uart-aes/uart2bus-uart-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "verilog/rtl/uart_tx.v": [[30, 110]],
+    "verilog/rtl/uart_rx.v": [[35, 135]],
+    "verilog/rtl/baud_gen.v": [[35, 65]]
+  },
+  "specification": "UART engine only, no parser/bus bridge; baud_freq=1, baud_limit=3 => 64 clocks/bit; 8N1; native byte handshake",
+  "ancestry": "UART interface derived from OpenCores c16 per upstream specification; wrapper/parser excluded; full ancestry comparison pending",
+  "policyVersion": 2
+}

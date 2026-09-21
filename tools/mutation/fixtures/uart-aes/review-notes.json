@@ -1,0 +1,19 @@
+{
+  "reviewer": "Codex static source review; human/formal confirmation remains pending",
+  "method": "Inspect all selected original/mutated lines and surrounding executable paths against the locked configuration. Exclude comments, dormant parameter branches, overwritten reset sites and obvious comparator duplicates before frontend-only selection. No mutant simulation, kill score or coverage ranking is used.",
+  "ips": {
+    "uart16550": "Reviewed 30 v4 sites in RX start qualification, sample/end-bit counters, FIFO push pulse/reset, framing status, TX start/data/stop counters, idle output and baud enable. Parity/short-word branches are outside scope. Excluded reset-only unused/overwritten sites and one-bit equality duplicates explicitly in config. M025 reset rf_push can create a spurious push after reset; no claim that the seed TB necessarily observes it before FIFO reinitialization.",
+    "wbuart32": "Reviewed 30 v3 sites in RX idle/break synchronization, frame status, pre-write/write strobes, state transitions, TX busy/start and baud counters. Selected state branches are live for 8N1. The half-baud reset and unused shift-fill bit were excluded. M024 reset framing status has an externally connected status path, but its practical post-reset observability still needs independent review. Shared ufifo and FORMAL-only code are excluded from mutation.",
+    "osdvu": "Reviewed all 10 candidates: RX start qualification, receive countdown gates, RX/TX divider gates, transmit acceptance, bit countdown and remaining-bit condition. Preserve the original two-stop-bit TX behavior. Blocking-assignment datapath/counters are not covered by the inherited FIFO lexical selector; report 10/30 without extending operators or adding dormant faults.",
+    "uart2bus-uart": "Reviewed 30 sites in RX busy state, midpoint sampling, byte capture/strobe, TX start/serial output, data shift/bit-count completion, oversampling counters and baud accumulation. Only the four UART engine modules are included; parser and bus transactions are excluded. Active-low logic expressions and synchronous reset guards were checked against the fixed 8N1 configuration.",
+    "aes-core": "Reviewed 30 sites in round countdown, load capture, active-low reset, done expression, round/state XOR and 128-bit key expansion. Encryption-only units selected; decryption RTL is excluded. Multiple XOR replacements on one source line have distinct columns and patched digests. These alter operand-combination points; exact semantic non-equivalence is not formally proved.",
+    "tiny-aes": "Reviewed all 30 sites: 29 XOR-to-OR replacements in round/key expansion/initial AddRoundKey and one input-key transfer LSB flip. All are in instantiated AES-128 round or key logic; no reset/valid interface is invented. A source site may affect repeated round instances. Distinct text/digests do not prove pairwise semantic distinction; no mutation score was used.",
+    "aes-pipeline": "Reviewed 30 sites in reset-valid flags, valid gating, staged key transfers, MixColumns byte XOR and round-key expansion. DATA_W/KEY_L=128 and NO_ROUNDS=10 instantiate the reviewed paths. Reset-valid mutations can propagate spurious transactions; output/key mutations can corrupt ciphertext. Key/data valid alignment and pipeline bubbles are contractual; no exact mutant latency or kill claim is inferred."
+  },
+  "limitations": [
+    "Static review is a fault-hypothesis screen, not a human or formal proof of non-equivalence.",
+    "A valid fault can survive the bounded golden seed test; no survivor-based rejection is allowed.",
+    "No formal proof of implementation independence; retain upstream ancestry notes and shared-code caveats.",
+    "All executable evidence currently comes from Windows; no formal Linux Gate acceptance."
+  ]
+}

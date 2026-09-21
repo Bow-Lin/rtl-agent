@@ -1,0 +1,27 @@
+{
+  "id": "tiny-aes",
+  "family": "aes",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/tiny_aes",
+  "module": "aes_128",
+  "revision": "faf2afb2bcb6c3247c00d6bd7129b31b4fff91fb",
+  "reference": "https://github.com/freecores/tiny_aes",
+  "license": "Apache-2.0",
+  "licenseEvidence": ["LICENSE"],
+  "files": {
+    "rtl/aes_128.v": "6507f2c74cb288e94ae51b2034b2669261893b39067bef3189b2f1a138a8ce52",
+    "rtl/round.v": "a9c7504563285ded97dc072a653547938b457ea1918b006651d168c61a4ef362",
+    "rtl/table.v": "36171c0297f95a036285d418b9be3a0d4c4d4e5248a8f0a6133ed7956b37b157"
+  },
+  "units": ["rtl/aes_128.v", "rtl/round.v", "rtl/table.v"],
+  "dut": "rtl/aes_128.v",
+  "tb": "tools/mutation/fixtures/uart-aes/tiny-aes-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "rtl/aes_128.v": [[25, 103]],
+    "rtl/round.v": [[18, 82]]
+  },
+  "specification": "AES-128 encryption; no reset/valid; 21-edge fixed pipeline; 16 back-to-back blocks with independently computed expected output",
+  "ancestry": "Homer Hsing pipelined table-based implementation; compare with existing AES before assigning roles",
+  "policyVersion": 2
+}

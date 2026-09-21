@@ -1,0 +1,63 @@
+{
+  "id": "wbuart32",
+  "family": "uart",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/wbuart32",
+  "module": "wbuart",
+  "revision": "f43a6b83c3a70fb2ac0696a45c5545b233fb860b",
+  "reference": "https://github.com/ZipCPU/wbuart32",
+  "license": "GPL-3.0-or-later",
+  "licenseEvidence": ["LICENSE"],
+  "files": {
+    "rtl/wbuart.v": "9733247cdf577e41f317109b08d973f7b0a061e6566d9afdbdb915d778db1ce9",
+    "rtl/rxuart.v": "6d7764726b82bf6daa3272f54d1a4e8496baba5501fdadc8095acdef68c27bbd",
+    "rtl/txuart.v": "740162a836b695b4cda844c557a6aa94d02c8a0386f4d40d59c77ebf2f850cba",
+    "rtl/ufifo.v": "83c8894d6b36cebd33ade16d117a0eb6f7dc183e84eb17818edda48330cf0af5"
+  },
+  "units": ["rtl/wbuart.v", "rtl/rxuart.v", "rtl/txuart.v", "rtl/ufifo.v"],
+  "dut": "rtl/wbuart.v",
+  "tb": "tools/mutation/fixtures/uart-aes/wbuart32-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "rtl/rxuart.v": [
+      [174, 204],
+      [216, 267],
+      [298, 329],
+      [337, 346],
+      [349, 356],
+      [377, 379],
+      [438, 472],
+      [477, 494],
+      [503, 527]
+    ],
+    "rtl/txuart.v": [
+      [206, 208],
+      [213, 219],
+      [225, 236],
+      [240, 245],
+      [272, 292],
+      [315, 319],
+      [321, 321],
+      [405, 408],
+      [413, 425],
+      [438, 438]
+    ]
+  },
+  "specification": "Wishbone pipelined single-beat; INITIAL_SETUP=32, LGFLEN=4, HARDWARE_FLOW_CONTROL_PRESENT=0; 8N1; 32 clocks/bit; serial TX/RX checks",
+  "ancestry": "Contains ufifo used in existing FIFO family; do not treat families as code-disjoint; mutate UART engines only",
+  "policyVersion": 2,
+  "excludedMutations": [
+    {
+      "file": "rtl/txuart.v",
+      "line": 292,
+      "operator": "bit_constant",
+      "reason": "Shift-register fill bit arrives after the eight transmitted data bits and is not observed in 8N1"
+    },
+    {
+      "file": "rtl/rxuart.v",
+      "line": 253,
+      "operator": "bit_constant",
+      "reason": "Reset half_baud_time is ignored in RXU_RESET_IDLE and recomputed before transition to receive state"
+    }
+  ]
+}

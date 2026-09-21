@@ -1,0 +1,151 @@
+{
+  "reviewer": "Codex evaluator-side source/checker review; not human or formal equivalence proof",
+  "baseline": ".rtl-agent/family-replays/uart-aes-baseline-20260920-v2",
+  "fatalRules": {
+    "uart16550:RX_DATA": "Wishbone RX data is compared after data-ready polling and an acknowledged read; valid 8N1 frames and matching pattern index. Samples are on falling edges, after DUT positive-edge updates.",
+    "uart16550:RX_STATUS": "LSR error bits 4:1 must be clear for these well-formed 8N1 frames after data-ready. No parity/error stimulus is injected.",
+    "uart16550:RX_TIMEOUT": "Completed, well-formed serial frame followed by 80 bounded acknowledged LSR reads does not produce ready; a transaction-completion failure at the fixed baud configuration, not host timeout.",
+    "wbuart32:RX_DATA": "RX FIFO nonempty interrupt precedes the acknowledged RX-register read; compare low eight data bits and empty bit 8. Other status bits are outside this checker.",
+    "wbuart32:RX_TIMEOUT": "After a full legal frame and idle bit the TB waits up to 12 more bit periods for RX availability. Fixed 32-clock baud and no backpressure make this a missing completion.",
+    "osdvu:RX_DATA": "Byte output is compared only when received is asserted, at falling clock edge; eight legal frames with the two-stop-bit receive schedule used by the frozen fixture.",
+    "uart2bus-uart:RX_DATA": "Byte output is compared only on new_rx_data at falling clock edge, with fixed baud_freq=1/baud_limit=3 and legal 8N1 input frames.",
+    "uart:TX_DATA": "Independent serial decoder samples eight bit centers after a start edge, compares the requested byte sequence, and rejects extra frames. Samples occur away from DUT positive-edge updates. Unknown serial bits are failures in this Icarus four-state evaluator.",
+    "uart:TX_STOP": "Independent decoder observes a low/unknown value at the center of a required stop bit under the fixed word/baud/stop-bit configuration.",
+    "uart:TX_START": "Serial falling edge does not remain low to the middle of the configured start bit, violating the transmitted frame; no reset overlaps this check.",
+    "uart:UART_COUNTS": "Eight accepted TX requests and eight complete legal RX frames, followed by 15 bit periods of drain, must yield eight decoded/received bytes. Fixed baud and no external flow-control stall; a missing or extra transaction is functional.",
+    "aes-core:AES_DATA": "Ciphertext compared only after done is exactly 1, at falling edge after the RTL's positive-edge/#1 updates. Expected FIPS/independent AES-128-ECB values are frozen. Unknown valid ciphertext is an Icarus four-state functional failure.",
+    "aes-core:AES_TIMEOUT": "A one-cycle load with stable 128-bit key/plaintext and deasserted active-low reset must finish within 40 clocks; the locked 10-round countdown normally completes far sooner. This is a cycle-bounded protocol check, not host timeout.",
+    "tiny-aes:AES_DATA": "No valid/reset port exists. Compare only 21-edge pipeline outputs for the 16 accepted cycle positions, two ns after rising edge; do not compare initial fill or drain garbage.",
+    "aes-pipeline:AES_DATA": "Compare only with reset deasserted and valid_out asserted, at falling edge; key/data valid inputs are paired, each expected value follows accepted input order.",
+    "aes-pipeline:AES_COUNT": "All 16 paired-valid input blocks have been submitted with fixed legal bubbles, followed by 100 clocks of drain, exceeding the locked pipeline depth. Missing valid outputs violate transaction completion; no ciphertext is sampled on invalid cycles."
+  },
+  "survivors": {
+    "uart16550/M002": {
+      "status": "unresolved",
+      "finding": "起始条件由 AND 改为 OR，可能在 idle/break 路径改变起始资格；理想整帧最终仍正确。",
+      "next": "在不改变波特率/字长的前提下核查短脉冲、break 恢复与连续帧；先明确合法线路条件。"
+    },
+    "uart16550/M004": {
+      "status": "unresolved",
+      "finding": "TX enable 极性翻转；当前 divisor=2 时正反 enable 频率相同，仅有相位差，不能直接认定为有效故障。",
+      "next": "审查固定 divisor=2 下是否存在外部协议差异；不能改 divisor 后冒充本配置见证。"
+    },
+    "uart16550/M010": {
+      "status": "unresolved",
+      "finding": "RX enable 极性翻转；当前 divisor=2 下可能主要移动采样相位，现有理想帧未区分。",
+      "next": "依据明确的合法波特率偏差/输入相位约束寻找见证；无见证则继续 unresolved。"
+    },
+    "uart16550/M012": {
+      "status": "unresolved",
+      "finding": "FIFO push 从上升沿脉冲改为与延迟值相与，可能改变入队时机/次数；当前稀疏帧结果一致。",
+      "next": "检查逐帧 push 次数与合法连续 RX/FIFO 边界，不把内部脉冲差异本身当作功能差异。"
+    },
+    "uart16550/M021": {
+      "status": "witnessed-functional-difference",
+      "finding": "独立合法双帧入队见证中，第一帧停止位中心读到 0；golden 同一见证通过。冻结 TB 的长帧间隔掩盖了停止计数提前结束。",
+      "next": "保留 baseline survived；以后独立定义连续发送激励，不回写本轮 TB。",
+      "witness": ".rtl-agent/family-replays/uart-aes-witness-20260920-v1/uart16550"
+    },
+    "uart16550/M025": {
+      "status": "unresolved",
+      "finding": "复位将 rf_push 置 1，理论上可能形成伪入队；当前 TB 在配置后清 FIFO，可能抹去差异。",
+      "next": "独立核查复位结束到软件清 FIFO 之间的有效状态/数据读取契约。"
+    },
+    "wbuart32/M004": {
+      "status": "unresolved",
+      "finding": "frame-error reset 极性翻转，可能在正常运行时持续清错误；基线只发送正确帧，未检查 framing-error 响应。",
+      "next": "先界定畸形停止位的规格响应，再以合法总线读取时机核查外部错误状态。"
+    },
+    "wbuart32/M006": {
+      "status": "unresolved",
+      "finding": "r_setup 更新条件由 !busy 改为 busy；本配置与 TB 始终固定 setup，差异可能未激活。",
+      "next": "判断固定配置下是否等价；不得把改变字长/波特率的结果并入本基线。"
+    },
+    "wbuart32/M007": {
+      "status": "unresolved",
+      "finding": "复位 chg_counter 从 0 改为 1，影响线路稳定/break 资格的边界；长初始 idle 未区分。",
+      "next": "核查规格允许的复位释放与首帧间隔及边界条件。"
+    },
+    "wbuart32/M010": {
+      "status": "unresolved",
+      "finding": "frame-error 置位条件 AND 改为 OR；TB 不检查 RX 状态 bit 10。注意当前顶层把瞬时 rx_ferr 而非累积 r_rx_ferr 接到总线，不能仅凭内部错误标志认定有效缺口。",
+      "next": "寻找在有效、合法总线读取周期可观察的错误状态差异。"
+    },
+    "wbuart32/M013": {
+      "status": "unresolved",
+      "finding": "发送启动 baud counter 从 period-1 改为 period+1；当前中心采样仍解码正确。",
+      "next": "依据固定波特率的容差/起始位宽契约检查是否存在功能性违规，而非仅内部时序差异。"
+    },
+    "wbuart32/M015": {
+      "status": "unresolved",
+      "finding": "线路变化时 chg_counter 清 1 而非清 0；理想数据未触及 idle/break 阈值。",
+      "next": "审查 break 与恢复的合法边界见证。"
+    },
+    "wbuart32/M019": {
+      "status": "unresolved",
+      "finding": "RXU_STOP 判断取反；在固定单停止位下，原 STOP 分支与落入的 SECOND_STOP 分支在低线/高线时可能产生相同转移，疑似配置内冗余。",
+      "next": "优先做固定 8N1 下的状态/有效输出等价审计；当前没有形式化结论。"
+    },
+    "wbuart32/M020": {
+      "status": "unresolved",
+      "finding": "last_state 极性翻转改变末位和普通位重载的 -1/-2 补偿，中心采样仍通过。",
+      "next": "对照发送端规格的合法接收窗口/连续帧时序，确认容差内变化还是功能错误。"
+    },
+    "wbuart32/M023": {
+      "status": "unresolved",
+      "finding": "RESET_IDLE 保持状态从 0xe 变成 0xf(IDLE)，可能提前允许接收；长初始 idle 掩盖差异。",
+      "next": "在固定配置下核查复位释放后的线路资格条件，避免过强的初始空闲约束。"
+    },
+    "wbuart32/M024": {
+      "status": "unresolved",
+      "finding": "frame-error 复位值改为 1，但随后 idle 清零，且该状态并非在所有周期都有效；不能以复位内部值不同直接判为非等价。",
+      "next": "寻找合法有效状态读取窗口；与 M010 一样追到顶层可观察输出。"
+    },
+    "wbuart32/M025": {
+      "status": "unresolved",
+      "finding": "line_synch 的稳定时长和高电平资格由 AND 改为 OR，可能缩短恢复等待；名义帧前的长 idle 未覆盖。",
+      "next": "审查 reset/break 后合法首帧边界；不把任意非法输入引发的不同状态算作缺口。"
+    },
+    "wbuart32/M030": {
+      "status": "unresolved",
+      "finding": "停止位错误后的 RESET_IDLE 被改为 IDLE；基线没有 framing-error 恢复序列。",
+      "next": "先锁定错误帧与恢复语义，再检查后续合法帧是否发生可观察差异。"
+    },
+    "osdvu/M007": {
+      "status": "unresolved",
+      "finding": "RX_CHECK_START countdown 判断取反，提前接受起始位；当前稳定完整帧仍正确。",
+      "next": "按源码明示的半位起始资格审查短脉冲/输入相位边界，尚无独立差异见证。"
+    },
+    "uart2bus-uart/M005": {
+      "status": "unresolved",
+      "finding": "4 位 oversample counter 加一改减一，改变 ==7/==15 的相位，周期仍为 16；当前理想帧解码相同。",
+      "next": "依据合法输入时序容差核查采样/valid 时刻，不能仅以计数器变化宣称非等价。"
+    },
+    "aes-pipeline/M001": {
+      "status": "unresolved",
+      "finding": "RoundKeyGen 输出 valid 的复位值改为 1；其他数据有效信号可能屏蔽该内部差异。",
+      "next": "比较顶层 valid 及仅有效周期密文，核查复位释放/中途复位；内部 valid 变化不作证据。"
+    },
+    "aes-pipeline/M006": {
+      "status": "unresolved",
+      "finding": "MixColumns valid 复位值改为 1；轮密钥/数据有效条件可能屏蔽。",
+      "next": "寻找顶层合法有效事务差异，或检查固定配置下等价性。"
+    },
+    "aes-pipeline/M011": {
+      "status": "witnessed-functional-difference",
+      "finding": "保持原 TB 和全部刺激不变的被动上升沿观察显示：55 ns reset 已释放、输入尚未接受时，mutant valid_out=1；golden 无此事件。原 TB 只在下降沿检查，漏过这次伪事务。",
+      "next": "baseline 仍为 survived；这是同步消费者可见的 post-reset valid 违约，不是比较复位期间的无效密文。",
+      "witness": ".rtl-agent/family-replays/uart-aes-witness-20260920-aes-recovery-v1/aes-pipeline"
+    },
+    "aes-pipeline/M016": {
+      "status": "unresolved",
+      "finding": "RoundKeyGen 第三阶段 valid_round_key 复位值改为 1，未在原 TB 顶层有效输出中体现。",
+      "next": "跟踪有效链路与复位后输入对齐，不能用未使能的内部 key 值判故障。"
+    },
+    "aes-pipeline/M021": {
+      "status": "unresolved",
+      "finding": "RoundKeyGen valid_FirstStage 复位值改为 1；潜在的内部伪密钥事务可能被数据有效链路屏蔽。",
+      "next": "核查合法复位/首帧序列，或保留为配置内等价性待审项。"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "version": "uart-aes-preparation-v1",
+  "seed": 42,
+  "modelCalls": false,
+  "sourceTargetAssignment": "pending",
+  "ips": [
+    {
+      "id": "uart16550",
+      "family": "uart",
+      "preparation": ".rtl-agent/family-prepared/uart16550-v4"
+    },
+    { "id": "wbuart32", "family": "uart", "preparation": ".rtl-agent/family-prepared/wbuart32-v3" },
+    { "id": "osdvu", "family": "uart", "preparation": ".rtl-agent/family-prepared/osdvu-v1" },
+    {
+      "id": "uart2bus-uart",
+      "family": "uart",
+      "preparation": ".rtl-agent/family-prepared/uart2bus-uart-v1"
+    },
+    { "id": "aes-core", "family": "aes", "preparation": ".rtl-agent/family-prepared/aes-core-v1" },
+    { "id": "tiny-aes", "family": "aes", "preparation": ".rtl-agent/family-prepared/tiny-aes-v2" },
+    {
+      "id": "aes-pipeline",
+      "family": "aes",
+      "preparation": ".rtl-agent/family-prepared/aes-pipeline-v1"
+    }
+  ],
+  "reused": [
+    {
+      "id": "aes-highthroughput-lowarea",
+      "family": "aes",
+      "revision": "cf0bb8d68a8f6f3b32818cff0942d89bd4d16233",
+      "baseline": ".rtl-agent/project-coverage-runs/aes-128-datapath/run_20260907-224052-915",
+      "baselineManifest": "evidence/baseline-manifest.json",
+      "note": "Reference existing locked baseline without regeneration. No new mutants for this reused implementation."
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "aes-pipeline",
+  "family": "aes",
+  "role": "unassigned",
+  "root": ".rtl-agent/datasets/verification-transfer/aes-128_pipelined_encryption",
+  "module": "Top_PipelinedCipher",
+  "revision": "c503d0d12d9c45d543fe958590c10193d1b95162",
+  "reference": "https://github.com/freecores/aes-128_pipelined_encryption",
+  "license": "LGPL (OpenCores project metadata; version not specified)",
+  "licenseEvidence": [],
+  "files": {
+    "rtl/Top_PipelinedCipher.v": "6a69714342740e1624412c175cff63d3ac76cb9cffe8b36180b8331d6cff9bcf",
+    "rtl/SubBytes.v": "d1e7b3f75867ad6efa068e2f533b4baf9a106d50ee834a4bf51e55aadcd53275",
+    "rtl/ShiftRows.v": "e7923e45dfa4d6a28e5c1601a898d5cea7fac516efcf8c7fbfe5cc39319cabe3",
+    "rtl/SBox.v": "9f482303ee7b2c7c97ea1f57650769ed1b9c2665dad3a82b3e47a911a0a5dee1",
+    "rtl/RoundKeyGen.v": "b3eb9c81bb4b66e2b08bb94027f0a72cd7d0b467bc17b46c79c13f0a32f5bd56",
+    "rtl/Round.v": "34c17a0013274c4023c99b63a25d1cfea94d2407ee50dcb2817e3b843a837b31",
+    "rtl/MixColumns.v": "94b8beff88e96e3ddc455bf5fda39b65f1116dede5a958008d2632d0838eb5f3",
+    "rtl/KeyExpantion.v": "4d216e903fd4d0fe4f04a7348297f1d8fb36560395fe2a3181849ad4727597a0",
+    "rtl/AddRoundKey.v": "4030056444de5a0fe63d354d433809fa33bcff9d723f808ebc831b6e8f1fb41a"
+  },
+  "units": [
+    "rtl/Top_PipelinedCipher.v",
+    "rtl/SubBytes.v",
+    "rtl/ShiftRows.v",
+    "rtl/SBox.v",
+    "rtl/RoundKeyGen.v",
+    "rtl/Round.v",
+    "rtl/MixColumns.v",
+    "rtl/KeyExpantion.v",
+    "rtl/AddRoundKey.v"
+  ],
+  "dut": "rtl/Top_PipelinedCipher.v",
+  "tb": "tools/mutation/fixtures/uart-aes/aes-pipeline-golden-tb.sv",
+  "defines": [],
+  "mutationFiles": {
+    "rtl/Top_PipelinedCipher.v": [[75, 94]],
+    "rtl/AddRoundKey.v": [[30, 100]],
+    "rtl/MixColumns.v": [[30, 210]],
+    "rtl/RoundKeyGen.v": [[35, 210]]
+  },
+  "specification": "AES-128 encryption; DATA_W=KEY_L=128, NO_ROUNDS=10; asynchronous active-low reset; paired data/key valid, bubbles, 16 ordered outputs",
+  "ancestry": "Amr Salah four-stage-per-round pipeline; no independent ancestry claim yet",
+  "policyVersion": 2
+}
